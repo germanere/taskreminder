@@ -230,3 +230,150 @@ async def get_liquidations(symbol: str = "BTC"):
 @app.get("/health")
 def health():
     return {"status": "ok", "time": datetime.now(ICT).isoformat()}
+
+# ─────────────────────────────────────────────
+# TELEGRAM ALERTS
+# ─────────────────────────────────────────────
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "")
+
+# Ngưỡng cảnh báo — đổi qua env var
+BTC_MIN   = float(os.getenv("BTC_MIN", "60000"))
+BTC_MAX   = float(os.getenv("BTC_MAX", "75000"))
+ETH_MIN   = float(os.getenv("ETH_MIN", "2800"))
+ETH_MAX   = float(os.getenv("ETH_MAX", "4500"))
+CHANGE_PCT = float(os.getenv("CHANGE_PCT", "3.0"))   # % biến động mạnh
+USD_MIN   = float(os.getenv("USD_MIN", "24000"))
+USD_MAX   = float(os.getenv("USD_MAX", "26500"))
+GOLD_MIN  = float(os.getenv("GOLD_MIN", "80000000"))
+GOLD_MAX  = float(os.getenv("GOLD_MAX", "120000000"))
+
+# Lưu giá trước để tính % thay đổi
+_prev = {}
+# Lưu trạng thái đã alert để không spam
+_alerted = {}
+
+def send_telegram(text: str):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"},
+            timeout=10
+        )
+        log.info(f"Telegram sent: {text[:60]}...")
+    except Exception as e:
+        log.error(f"Telegram error: {e}")
+
+def check_alert(key: str, value: float, min_val: float, max_val: float, label: str, unit: str = ""):
+    alerts = []
+    now = datetime.now(ICT).strftime("%H:%M %d/%m")
+
+    # Vượt ngưỡng
+    key_min = f"{key}_min"
+    key_max = f"{key}_max"
+
+    if min_val and value < min_val and not _alerted.get(key_min):
+        _alerted[key_min] = True
+        alerts.append(f"🔴 *{label} XUỐNG NGƯỠNG*\n💰 {value:,.0f}{unit} < {min_val:,.0f}{unit}\n🕐 {now}")
+    elif value >= min_val:
+        _alerted.pop(key_min, None)
+
+    if max_val and value > max_val and not _alerted.get(key_max):
+        _alerted[key_max] = True
+        alerts.append(f"🟢 *{label} VƯỢT NGƯỠNG*\n💰 {value:,.0f}{unit} > {max_val:,.0f}{unit}\n🕐 {now}")
+    elif value <= max_val:
+        _alerted.pop(key_max, None)
+
+    # Biến động % mạnh
+    prev = _prev.get(key)
+    if prev:
+        pct = (value - prev) / prev * 100
+        key_pct = f"{key}_pct"
+        if abs(pct) >= CHANGE_PCT and not _alerted.get(key_pct):
+            _alerted[key_pct] = True
+            icon = "📈" if pct > 0 else "📉"
+            alerts.append(f"{icon} *{label} BIẾN ĐỘNG MẠNH*\n{pct:+.2f}% | {prev:,.0f} → {value:,.0f}{unit}\n🕐 {now}")
+        elif abs(pct) < CHANGE_PCT * 0.5:
+            _alerted.pop(key_pct, None)
+
+    _prev[key] = value
+    return alerts
+
+
+async def job_alert():
+    """Chạy mỗi 5 phút — fetch giá và check alert."""
+    all_alerts = []
+
+    # BTC
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT", timeout=8)
+            btc = float(r.json().get("price", 0))
+        all_alerts += check_alert("BTC", btc, BTC_MIN, BTC_MAX, "BTC/USDT", "$")
+    except Exception as e:
+        log.error(f"BTC alert: {e}")
+
+    # ETH
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT", timeout=8)
+            eth = float(r.json().get("price", 0))
+        all_alerts += check_alert("ETH", eth, ETH_MIN, ETH_MAX, "ETH/USDT", "$")
+    except Exception as e:
+        log.error(f"ETH alert: {e}")
+
+    # USD/VND
+    try:
+        import xml.etree.ElementTree as ET
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                "https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10",
+                headers={"User-Agent": "Mozilla/5.0"}, timeout=10
+            )
+        root = ET.fromstring(r.text)
+        for ex in root.findall(".//Exrate"):
+            if ex.get("CurrencyCode") == "USD":
+                usd = float(ex.get("Sell", "0").replace(",", ""))
+                all_alerts += check_alert("USD", usd, USD_MIN, USD_MAX, "USD/VND", "đ")
+    except Exception as e:
+        log.error(f"USD alert: {e}")
+
+    # Gửi tất cả alerts
+    for alert in all_alerts:
+        send_telegram(alert)
+
+    if not all_alerts:
+        log.info("Alert check: no alerts triggered")
+
+
+# ─────────────────────────────────────────────
+# SCHEDULER — thêm alert job
+# ─────────────────────────────────────────────
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+alert_scheduler = AsyncIOScheduler(timezone=ICT)
+alert_scheduler.add_job(job_alert, "interval", minutes=5, id="alert")
+
+@app.on_event("startup")
+async def startup():
+    alert_scheduler.start()
+    log.info("Alert scheduler started — checking every 5 minutes")
+
+@app.get("/api/alert/test")
+async def test_alert():
+    """Test gửi Telegram thủ công."""
+    send_telegram("✅ *Market Hub Alert Test*\nBot đang hoạt động bình thường!\n🕐 " + datetime.now(ICT).strftime("%H:%M %d/%m/%Y"))
+    return {"status": "sent"}
+
+@app.get("/api/alert/config")
+def alert_config():
+    return {
+        "BTC": {"min": BTC_MIN, "max": BTC_MAX},
+        "ETH": {"min": ETH_MIN, "max": ETH_MAX},
+        "USD_VND": {"min": USD_MIN, "max": USD_MAX},
+        "change_pct_threshold": CHANGE_PCT,
+    }
