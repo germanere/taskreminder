@@ -586,7 +586,7 @@ async def _coingecko_get(url: str, ttl: int = COINGECKO_TTL):
         r = await client.get(url)
         if r.status_code == 429:
             log.warning("CoinGecko 429 — returning cached data if available")
-            return cached[1] if cached else {}
+            return cached[1] if cached else []  # FIX: trả [] thay vì {} để frontend .slice() không crash
         data = r.json()
     _coingecko_cache[url] = (time.time(), data)
     return data
