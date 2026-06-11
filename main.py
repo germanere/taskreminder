@@ -2,10 +2,16 @@
 Market Research Hub — Backend
 ==============================
 - FastAPI server
-- WebSocket proxy: Binance → client (with auto-reconnect)
-- REST APIs: CoinGecko, Yahoo Finance, TCBS, SJC, Vietcombank
+- WebSocket proxy: Bybit → client (replaces geo-blocked Binance)
+- REST APIs: Bybit klines, CoinGecko, Yahoo Finance, TCBS, SJC, Vietcombank
 - Telegram alerts: BTC, ETH, USD/VND, Gold (SJC)
 - Serve static files
+
+CHANGES vs original:
+  • ws_kline      → Bybit linear WebSocket (wss://stream.bybit.com)
+  • ws_orderbook  → Bybit orderbook.50 WebSocket
+  • /api/klines   → Bybit REST v5 with Binance as fallback
+  • job_alert     → Bybit REST for BTC/ETH price, Binance as fallback
 """
 
 import os, json, logging, asyncio, time
@@ -64,7 +70,6 @@ def _clear_alert(key: str):
 # ─────────────────────────────────────────────
 
 async def send_telegram_async(text: str):
-    """Gửi Telegram bất đồng bộ — không block event loop."""
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         log.warning("Telegram credentials not set — skipping notification")
         return
@@ -82,6 +87,17 @@ async def send_telegram_async(text: str):
 # ALERT LOGIC
 # ─────────────────────────────────────────────
 
+def _fmt(value: float, unit: str) -> str:
+    """Format giá trị với đơn vị đúng vị trí.
+    $ → $103,456  |  đ/... → 103,456 đ/lượng  |  blank → 103,456
+    """
+    if unit.startswith("$"):
+        return f"${value:,.2f}" if value < 1000 else f"${value:,.0f}"
+    elif unit:
+        return f"{value:,.0f} {unit}"
+    return f"{value:,.0f}"
+
+
 def check_alert(
     key: str, value: float,
     min_val: float, max_val: float,
@@ -94,38 +110,40 @@ def check_alert(
     key_max = f"{key}_max"
     key_pct = f"{key}_pct"
 
-    # Dưới ngưỡng min
+    v_str   = _fmt(value,   unit)
+    min_str = _fmt(min_val, unit)
+    max_str = _fmt(max_val, unit)
+
     if min_val and value < min_val:
         if _should_alert(key_min):
             _mark_alerted(key_min)
             alerts.append(
                 f"🔴 *{label} XUỐNG NGƯỠNG*\n"
-                f"💰 {value:,.0f}{unit} < {min_val:,.0f}{unit}\n🕐 {now}"
+                f"💰 {v_str} < {min_str}\n🕐 {now}"
             )
     else:
         _clear_alert(key_min)
 
-    # Vượt ngưỡng max
     if max_val and value > max_val:
         if _should_alert(key_max):
             _mark_alerted(key_max)
             alerts.append(
                 f"🟢 *{label} VƯỢT NGƯỠNG*\n"
-                f"💰 {value:,.0f}{unit} > {max_val:,.0f}{unit}\n🕐 {now}"
+                f"💰 {v_str} > {max_str}\n🕐 {now}"
             )
     else:
         _clear_alert(key_max)
 
-    # Biến động % mạnh so với lần check trước
     prev = _prev.get(key)
     if prev and prev > 0:
         pct = (value - prev) / prev * 100
         if abs(pct) >= CHANGE_PCT and _should_alert(key_pct):
             _mark_alerted(key_pct)
             icon = "📈" if pct > 0 else "📉"
+            prev_str = _fmt(prev, unit)
             alerts.append(
                 f"{icon} *{label} BIẾN ĐỘNG MẠNH*\n"
-                f"{pct:+.2f}% | {prev:,.0f}{unit} → {value:,.0f}{unit}\n🕐 {now}"
+                f"{pct:+.2f}% | {prev_str} → {v_str}\n🕐 {now}"
             )
         elif abs(pct) < CHANGE_PCT * 0.5:
             _clear_alert(key_pct)
@@ -134,24 +152,60 @@ def check_alert(
     return alerts
 
 # ─────────────────────────────────────────────
+# PRICE FETCH HELPERS (Bybit primary, Binance fallback)
+# ─────────────────────────────────────────────
+
+async def fetch_price(symbol_bybit: str, symbol_binance: str) -> float:
+    """
+    Lấy giá từ Bybit (linear → spot fallback) rồi Binance.
+    Raise ValueError nếu tất cả đều thất bại — tránh trả về 0 gây alert sai.
+    """
+    # Bybit v5 — thử linear trước, rồi spot
+    for category in ("linear", "spot"):
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                r = await client.get(
+                    "https://api.bybit.com/v5/market/tickers",
+                    params={"category": category, "symbol": symbol_bybit},
+                )
+            data = r.json()
+            lst  = data.get("result", {}).get("list", [])
+            if lst:
+                price = float(lst[0]["lastPrice"])
+                if price > 0:
+                    log.info(f"Bybit {category} price {symbol_bybit}: {price}")
+                    return price
+        except Exception as e:
+            log.warning(f"Bybit {category} price error ({symbol_bybit}): {e}")
+
+    # Binance fallback
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(
+                f"https://api.binance.com/api/v3/ticker/price?symbol={symbol_binance}"
+            )
+        price = float(r.json().get("price", 0))
+        if price > 0:
+            log.info(f"Binance fallback price {symbol_binance}: {price}")
+            return price
+    except Exception as e:
+        log.warning(f"Binance fallback price error ({symbol_binance}): {e}")
+
+    # Tất cả thất bại → raise để job_alert bắt và log error, KHÔNG gọi check_alert với 0
+    raise ValueError(f"Không lấy được giá cho {symbol_bybit} / {symbol_binance}")
+
+# ─────────────────────────────────────────────
 # SJC PARSER
 # ─────────────────────────────────────────────
 
 def parse_sjc_sell(data) -> float | None:
-    """
-    SJC trả về list dạng:
-      [{"khu_vuc": "TP.HCM", "ten_loai": "SJC 1L, 10C, 1KG", "gia_mua": ..., "gia_ban": ...}, ...]
-    Lấy giá bán (gia_ban) của loại SJC 1L tại TP.HCM.
-    Fallback: phần tử đầu tiên có gia_ban > 0.
-    """
     if not isinstance(data, list):
-        # Một số version API trả về {"data": [...]}
         data = data.get("data", []) if isinstance(data, dict) else []
 
     for item in data:
-        name = str(item.get("ten_loai", "")).upper()
-        region = str(item.get("khu_vuc", "")).upper()
-        sell = item.get("gia_ban", 0)
+        name   = str(item.get("ten_loai", "")).upper()
+        region = str(item.get("khu_vuc",  "")).upper()
+        sell   = item.get("gia_ban", 0)
         try:
             sell = float(str(sell).replace(",", "").replace(".", ""))
         except (ValueError, TypeError):
@@ -159,7 +213,6 @@ def parse_sjc_sell(data) -> float | None:
         if sell > 0 and "SJC" in name and "HCM" in region:
             return sell
 
-    # Fallback: bất kỳ mục nào có gia_ban hợp lệ
     for item in data:
         sell = item.get("gia_ban", 0)
         try:
@@ -175,23 +228,18 @@ def parse_sjc_sell(data) -> float | None:
 # ─────────────────────────────────────────────
 
 async def job_alert():
-    """Chạy mỗi 5 phút — fetch giá BTC, ETH, USD/VND, Gold và check alert."""
     all_alerts: list[str] = []
 
-    # BTC
+    # BTC — Bybit primary, Binance fallback
     try:
-        async with httpx.AsyncClient(timeout=8) as client:
-            r = await client.get("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")
-        btc = float(r.json().get("price", 0))
+        btc = await fetch_price("BTCUSDT", "BTCUSDT")
         all_alerts += check_alert("BTC", btc, BTC_MIN, BTC_MAX, "BTC/USDT", "$")
     except Exception as e:
         log.error(f"BTC alert error: {e}")
 
-    # ETH
+    # ETH — Bybit primary, Binance fallback
     try:
-        async with httpx.AsyncClient(timeout=8) as client:
-            r = await client.get("https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT")
-        eth = float(r.json().get("price", 0))
+        eth = await fetch_price("ETHUSDT", "ETHUSDT")
         all_alerts += check_alert("ETH", eth, ETH_MIN, ETH_MAX, "ETH/USDT", "$")
     except Exception as e:
         log.error(f"ETH alert error: {e}")
@@ -210,6 +258,8 @@ async def job_alert():
                 usd = float(ex.get("Sell", "0").replace(",", ""))
                 if usd > 0:
                     all_alerts += check_alert("USD", usd, USD_MIN, USD_MAX, "USD/VND", "đ")
+                else:
+                    log.warning("Vietcombank USD sell = 0, bỏ qua")
                 break
     except Exception as e:
         log.error(f"USD alert error: {e}")
@@ -222,21 +272,20 @@ async def job_alert():
                 headers={"User-Agent": "Mozilla/5.0", "Referer": "https://sjc.com.vn/"},
             )
         gold_price = parse_sjc_sell(r.json())
-        if gold_price:
+        if gold_price and gold_price > 0:
             all_alerts += check_alert("GOLD", gold_price, GOLD_MIN, GOLD_MAX, "Vàng SJC", "đ/lượng")
         else:
-            log.warning("SJC: không parse được giá bán")
+            log.warning("SJC: không parse được giá bán hoặc giá = 0")
     except Exception as e:
         log.error(f"Gold alert error: {e}")
 
-    # Gửi Telegram
     for alert in all_alerts:
         await send_telegram_async(alert)
 
     log.info(f"Alert check done — {len(all_alerts)} alert(s) sent")
 
 # ─────────────────────────────────────────────
-# LIFESPAN (thay thế @app.on_event deprecated)
+# LIFESPAN
 # ─────────────────────────────────────────────
 
 alert_scheduler = AsyncIOScheduler(timezone=ICT)
@@ -260,10 +309,6 @@ app.add_middleware(
     allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
 
-# ─────────────────────────────────────────────
-# SERVE STATIC
-# ─────────────────────────────────────────────
-
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
@@ -271,93 +316,87 @@ def index():
     return FileResponse("static/index.html")
 
 # ─────────────────────────────────────────────
-# WEBSOCKET — BINANCE KLINE (with auto-reconnect)
+# HELPERS — Bybit symbol mapping
 # ─────────────────────────────────────────────
+
+def to_bybit_symbol(symbol: str) -> str:
+    """
+    Convert Binance-style symbol → Bybit linear perpetual symbol.
+    e.g. "btcusdt" → "BTCUSDT", "ETHUSDT" → "ETHUSDT"
+    Bybit linear symbols are uppercase and identical to Binance for major pairs.
+    """
+    return symbol.upper()
+
+# ─────────────────────────────────────────────
+# WEBSOCKET — BYBIT KLINE
+# ─────────────────────────────────────────────
+# Bybit interval mapping: 1m→1, 3m→3, 5m→5, 15m→15, 30m→30,
+#                         1h→60, 2h→120, 4h→240, 1d→D, 1w→W
+# ─────────────────────────────────────────────
+
+BYBIT_INTERVAL_MAP = {
+    "1m": "1",   "3m": "3",   "5m": "5",   "15m": "15",  "30m": "30",
+    "1h": "60",  "2h": "120", "4h": "240", "6h": "360",  "12h": "720",
+    "1d": "D",   "1w": "W",   "1M": "M",
+}
 
 @app.websocket("/ws/kline")
 async def ws_kline(ws: WebSocket, symbol: str = "btcusdt", interval: str = "1h"):
     await ws.accept()
-    binance_url = f"wss://stream.binance.com:9443/ws/{symbol.lower()}@kline_{interval}"
-    RECONNECT_DELAY = 3   # giây chờ trước khi reconnect
-    MAX_RETRIES     = 10
 
-    for attempt in range(MAX_RETRIES):
-        try:
-            async with websockets.connect(
-                binance_url,
-                ping_interval=20,
-                ping_timeout=10,
-            ) as binance_ws:
-                log.info(f"Binance kline connected: {symbol} {interval}")
-                while True:
-                    try:
-                        msg = await asyncio.wait_for(binance_ws.recv(), timeout=35)
-                    except asyncio.TimeoutError:
-                        # Gửi heartbeat về client để giữ kết nối
-                        await ws.send_json({"ping": True})
-                        continue
+    bybit_symbol   = to_bybit_symbol(symbol)
+    bybit_interval = BYBIT_INTERVAL_MAP.get(interval, "60")
+    bybit_url      = "wss://stream.bybit.com/v5/public/linear"
+    subscribe_msg  = json.dumps({
+        "op": "subscribe",
+        "args": [f"kline.{bybit_interval}.{bybit_symbol}"],
+    })
 
-                    data = json.loads(msg)
-                    k = data.get("k", {})
-                    await ws.send_json({
-                        "time":      k.get("t", 0) // 1000,
-                        "open":      float(k.get("o", 0)),
-                        "high":      float(k.get("h", 0)),
-                        "low":       float(k.get("l", 0)),
-                        "close":     float(k.get("c", 0)),
-                        "volume":    float(k.get("v", 0)),
-                        "is_closed": k.get("x", False),
-                    })
-
-        except WebSocketDisconnect:
-            log.info("Client disconnected from kline WS")
-            return
-        except websockets.exceptions.ConnectionClosed as e:
-            log.warning(f"Binance kline closed (attempt {attempt+1}): {e} — retry in {RECONNECT_DELAY}s")
-        except Exception as e:
-            log.error(f"Binance kline error (attempt {attempt+1}): {e}")
-
-        # Thử reconnect — nhưng dừng nếu client đã ngắt
-        try:
-            await ws.send_json({"reconnecting": True, "attempt": attempt + 1})
-        except Exception:
-            return  # client đã đóng
-
-        await asyncio.sleep(RECONNECT_DELAY)
-        RECONNECT_DELAY = min(RECONNECT_DELAY * 2, 60)  # exponential backoff, tối đa 60s
-
-    log.error(f"Binance kline: max retries reached for {symbol}")
-
-# ─────────────────────────────────────────────
-# WEBSOCKET — BINANCE ORDERBOOK (with auto-reconnect)
-# ─────────────────────────────────────────────
-
-@app.websocket("/ws/orderbook")
-async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
-    await ws.accept()
-    binance_url = f"wss://stream.binance.com:9443/ws/{symbol.lower()}@depth20@100ms"
     RECONNECT_DELAY = 3
     MAX_RETRIES     = 10
 
     for attempt in range(MAX_RETRIES):
         try:
-            async with websockets.connect(binance_url, ping_interval=20, ping_timeout=10) as binance_ws:
-                log.info(f"Binance orderbook connected: {symbol}")
+            async with websockets.connect(
+                bybit_url,
+                ping_interval=20,
+                ping_timeout=10,
+            ) as bybit_ws:
+                await bybit_ws.send(subscribe_msg)
+                log.info(f"Bybit kline connected: {bybit_symbol} {bybit_interval}")
+
                 while True:
-                    msg  = await binance_ws.recv()
+                    try:
+                        msg = await asyncio.wait_for(bybit_ws.recv(), timeout=35)
+                    except asyncio.TimeoutError:
+                        await ws.send_json({"ping": True})
+                        continue
+
                     data = json.loads(msg)
-                    await ws.send_json({
-                        "bids": [[float(p), float(q)] for p, q in data.get("bids", [])[:10]],
-                        "asks": [[float(p), float(q)] for p, q in data.get("asks", [])[:10]],
-                    })
+
+                    # Skip subscription confirmation / heartbeat frames
+                    if "data" not in data:
+                        continue
+
+                    for k in data["data"]:
+                        await ws.send_json({
+                            # Bybit returns ms timestamps
+                            "time":      int(k.get("start",  0)) // 1000,
+                            "open":      float(k.get("open",   0)),
+                            "high":      float(k.get("high",   0)),
+                            "low":       float(k.get("low",    0)),
+                            "close":     float(k.get("close",  0)),
+                            "volume":    float(k.get("volume", 0)),
+                            "is_closed": k.get("confirm", False),
+                        })
 
         except WebSocketDisconnect:
-            log.info("Client disconnected from orderbook WS")
+            log.info("Client disconnected from kline WS")
             return
         except websockets.exceptions.ConnectionClosed as e:
-            log.warning(f"Binance orderbook closed (attempt {attempt+1}): {e}")
+            log.warning(f"Bybit kline closed (attempt {attempt+1}): {e} — retry in {RECONNECT_DELAY}s")
         except Exception as e:
-            log.error(f"Binance orderbook error (attempt {attempt+1}): {e}")
+            log.error(f"Bybit kline error (attempt {attempt+1}): {e}")
 
         try:
             await ws.send_json({"reconnecting": True, "attempt": attempt + 1})
@@ -367,14 +406,134 @@ async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
         await asyncio.sleep(RECONNECT_DELAY)
         RECONNECT_DELAY = min(RECONNECT_DELAY * 2, 60)
 
-    log.error(f"Binance orderbook: max retries reached for {symbol}")
+    log.error(f"Bybit kline: max retries reached for {bybit_symbol}")
 
 # ─────────────────────────────────────────────
-# REST — HISTORICAL KLINES (Binance)
+# WEBSOCKET — BYBIT ORDERBOOK
+# ─────────────────────────────────────────────
+
+@app.websocket("/ws/orderbook")
+async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
+    await ws.accept()
+
+    bybit_symbol  = to_bybit_symbol(symbol)
+    bybit_url     = "wss://stream.bybit.com/v5/public/linear"
+    # depth 50 snapshot+delta; use "orderbook.1" for 1-level, "orderbook.50" for 50-level
+    subscribe_msg = json.dumps({
+        "op": "subscribe",
+        "args": [f"orderbook.50.{bybit_symbol}"],
+    })
+
+    RECONNECT_DELAY = 3
+    MAX_RETRIES     = 10
+
+    # Local book state for delta merging
+    local_bids: dict[str, float] = {}
+    local_asks: dict[str, float] = {}
+
+    def apply_delta(book: dict, entries: list):
+        for price, qty in entries:
+            if float(qty) == 0:
+                book.pop(price, None)
+            else:
+                book[price] = float(qty)
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            local_bids.clear()
+            local_asks.clear()
+
+            async with websockets.connect(
+                bybit_url,
+                ping_interval=20,
+                ping_timeout=10,
+            ) as bybit_ws:
+                await bybit_ws.send(subscribe_msg)
+                log.info(f"Bybit orderbook connected: {bybit_symbol}")
+
+                while True:
+                    msg  = await bybit_ws.recv()
+                    data = json.loads(msg)
+
+                    if "data" not in data:
+                        continue
+
+                    book_data = data["data"]
+                    msg_type  = data.get("type", "snapshot")  # "snapshot" | "delta"
+
+                    if msg_type == "snapshot":
+                        local_bids = {p: float(q) for p, q in book_data.get("b", [])}
+                        local_asks = {p: float(q) for p, q in book_data.get("a", [])}
+                    else:  # delta
+                        apply_delta(local_bids, book_data.get("b", []))
+                        apply_delta(local_asks, book_data.get("a", []))
+
+                    # Sort and send top 10
+                    sorted_bids = sorted(local_bids.items(), key=lambda x: float(x[0]), reverse=True)[:10]
+                    sorted_asks = sorted(local_asks.items(), key=lambda x: float(x[0]))[:10]
+
+                    await ws.send_json({
+                        "bids": [[float(p), q] for p, q in sorted_bids],
+                        "asks": [[float(p), q] for p, q in sorted_asks],
+                    })
+
+        except WebSocketDisconnect:
+            log.info("Client disconnected from orderbook WS")
+            return
+        except websockets.exceptions.ConnectionClosed as e:
+            log.warning(f"Bybit orderbook closed (attempt {attempt+1}): {e}")
+        except Exception as e:
+            log.error(f"Bybit orderbook error (attempt {attempt+1}): {e}")
+
+        try:
+            await ws.send_json({"reconnecting": True, "attempt": attempt + 1})
+        except Exception:
+            return
+
+        await asyncio.sleep(RECONNECT_DELAY)
+        RECONNECT_DELAY = min(RECONNECT_DELAY * 2, 60)
+
+    log.error(f"Bybit orderbook: max retries reached for {bybit_symbol}")
+
+# ─────────────────────────────────────────────
+# REST — HISTORICAL KLINES
+# Primary: Bybit v5  →  Fallback: Binance
 # ─────────────────────────────────────────────
 
 @app.get("/api/klines")
 async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 200):
+    bybit_symbol   = to_bybit_symbol(symbol)
+    bybit_interval = BYBIT_INTERVAL_MAP.get(interval, "60")
+
+    # ── Bybit ──────────────────────────────────
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                "https://api.bybit.com/v5/market/kline",
+                params={
+                    "category": "linear",
+                    "symbol":   bybit_symbol,
+                    "interval": bybit_interval,
+                    "limit":    limit,
+                },
+            )
+        result = r.json()
+        if result.get("retCode") == 0:
+            # Bybit returns newest-first; reverse so oldest-first for charting
+            raw = result["result"]["list"][::-1]
+            return [{
+                "time":   int(k[0]) // 1000,
+                "open":   float(k[1]),
+                "high":   float(k[2]),
+                "low":    float(k[3]),
+                "close":  float(k[4]),
+                "volume": float(k[5]),
+            } for k in raw]
+        log.warning(f"Bybit kline non-zero retCode: {result.get('retMsg')}")
+    except Exception as e:
+        log.warning(f"Bybit kline REST error: {e} — falling back to Binance")
+
+    # ── Binance fallback ───────────────────────
     url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(url)
@@ -389,8 +548,24 @@ async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
     } for k in data]
 
 # ─────────────────────────────────────────────
-# REST — CRYPTO PRICES (CoinGecko)
+# REST — CRYPTO PRICES (CoinGecko) — rate-limited cache
 # ─────────────────────────────────────────────
+
+_coingecko_cache: dict = {}   # key → (timestamp, data)
+COINGECKO_TTL = 60            # giây — cache 60s để tránh 429
+
+async def _coingecko_get(url: str, ttl: int = COINGECKO_TTL):
+    cached = _coingecko_cache.get(url)
+    if cached and (time.time() - cached[0]) < ttl:
+        return cached[1]
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(url)
+        if r.status_code == 429:
+            log.warning("CoinGecko 429 — returning cached data if available")
+            return cached[1] if cached else {}
+        data = r.json()
+    _coingecko_cache[url] = (time.time(), data)
+    return data
 
 @app.get("/api/crypto/prices")
 async def get_crypto_prices(ids: str = "bitcoin,ethereum,solana,binancecoin,ripple"):
@@ -398,9 +573,7 @@ async def get_crypto_prices(ids: str = "bitcoin,ethereum,solana,binancecoin,ripp
         f"https://api.coingecko.com/api/v3/simple/price"
         f"?ids={ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true"
     )
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(url)
-        return r.json()
+    return await _coingecko_get(url)
 
 @app.get("/api/crypto/top200")
 async def get_top200(page: int = 1):
@@ -409,9 +582,7 @@ async def get_top200(page: int = 1):
         f"?vs_currency=usd&order=market_cap_desc&per_page=100&page={page}"
         f"&sparkline=false&price_change_percentage=24h,7d"
     )
-    async with httpx.AsyncClient(timeout=15) as client:
-        r = await client.get(url)
-        return r.json()
+    return await _coingecko_get(url, ttl=300)  # top200 thay đổi chậm → cache 5 phút
 
 # ─────────────────────────────────────────────
 # REST — FEAR & GREED
@@ -586,6 +757,5 @@ def alert_config():
 
 @app.post("/api/alert/trigger-now")
 async def trigger_alert_now():
-    """Chạy job alert ngay lập tức (dùng để test)."""
     await job_alert()
     return {"status": "ok", "message": "Alert job executed"}
