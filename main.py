@@ -8,9 +8,9 @@ Market Research Hub — Backend
 """
 
 import os, json, logging, asyncio, time
+import requests
 from datetime import datetime, timedelta
 import httpx
-import requests
 import pytz
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
@@ -37,7 +37,6 @@ def index():
 
 # ─────────────────────────────────────────────
 # WEBSOCKET — BINANCE PROXY
-# Nhận kline từ Binance rồi forward đến browser
 # ─────────────────────────────────────────────
 
 @app.websocket("/ws/kline")
@@ -52,12 +51,12 @@ async def ws_kline(ws: WebSocket, symbol: str = "btcusdt", interval: str = "1h")
                     data = json.loads(msg)
                     k = data.get("k", {})
                     await ws.send_json({
-                        "time":  k.get("t", 0) // 1000,
-                        "open":  float(k.get("o", 0)),
-                        "high":  float(k.get("h", 0)),
-                        "low":   float(k.get("l", 0)),
-                        "close": float(k.get("c", 0)),
-                        "volume": float(k.get("v", 0)),
+                        "time":      k.get("t", 0) // 1000,
+                        "open":      float(k.get("o", 0)),
+                        "high":      float(k.get("h", 0)),
+                        "low":       float(k.get("l", 0)),
+                        "close":     float(k.get("c", 0)),
+                        "volume":    float(k.get("v", 0)),
                         "is_closed": k.get("x", False),
                     })
                 except asyncio.TimeoutError:
@@ -65,7 +64,7 @@ async def ws_kline(ws: WebSocket, symbol: str = "btcusdt", interval: str = "1h")
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        log.error(f"WS error: {e}")
+        log.error(f"WS kline error: {e}")
 
 # ─────────────────────────────────────────────
 # WEBSOCKET — BINANCE ORDERBOOK
@@ -85,7 +84,7 @@ async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
                     "asks": [[float(p), float(q)] for p, q in data.get("asks", [])[:10]],
                 })
     except (WebSocketDisconnect, Exception) as e:
-        log.error(f"OB WS: {e}")
+        log.error(f"WS orderbook error: {e}")
 
 # ─────────────────────────────────────────────
 # REST — HISTORICAL KLINES (Binance)
@@ -112,14 +111,21 @@ async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
 
 @app.get("/api/crypto/prices")
 async def get_crypto_prices(ids: str = "bitcoin,ethereum,solana,binancecoin,ripple"):
-    url = f"https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true"
+    url = (
+        f"https://api.coingecko.com/api/v3/simple/price"
+        f"?ids={ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true"
+    )
     async with httpx.AsyncClient() as client:
         r = await client.get(url, timeout=10)
         return r.json()
 
 @app.get("/api/crypto/top200")
 async def get_top200(page: int = 1):
-    url = f"https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page={page}&sparkline=false&price_change_percentage=24h,7d"
+    url = (
+        f"https://api.coingecko.com/api/v3/coins/markets"
+        f"?vs_currency=usd&order=market_cap_desc&per_page=100&page={page}"
+        f"&sparkline=false&price_change_percentage=24h,7d"
+    )
     async with httpx.AsyncClient() as client:
         r = await client.get(url, timeout=15)
         return r.json()
@@ -145,16 +151,20 @@ async def get_forex_vnd():
         async with httpx.AsyncClient() as client:
             r = await client.get(
                 "https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10",
-                headers={"User-Agent": "Mozilla/5.0"}, timeout=10
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=10,
             )
         root = ET.fromstring(r.text)
         rates = {}
         for ex in root.findall(".//Exrate"):
-            code = ex.get("CurrencyCode","")
-            sell = ex.get("Sell","0").replace(",","")
-            buy  = ex.get("Buy","0").replace(",","")
-            if code in ["USD","EUR","JPY","CNY","GBP"]:
-                rates[code] = {"sell": float(sell) if sell else 0, "buy": float(buy) if buy else 0}
+            code = ex.get("CurrencyCode", "")
+            sell = ex.get("Sell", "0").replace(",", "")
+            buy  = ex.get("Buy",  "0").replace(",", "")
+            if code in ["USD", "EUR", "JPY", "CNY", "GBP"]:
+                rates[code] = {
+                    "sell": float(sell) if sell else 0,
+                    "buy":  float(buy)  if buy  else 0,
+                }
         return rates
     except Exception as e:
         return {"error": str(e)}
@@ -170,30 +180,29 @@ async def get_gold():
             r = await client.get(
                 "https://sjc.com.vn/GoldPrice/Services/PriceService.ashx",
                 headers={"User-Agent": "Mozilla/5.0", "Referer": "https://sjc.com.vn/"},
-                timeout=10
+                timeout=10,
             )
         return r.json()
     except Exception as e:
         return {"error": str(e)}
 
 # ─────────────────────────────────────────────
-# REST — VN STOCK (Yahoo Finance)
+# REST — VN STOCK (Yahoo Finance v8) ← ĐÃ FIX
 # ─────────────────────────────────────────────
+
+YAHOO_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://finance.yahoo.com/",
+    "Origin": "https://finance.yahoo.com",
+}
 
 @app.get("/api/vn/stocks")
 async def get_vn_stocks(symbols: str = "VNM.VN,FPT.VN,VCB.VN,HPG.VN,MWG.VN,TCB.VN,VIC.VN,VHM.VN"):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-        "Accept": "application/json",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Referer": "https://finance.yahoo.com/",
-        "Origin": "https://finance.yahoo.com",
-    }
-
     sym_list = [s.strip() for s in symbols.split(",")]
-    results = []
 
-    async with httpx.AsyncClient(headers=headers, timeout=10) as client:
+    async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=10) as client:
         tasks = [
             client.get(
                 f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}",
@@ -203,14 +212,19 @@ async def get_vn_stocks(symbols: str = "VNM.VN,FPT.VN,VCB.VN,HPG.VN,MWG.VN,TCB.V
         ]
         responses = await asyncio.gather(*tasks, return_exceptions=True)
 
+    results = []
     for sym, resp in zip(sym_list, responses):
-        base = {"symbol": sym.replace(".VN", ""), "price": 0, "change": 0, "volume": 0, "pe": 0, "market_cap": 0}
+        base = {
+            "symbol": sym.replace(".VN", ""),
+            "price": 0, "change": 0,
+            "volume": 0, "pe": 0, "market_cap": 0,
+        }
         try:
             if isinstance(resp, Exception):
                 raise resp
             data = resp.json()
             meta = data["chart"]["result"][0]["meta"]
-            prev = meta.get("previousClose") or meta.get("chartPreviousClose") or 1
+            prev  = meta.get("previousClose") or meta.get("chartPreviousClose") or 1
             price = meta.get("regularMarketPrice", 0)
             base.update({
                 "price":  price,
@@ -222,23 +236,23 @@ async def get_vn_stocks(symbols: str = "VNM.VN,FPT.VN,VCB.VN,HPG.VN,MWG.VN,TCB.V
         results.append(base)
 
     return results
+
 # ─────────────────────────────────────────────
-# REST — ECONOMIC CALENDAR (Investing.com public)
+# REST — ECONOMIC CALENDAR
 # ─────────────────────────────────────────────
 
 @app.get("/api/calendar")
 async def get_calendar():
-    # Trả về dữ liệu mẫu — production dùng Investing.com API hoặc Finnhub
     now = datetime.now(ICT)
     return [
-        {"date": (now + timedelta(days=1)).strftime("%d/%m/%Y"), "time": "19:30", "event": "US CPI MoM", "impact": "high", "prev": "0.3%", "forecast": "0.2%"},
-        {"date": (now + timedelta(days=2)).strftime("%d/%m/%Y"), "time": "02:00", "event": "FED Rate Decision", "impact": "high", "prev": "5.50%", "forecast": "5.50%"},
-        {"date": (now + timedelta(days=3)).strftime("%d/%m/%Y"), "time": "08:00", "event": "BTC Options Expiry", "impact": "medium", "prev": "$1.8B", "forecast": "$2.1B"},
-        {"date": (now + timedelta(days=5)).strftime("%d/%m/%Y"), "time": "21:30", "event": "US NFP", "impact": "high", "prev": "175K", "forecast": "180K"},
+        {"date": (now + timedelta(days=1)).strftime("%d/%m/%Y"), "time": "19:30", "event": "US CPI MoM",       "impact": "high",   "prev": "0.3%",    "forecast": "0.2%"},
+        {"date": (now + timedelta(days=2)).strftime("%d/%m/%Y"), "time": "02:00", "event": "FED Rate Decision", "impact": "high",   "prev": "5.50%",   "forecast": "5.50%"},
+        {"date": (now + timedelta(days=3)).strftime("%d/%m/%Y"), "time": "08:00", "event": "BTC Options Expiry","impact": "medium", "prev": "$1.8B",   "forecast": "$2.1B"},
+        {"date": (now + timedelta(days=5)).strftime("%d/%m/%Y"), "time": "21:30", "event": "US NFP",            "impact": "high",   "prev": "175K",    "forecast": "180K"},
     ]
 
 # ─────────────────────────────────────────────
-# REST — LIQUIDATION DATA (Coinglass public)
+# REST — LIQUIDATION DATA (Coinglass)
 # ─────────────────────────────────────────────
 
 @app.get("/api/liquidations")
@@ -248,10 +262,10 @@ async def get_liquidations(symbol: str = "BTC"):
             r = await client.get(
                 f"https://open-api.coinglass.com/public/v2/liquidation_history?symbol={symbol}&timeType=0",
                 headers={"coinglassSecret": ""},
-                timeout=10
+                timeout=10,
             )
         return r.json()
-    except:
+    except Exception:
         return {"data": []}
 
 @app.get("/health")
@@ -265,20 +279,17 @@ def health():
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "")
 
-# Ngưỡng cảnh báo — đổi qua env var
-BTC_MIN   = float(os.getenv("BTC_MIN", "60000"))
-BTC_MAX   = float(os.getenv("BTC_MAX", "75000"))
-ETH_MIN   = float(os.getenv("ETH_MIN", "2800"))
-ETH_MAX   = float(os.getenv("ETH_MAX", "4500"))
-CHANGE_PCT = float(os.getenv("CHANGE_PCT", "3.0"))   # % biến động mạnh
-USD_MIN   = float(os.getenv("USD_MIN", "24000"))
-USD_MAX   = float(os.getenv("USD_MAX", "26500"))
-GOLD_MIN  = float(os.getenv("GOLD_MIN", "80000000"))
-GOLD_MAX  = float(os.getenv("GOLD_MAX", "120000000"))
+BTC_MIN    = float(os.getenv("BTC_MIN",    "60000"))
+BTC_MAX    = float(os.getenv("BTC_MAX",    "75000"))
+ETH_MIN    = float(os.getenv("ETH_MIN",    "2800"))
+ETH_MAX    = float(os.getenv("ETH_MAX",    "4500"))
+CHANGE_PCT = float(os.getenv("CHANGE_PCT", "3.0"))
+USD_MIN    = float(os.getenv("USD_MIN",    "24000"))
+USD_MAX    = float(os.getenv("USD_MAX",    "26500"))
+GOLD_MIN   = float(os.getenv("GOLD_MIN",   "80000000"))
+GOLD_MAX   = float(os.getenv("GOLD_MAX",   "120000000"))
 
-# Lưu giá trước để tính % thay đổi
-_prev = {}
-# Lưu trạng thái đã alert để không spam
+_prev    = {}
 _alerted = {}
 
 def send_telegram(text: str):
@@ -288,7 +299,7 @@ def send_telegram(text: str):
         requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
             json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"},
-            timeout=10
+            timeout=10,
         )
         log.info(f"Telegram sent: {text[:60]}...")
     except Exception as e:
@@ -298,7 +309,6 @@ def check_alert(key: str, value: float, min_val: float, max_val: float, label: s
     alerts = []
     now = datetime.now(ICT).strftime("%H:%M %d/%m")
 
-    # Vượt ngưỡng
     key_min = f"{key}_min"
     key_max = f"{key}_max"
 
@@ -314,7 +324,6 @@ def check_alert(key: str, value: float, min_val: float, max_val: float, label: s
     elif value <= max_val:
         _alerted.pop(key_max, None)
 
-    # Biến động % mạnh
     prev = _prev.get(key)
     if prev:
         pct = (value - prev) / prev * 100
@@ -341,7 +350,7 @@ async def job_alert():
             btc = float(r.json().get("price", 0))
         all_alerts += check_alert("BTC", btc, BTC_MIN, BTC_MAX, "BTC/USDT", "$")
     except Exception as e:
-        log.error(f"BTC alert: {e}")
+        log.error(f"BTC alert error: {e}")
 
     # ETH
     try:
@@ -350,7 +359,7 @@ async def job_alert():
             eth = float(r.json().get("price", 0))
         all_alerts += check_alert("ETH", eth, ETH_MIN, ETH_MAX, "ETH/USDT", "$")
     except Exception as e:
-        log.error(f"ETH alert: {e}")
+        log.error(f"ETH alert error: {e}")
 
     # USD/VND
     try:
@@ -358,7 +367,8 @@ async def job_alert():
         async with httpx.AsyncClient() as client:
             r = await client.get(
                 "https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10",
-                headers={"User-Agent": "Mozilla/5.0"}, timeout=10
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=10,
             )
         root = ET.fromstring(r.text)
         for ex in root.findall(".//Exrate"):
@@ -366,18 +376,16 @@ async def job_alert():
                 usd = float(ex.get("Sell", "0").replace(",", ""))
                 all_alerts += check_alert("USD", usd, USD_MIN, USD_MAX, "USD/VND", "đ")
     except Exception as e:
-        log.error(f"USD alert: {e}")
+        log.error(f"USD alert error: {e}")
 
-    # Gửi tất cả alerts
     for alert in all_alerts:
         send_telegram(alert)
 
     if not all_alerts:
         log.info("Alert check: no alerts triggered")
 
-
 # ─────────────────────────────────────────────
-# SCHEDULER — thêm alert job
+# SCHEDULER
 # ─────────────────────────────────────────────
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -392,15 +400,17 @@ async def startup():
 
 @app.get("/api/alert/test")
 async def test_alert():
-    """Test gửi Telegram thủ công."""
-    send_telegram("✅ *Market Hub Alert Test*\nBot đang hoạt động bình thường!\n🕐 " + datetime.now(ICT).strftime("%H:%M %d/%m/%Y"))
+    send_telegram(
+        "✅ *Market Hub Alert Test*\nBot đang hoạt động bình thường!\n🕐 "
+        + datetime.now(ICT).strftime("%H:%M %d/%m/%Y")
+    )
     return {"status": "sent"}
 
 @app.get("/api/alert/config")
 def alert_config():
     return {
-        "BTC": {"min": BTC_MIN, "max": BTC_MAX},
-        "ETH": {"min": ETH_MIN, "max": ETH_MAX},
-        "USD_VND": {"min": USD_MIN, "max": USD_MAX},
+        "BTC":              {"min": BTC_MIN,  "max": BTC_MAX},
+        "ETH":              {"min": ETH_MIN,  "max": ETH_MAX},
+        "USD_VND":          {"min": USD_MIN,  "max": USD_MAX},
         "change_pct_threshold": CHANGE_PCT,
     }
