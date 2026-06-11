@@ -89,7 +89,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh
 <div class="main">
   <div class="topbar">
     <span id="ti">📈</span><span class="tb-title" id="tt">Chart</span>
-    <span class="tb-sub" id="ts">Binance WebSocket · Realtime</span>
+    <span class="tb-sub" id="ts">Bybit WebSocket · Realtime</span>
     <div class="tb-right">
       <div class="live-dot"></div><span style="font-size:10px;color:var(--green)">LIVE</span>
       <span style="font-size:10px;color:var(--text2);font-family:var(--mono)" id="clk"></span>
@@ -235,30 +235,28 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh
 </div>
 
 <script>
-const B = window.location.origin;
+const B  = window.location.origin;
 const WB = B.replace('https','wss').replace('http','ws');
 
-// ── STATE (in-memory, không dùng localStorage) ──────────────────────────
+// ── STATE ─────────────────────────────────────────────────────────────────
 let sym = 'BTCUSDT', intv = '1m';
 let mc, ms, vs, kws, ows, rc2, rs2;
 let rdata = [], ridx = 0, rplay = false, rtmr;
 let trStats = {n:0, w:0, l:0, t:[]};
-
-// Links lưu trong memory (session only — localStorage không hoạt động trong mọi môi trường)
 let links = [];
 
-// ── CLOCK ────────────────────────────────────────────────────────────────
+// ── CLOCK ─────────────────────────────────────────────────────────────────
 setInterval(() => document.getElementById('clk').textContent = new Date().toLocaleTimeString('vi-VN'), 1000);
 
-// ── NAV META ─────────────────────────────────────────────────────────────
+// ── NAV META ──────────────────────────────────────────────────────────────
 const META = {
-  chart:       {i:'📈', t:'Chart',           s:'Binance WebSocket · Realtime'},
-  signal:      {i:'⚡', t:'Signal',          s:'Auto signals · Context · Liquidation'},
-  structure:   {i:'🏗',  t:'Market Structure',s:'Orderbook · Footprint · Whale'},
-  fundamental: {i:'📋', t:'Fundamental',     s:'Crypto + VN · Auto-scan'},
-  library:     {i:'📁', t:'Thư viện',        s:'Links · Calendar · Thinkers'},
-  lab:         {i:'🧪', t:'Quant Lab',       s:'Backtest · Monte Carlo · Param scan'},
-  training:    {i:'🎯', t:'Training',        s:'Replay · Demo · Journal'},
+  chart:       {i:'📈', t:'Chart',            s:'Bybit WebSocket · Realtime'},
+  signal:      {i:'⚡', t:'Signal',           s:'Auto signals · Context · Liquidation'},
+  structure:   {i:'🏗',  t:'Market Structure', s:'Orderbook · Footprint · Whale'},
+  fundamental: {i:'📋', t:'Fundamental',      s:'Crypto + VN · Auto-scan'},
+  library:     {i:'📁', t:'Thư viện',         s:'Links · Calendar · Thinkers'},
+  lab:         {i:'🧪', t:'Quant Lab',        s:'Backtest · Monte Carlo · Param scan'},
+  training:    {i:'🎯', t:'Training',         s:'Replay · Demo · Journal'},
 };
 
 function sw(n) {
@@ -278,7 +276,7 @@ function sw(n) {
   if (n === 'signal')      { renderSigs(); renderCtx(); renderLM(); }
 }
 
-// ── CHART ────────────────────────────────────────────────────────────────
+// ── CHART ─────────────────────────────────────────────────────────────────
 function initChart() {
   const el = document.getElementById('mc');
   if (!el) return;
@@ -286,7 +284,7 @@ function initChart() {
   mc = LightweightCharts.createChart(el, {
     width:  el.offsetWidth,
     height: 320,
-    layout: { background: {color:'#0a0b0f'}, textColor:'#8892a4' },
+    layout: { background:{color:'#0a0b0f'}, textColor:'#8892a4' },
     grid:   { vertLines:{color:'#1e2330'}, horzLines:{color:'#1e2330'} },
     rightPriceScale: { borderColor:'#1e2330' },
     timeScale: { borderColor:'#1e2330', timeVisible:true, secondsVisible:false },
@@ -299,15 +297,13 @@ function initChart() {
     wickUpColor:'#00d4aa', wickDownColor:'#f74b4b',
   });
 
-  // Volume — separate pane scale
   vs = mc.addHistogramSeries({
     priceScaleId: 'vol',
-    scaleMargins: { top: 0.85, bottom: 0 },
+    scaleMargins: { top:0.85, bottom:0 },
     lastValueVisible: false,
     priceLineVisible: false,
   });
 
-  // Resize observer — lebih handal dari window.resize
   if (window.ResizeObserver) {
     new ResizeObserver(() => mc.applyOptions({width: el.offsetWidth})).observe(el);
   } else {
@@ -318,31 +314,24 @@ function initChart() {
   connectKWS();
 }
 
-// FIX: đảm bảo fitContent() chạy sau khi data đã set
 async function loadK() {
   try {
     const r = await fetch(`${B}/api/klines?symbol=${sym}&interval=${intv}&limit=300`);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
+    if (!Array.isArray(data) || !data.length) { console.warn('loadK: empty data'); return; }
 
-    if (!data || !data.length) { console.warn('loadK: empty data'); return; }
-
-    // FIX: set candles trước, volume sau, fitContent cuối
     ms.setData(data);
     vs.setData(data.map(x => ({
       time:  x.time,
       value: x.volume,
       color: x.close >= x.open ? '#00d4aa33' : '#f74b4b33',
     })));
-
-    // FIX: requestAnimationFrame đảm bảo chart đã render xong trước khi fit
     requestAnimationFrame(() => mc.timeScale().fitContent());
 
-    // Cập nhật giá hiện tại từ nến mới nhất
     const last = data[data.length - 1];
     updatePrice(last.close, last.open);
-
-  } catch (e) {
+  } catch(e) {
     console.error('loadK error:', e);
   }
 }
@@ -355,37 +344,29 @@ function connectKWS() {
   kws.onmessage = e => {
     try {
       const d = JSON.parse(e.data);
-      // FIX: guard tất cả frame đặc biệt từ backend (ping, reconnecting)
       if (!d || d.ping || d.reconnecting || !d.time) return;
-
       ms.update({time:d.time, open:d.open, high:d.high, low:d.low, close:d.close});
       vs.update({time:d.time, value:d.volume, color:d.close>=d.open?'#00d4aa33':'#f74b4b33'});
       updatePrice(d.close, d.open);
-    } catch(err) {
-      console.warn('kws message error:', err);
-    }
+    } catch(err) { console.warn('kws message error:', err); }
   };
 
   kws.onerror = err => console.warn('kws error:', err);
-
-  // Auto-reconnect nếu WS bị đóng
   kws.onclose = () => {
-    setTimeout(() => {
-      if (kws && kws.readyState === WebSocket.CLOSED) connectKWS();
-    }, 3000);
+    setTimeout(() => { if (kws && kws.readyState === WebSocket.CLOSED) connectKWS(); }, 3000);
   };
 }
 
 function updatePrice(close, open) {
   const prev = parseFloat(document.getElementById('cp').dataset.prev || open);
-  const pct   = ((close - prev) / (prev || 1) * 100).toFixed(2);
-  const cpEl  = document.getElementById('cp');
-  const ccEl  = document.getElementById('cc');
-  cpEl.textContent       = '$' + close.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-  cpEl.dataset.prev      = open;
-  cpEl.style.color       = close >= open ? 'var(--green)' : 'var(--red)';
-  ccEl.textContent       = (pct >= 0 ? '+' : '') + pct + '%';
-  ccEl.className         = 'tag ' + (pct >= 0 ? 'tg' : 'tr');
+  const pct  = ((close - prev) / (prev || 1) * 100).toFixed(2);
+  const cpEl = document.getElementById('cp');
+  const ccEl = document.getElementById('cc');
+  cpEl.textContent  = '$' + close.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  cpEl.dataset.prev = open;
+  cpEl.style.color  = close >= open ? 'var(--green)' : 'var(--red)';
+  ccEl.textContent  = (pct >= 0 ? '+' : '') + pct + '%';
+  ccEl.className    = 'tag ' + (pct >= 0 ? 'tg' : 'tr');
 }
 
 function setTf(el, tf) {
@@ -404,6 +385,7 @@ function changeSym(s) {
 
 // ── MACRO ─────────────────────────────────────────────────────────────────
 async function loadMacro() {
+  // USD/VND
   try {
     const r = await fetch(`${B}/api/forex/vnd`);
     const d = await r.json();
@@ -411,22 +393,22 @@ async function loadMacro() {
       d.USD.sell?.toLocaleString('vi-VN') + 'đ';
   } catch(e) {}
 
+  // Vàng SJC — backend trả {price, unit, source} hoặc {error}
   try {
     const r = await fetch(`${B}/api/gold`);
     const d = await r.json();
     const el = document.getElementById('gp');
-    // FIX: SJC trả về array — dùng parser đúng
-    if (Array.isArray(d) && d.length) {
-      const item = d.find(x => String(x.ten_loai||x.Khu_vuc||'').includes('SJC')) || d[0];
-      const sell = item.gia_ban ?? item.Sell ?? item.sell ?? '—';
-      el.textContent = typeof sell === 'number'
-        ? sell.toLocaleString('vi-VN') + 'đ'
-        : String(sell);
-    } else if (d && typeof d === 'object' && !d.error) {
-      el.textContent = JSON.stringify(d).slice(0, 30);
+    if (d.price && d.price > 0) {
+      el.textContent = d.price.toLocaleString('vi-VN') + 'đ';
+    } else {
+      el.textContent = d.error || '—';
+      el.style.color = 'var(--text2)';
     }
-  } catch(e) {}
+  } catch(e) {
+    document.getElementById('gp').textContent = '—';
+  }
 
+  // Fear & Greed
   try {
     const r = await fetch(`${B}/api/fear-greed`);
     const d = await r.json();
@@ -434,7 +416,7 @@ async function loadMacro() {
     if (v) {
       const el = document.getElementById('fg');
       el.textContent = v.value + ' ' + v.value_classification;
-      el.className = 'sv mono ' + (v.value > 60 ? 'g' : v.value < 40 ? 'r' : 'y');
+      el.className   = 'sv mono ' + (v.value > 60 ? 'g' : v.value < 40 ? 'r' : 'y');
     }
   } catch(e) {}
 }
@@ -457,6 +439,7 @@ async function loadVNM() {
   try {
     const r = await fetch(`${B}/api/vn/stocks`);
     const d = await r.json();
+    if (!Array.isArray(d)) return;
     document.getElementById('vnm').innerHTML = d.slice(0, 5).map(s =>
       `<div class="sr" style="padding:5px 0">
         <span style="font-size:11px;font-weight:600;width:36px">${s.symbol}</span>
@@ -475,7 +458,6 @@ function initOB() {
   ows.onmessage = e => {
     try {
       const d = JSON.parse(e.data);
-      // FIX: guard reconnecting frame
       if (!d || d.reconnecting || !d.asks || !d.bids) return;
 
       const max = Math.max(...d.asks.map(a => a[1]), ...d.bids.map(b => b[1]));
@@ -492,9 +474,7 @@ function initOB() {
                <span style="color:var(--text2)">${parseFloat(s).toFixed(3)}</span></div>`;
       });
       document.getElementById('ob').innerHTML = h;
-    } catch(err) {
-      console.warn('ows message error:', err);
-    }
+    } catch(err) { console.warn('ows message error:', err); }
   };
   ows.onclose = () => {
     setTimeout(() => { if (ows && ows.readyState === WebSocket.CLOSED) initOB(); }, 3000);
@@ -527,11 +507,11 @@ function renderSigs() {
 
 function renderCtx() {
   document.getElementById('ctx').innerHTML = [
-    {l:'Macro Regime',   v:'Risk-Off',    c:'accent3', p:55},
-    {l:'Crypto Trend',   v:'Uptrend',     c:'green',   p:72},
-    {l:'Liq Pressure',   v:'High @ 68K',  c:'red',     p:78},
-    {l:'Whale Position', v:'Accumulate',  c:'accent2', p:64},
-    {l:'Retail FOMO',    v:'FOMO zone',   c:'accent3', p:81},
+    {l:'Macro Regime',   v:'Risk-Off',   c:'accent3', p:55},
+    {l:'Crypto Trend',   v:'Uptrend',    c:'green',   p:72},
+    {l:'Liq Pressure',   v:'High @ 68K', c:'red',     p:78},
+    {l:'Whale Position', v:'Accumulate', c:'accent2', p:64},
+    {l:'Retail FOMO',    v:'FOMO zone',  c:'accent3', p:81},
   ].map(x =>
     `<div style="margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;margin-bottom:3px">
@@ -595,16 +575,25 @@ async function loadFA(mkt) {
   mkt = mkt || document.getElementById('fam')?.value || 'crypto';
   const el = document.getElementById('fat'); if (!el) return;
   el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">Loading...</div>';
+
   try {
     if (mkt === 'crypto') {
       const r = await fetch(`${B}/api/crypto/top200`);
-      const d = await r.json();
+      const raw = await r.json();
+
+      // FIX: CoinGecko trả object {} khi 429 → guard bằng Array.isArray
+      const list = Array.isArray(raw) ? raw : [];
+      if (!list.length) {
+        el.innerHTML = '<div style="color:var(--accent3);padding:12px">⚠ CoinGecko rate limit — thử lại sau 60s</div>';
+        return;
+      }
+
       el.innerHTML = `<div class="card"><table class="tbl">
         <tr><th>#</th><th>Asset</th><th>Price</th><th>24h</th><th>7d</th><th>MCap</th><th>Score</th></tr>
-        ${d.slice(0, 50).map((c, i) => {
-          const ch = c.price_change_percentage_24h || 0;
+        ${list.slice(0, 50).map((c, i) => {
+          const ch  = c.price_change_percentage_24h || 0;
           const ch7 = c.price_change_percentage_7d_in_currency || 0;
-          const sc = Math.min(99, Math.max(10, 50 + ch7*2 + ch));
+          const sc  = Math.min(99, Math.max(10, 50 + ch7*2 + ch));
           return `<tr>
             <td class="mono" style="color:var(--text2)">${i+1}</td>
             <td><span class="fw6">${c.symbol?.toUpperCase()}</span></td>
@@ -616,12 +605,15 @@ async function loadFA(mkt) {
           </tr>`;
         }).join('')}
       </table></div>`;
+
     } else {
       const r = await fetch(`${B}/api/vn/stocks?symbols=VNM.VN,FPT.VN,VCB.VN,HPG.VN,MWG.VN,TCB.VN,VIC.VN,VHM.VN`);
-      const d = await r.json();
+      const raw = await r.json();
+      const list = Array.isArray(raw) ? raw : [];
+
       el.innerHTML = `<div class="card"><table class="tbl">
         <tr><th>Mã</th><th>Giá</th><th>%</th><th>KL</th><th>P/E</th><th>Score</th></tr>
-        ${d.map(s => {
+        ${list.map(s => {
           const sc = Math.min(99, Math.max(10, 60 + (s.change||0)*3));
           return `<tr>
             <td class="fw6">${s.symbol}</td>
@@ -634,6 +626,7 @@ async function loadFA(mkt) {
         }).join('')}
       </table></div>`;
     }
+
     document.getElementById('fau').textContent = 'Updated ' + new Date().toLocaleTimeString('vi-VN');
   } catch(e) {
     el.innerHTML = '<div style="color:var(--red);padding:12px">' + e.message + '</div>';
@@ -692,17 +685,17 @@ async function renderCal() {
 function renderTK() {
   const el = document.getElementById('tk'); if (!el) return;
   el.innerHTML = [
-    {n:'Arthur Hayes', d:'Macro·Crypto', i:'🧠'},
-    {n:'Raoul Pal',    d:'Macro·Cycles', i:'📊'},
-    {n:'Willy Woo',   d:'On-chain',     i:'🔬'},
-    {n:'CryptoKaleo', d:'TA·Crypto',    i:'📈'},
-    {n:'Glassnode',   d:'On-chain',     i:'📡'},
-    {n:'M. Burry',    d:'Macro·Value',  i:'🎯'},
+    {n:'Arthur Hayes',c:'Macro·Crypto', i:'🧠'},
+    {n:'Raoul Pal',   c:'Macro·Cycles',i:'📊'},
+    {n:'Willy Woo',   c:'On-chain',    i:'🔬'},
+    {n:'CryptoKaleo', c:'TA·Crypto',   i:'📈'},
+    {n:'Glassnode',   c:'On-chain',    i:'📡'},
+    {n:'M. Burry',    c:'Macro·Value', i:'🎯'},
   ].map(t =>
     `<div style="text-align:center;width:72px">
       <div style="font-size:22px">${t.i}</div>
       <div style="font-size:11px;font-weight:600;margin-top:3px">${t.n}</div>
-      <div class="xs">${t.d}</div>
+      <div class="xs">${t.c}</div>
     </div>`
   ).join('');
 }
@@ -761,7 +754,8 @@ async function initRC() {
   try {
     const r = await fetch(`${B}/api/klines?symbol=BTCUSDT&interval=4h&limit=300`);
     rdata = await r.json();
-    ridx  = 100;
+    if (!Array.isArray(rdata)) rdata = [];
+    ridx = 100;
     renderRC();
     renderTS();
     renderTJ();
