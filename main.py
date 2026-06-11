@@ -12,9 +12,11 @@ CHANGES vs original:
   • ws_orderbook  → Bybit orderbook.50 WebSocket
   • /api/klines   → Bybit REST v5 with Binance as fallback
   • job_alert     → Bybit REST for BTC/ETH price, Binance as fallback
+  • /api/gold     → sjc.com.vn/giavang/textContent.aspx → BTMC API fallback
+                    (PriceService.ashx bị block từ Render US IP)
 """
 
-import os, json, logging, asyncio, time
+import os, re, json, logging, asyncio, time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 import httpx
@@ -191,36 +193,74 @@ async def fetch_price(symbol_bybit: str, symbol_binance: str) -> float:
     except Exception as e:
         log.warning(f"Binance fallback price error ({symbol_binance}): {e}")
 
-    # Tất cả thất bại → raise để job_alert bắt và log error, KHÔNG gọi check_alert với 0
     raise ValueError(f"Không lấy được giá cho {symbol_bybit} / {symbol_binance}")
 
 # ─────────────────────────────────────────────
-# SJC PARSER
+# GOLD PRICE FETCH — SJC textContent → BTMC fallback
+# PriceService.ashx bị block 403 từ Render US IP
 # ─────────────────────────────────────────────
 
-def parse_sjc_sell(data) -> float | None:
-    if not isinstance(data, list):
-        data = data.get("data", []) if isinstance(data, dict) else []
+async def fetch_gold_price() -> float | None:
+    """
+    Lấy giá vàng SJC (VND/lượng).
+    Endpoint 1: sjc.com.vn/giavang/textContent.aspx
+    Endpoint 2: api.btmc.vn (Bảo Tín Minh Châu) — public, không block Render
+    """
+    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
 
-    for item in data:
-        name   = str(item.get("ten_loai", "")).upper()
-        region = str(item.get("khu_vuc",  "")).upper()
-        sell   = item.get("gia_ban", 0)
+        # ── Endpoint 1: SJC textContent ──────────────────────
         try:
-            sell = float(str(sell).replace(",", "").replace(".", ""))
-        except (ValueError, TypeError):
-            continue
-        if sell > 0 and "SJC" in name and "HCM" in region:
-            return sell
+            r = await client.get(
+                "https://sjc.com.vn/giavang/textContent.aspx",
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://sjc.com.vn/"},
+            )
+            if r.status_code == 200 and r.text.strip():
+                # Tìm số dạng 1xx.xxx.xxx hoặc xx.xxx.xxx (giá vàng ~80-130 triệu)
+                nums = re.findall(r"\b\d{2,3}[.,]\d{3}[.,]\d{3}\b", r.text)
+                for n in nums:
+                    val = float(n.replace(",", "").replace(".", ""))
+                    if 70_000_000 < val < 200_000_000:
+                        log.info(f"SJC textContent gold price: {val}")
+                        return val
+            else:
+                log.warning(f"SJC textContent status: {r.status_code}")
+        except Exception as e:
+            log.warning(f"SJC textContent error: {e}")
 
-    for item in data:
-        sell = item.get("gia_ban", 0)
+        # ── Endpoint 2: BTMC API ──────────────────────────────
         try:
-            sell = float(str(sell).replace(",", "").replace(".", ""))
-            if sell > 0:
-                return sell
-        except (ValueError, TypeError):
-            continue
+            r = await client.get(
+                "https://api.btmc.vn/api/BTMCAPI/getpricebtmc?key=3kd8ub1llcg9t45hnoh8hmn7t5kc2v",
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            data = r.json()
+            rows = data.get("DataList", {}).get("Data", [])
+
+            # Ưu tiên row có tên chứa "SJC"
+            for row in rows:
+                name = str(row.get("n_1", "") + row.get("@rowid", "")).upper()
+                try:
+                    sell = float(str(row.get("pb_1", 0)).replace(",", "")) * 1000
+                    if "SJC" in name and sell > 70_000_000:
+                        log.info(f"BTMC SJC gold price: {sell}")
+                        return sell
+                except (ValueError, TypeError):
+                    continue
+
+            # Fallback: row đầu tiên hợp lệ
+            for row in rows:
+                try:
+                    sell = float(str(row.get("pb_1", 0)).replace(",", "")) * 1000
+                    if sell > 70_000_000:
+                        log.info(f"BTMC fallback gold price: {sell}")
+                        return sell
+                except (ValueError, TypeError):
+                    continue
+
+        except Exception as e:
+            log.warning(f"BTMC API error: {e}")
+
+    log.error("fetch_gold_price: tất cả endpoint thất bại")
     return None
 
 # ─────────────────────────────────────────────
@@ -264,18 +304,13 @@ async def job_alert():
     except Exception as e:
         log.error(f"USD alert error: {e}")
 
-    # GOLD — SJC
+    # GOLD — SJC textContent → BTMC fallback
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                "https://sjc.com.vn/GoldPrice/Services/PriceService.ashx",
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://sjc.com.vn/"},
-            )
-        gold_price = parse_sjc_sell(r.json())
+        gold_price = await fetch_gold_price()
         if gold_price and gold_price > 0:
             all_alerts += check_alert("GOLD", gold_price, GOLD_MIN, GOLD_MAX, "Vàng SJC", "đ/lượng")
         else:
-            log.warning("SJC: không parse được giá bán hoặc giá = 0")
+            log.warning("Gold: không lấy được giá từ tất cả endpoint")
     except Exception as e:
         log.error(f"Gold alert error: {e}")
 
@@ -320,11 +355,6 @@ def index():
 # ─────────────────────────────────────────────
 
 def to_bybit_symbol(symbol: str) -> str:
-    """
-    Convert Binance-style symbol → Bybit linear perpetual symbol.
-    e.g. "btcusdt" → "BTCUSDT", "ETHUSDT" → "ETHUSDT"
-    Bybit linear symbols are uppercase and identical to Binance for major pairs.
-    """
     return symbol.upper()
 
 # ─────────────────────────────────────────────
@@ -374,13 +404,11 @@ async def ws_kline(ws: WebSocket, symbol: str = "btcusdt", interval: str = "1h")
 
                     data = json.loads(msg)
 
-                    # Skip subscription confirmation / heartbeat frames
                     if "data" not in data:
                         continue
 
                     for k in data["data"]:
                         await ws.send_json({
-                            # Bybit returns ms timestamps
                             "time":      int(k.get("start",  0)) // 1000,
                             "open":      float(k.get("open",   0)),
                             "high":      float(k.get("high",   0)),
@@ -418,7 +446,6 @@ async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
 
     bybit_symbol  = to_bybit_symbol(symbol)
     bybit_url     = "wss://stream.bybit.com/v5/public/linear"
-    # depth 50 snapshot+delta; use "orderbook.1" for 1-level, "orderbook.50" for 50-level
     subscribe_msg = json.dumps({
         "op": "subscribe",
         "args": [f"orderbook.50.{bybit_symbol}"],
@@ -427,7 +454,6 @@ async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
     RECONNECT_DELAY = 3
     MAX_RETRIES     = 10
 
-    # Local book state for delta merging
     local_bids: dict[str, float] = {}
     local_asks: dict[str, float] = {}
 
@@ -459,16 +485,15 @@ async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
                         continue
 
                     book_data = data["data"]
-                    msg_type  = data.get("type", "snapshot")  # "snapshot" | "delta"
+                    msg_type  = data.get("type", "snapshot")
 
                     if msg_type == "snapshot":
                         local_bids = {p: float(q) for p, q in book_data.get("b", [])}
                         local_asks = {p: float(q) for p, q in book_data.get("a", [])}
-                    else:  # delta
+                    else:
                         apply_delta(local_bids, book_data.get("b", []))
                         apply_delta(local_asks, book_data.get("a", []))
 
-                    # Sort and send top 10
                     sorted_bids = sorted(local_bids.items(), key=lambda x: float(x[0]), reverse=True)[:10]
                     sorted_asks = sorted(local_asks.items(), key=lambda x: float(x[0]))[:10]
 
@@ -519,7 +544,6 @@ async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
             )
         result = r.json()
         if result.get("retCode") == 0:
-            # Bybit returns newest-first; reverse so oldest-first for charting
             raw = result["result"]["list"][::-1]
             return [{
                 "time":   int(k[0]) // 1000,
@@ -551,8 +575,8 @@ async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
 # REST — CRYPTO PRICES (CoinGecko) — rate-limited cache
 # ─────────────────────────────────────────────
 
-_coingecko_cache: dict = {}   # key → (timestamp, data)
-COINGECKO_TTL = 60            # giây — cache 60s để tránh 429
+_coingecko_cache: dict = {}
+COINGECKO_TTL = 60
 
 async def _coingecko_get(url: str, ttl: int = COINGECKO_TTL):
     cached = _coingecko_cache.get(url)
@@ -582,7 +606,7 @@ async def get_top200(page: int = 1):
         f"?vs_currency=usd&order=market_cap_desc&per_page=100&page={page}"
         f"&sparkline=false&price_change_percentage=24h,7d"
     )
-    return await _coingecko_get(url, ttl=300)  # top200 thay đổi chậm → cache 5 phút
+    return await _coingecko_get(url, ttl=300)
 
 # ─────────────────────────────────────────────
 # REST — FEAR & GREED
@@ -625,20 +649,20 @@ async def get_forex_vnd():
 
 # ─────────────────────────────────────────────
 # REST — GIÁ VÀNG SJC
+# PriceService.ashx bị block 403 từ Render US IP
+# → dùng textContent.aspx → BTMC fallback
 # ─────────────────────────────────────────────
 
 @app.get("/api/gold")
 async def get_gold():
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                "https://sjc.com.vn/GoldPrice/Services/PriceService.ashx",
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://sjc.com.vn/"},
-            )
-        return r.json()
+        price = await fetch_gold_price()
+        if price:
+            return {"price": price, "unit": "VND/lượng", "source": "SJC/BTMC"}
+        return JSONResponse(status_code=503, content={"error": "Không lấy được giá vàng"})
     except Exception as e:
         log.error(f"Gold endpoint error: {e}")
-        return {"error": str(e)}
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 # ─────────────────────────────────────────────
 # REST — VN STOCK (Yahoo Finance v8)
