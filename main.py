@@ -828,6 +828,48 @@ async def gold_debug():
         results["vcb_baseline"] = {"error": str(e)}
 
     return results
+@app.get("/api/gold/debug2")
+async def gold_debug2():
+    import re
+    results = {}
+
+    # PNJ — tìm số giá vàng trong HTML
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            r = await client.get(
+                "https://www.pnj.com.vn/blog/gia-vang/",
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+            )
+        # Tìm tất cả số dạng giá vàng (70-150 triệu)
+        nums = re.findall(r'[\d]{2,3}[.,][\d]{3}[.,][\d]{3}', r.text)
+        valid = [n for n in nums if 70_000_000 < float(n.replace(',','').replace('.','')) < 200_000_000]
+        results["pnj"] = {
+            "status": r.status_code,
+            "gold_nums_found": valid[:10],
+            # Lấy 500 chars quanh từ "SJC" đầu tiên
+            "sjc_context": r.text[r.text.find('SJC')-50:r.text.find('SJC')+200] if 'SJC' in r.text else "SJC not found",
+        }
+    except Exception as e:
+        results["pnj"] = {"error": str(e)}
+
+    # giavang.net — tìm số + context
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            r = await client.get(
+                "https://giavang.net/",
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+        nums = re.findall(r'[\d]{2,3}[.,][\d]{3}[.,][\d]{3}', r.text)
+        valid = [n for n in nums if 70_000_000 < float(n.replace(',','').replace('.','')) < 200_000_000]
+        results["giavang_net"] = {
+            "status": r.status_code,
+            "gold_nums_found": valid[:10],
+            "sjc_context": r.text[r.text.find('SJC')-50:r.text.find('SJC')+200] if 'SJC' in r.text else "SJC not found",
+        }
+    except Exception as e:
+        results["giavang_net"] = {"error": str(e)}
+
+    return results
 
 @app.post("/api/alert/trigger-now")
 async def trigger_alert_now():
