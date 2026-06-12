@@ -39,15 +39,15 @@ log = logging.getLogger(__name__)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "")
 
-BTC_MIN    = float(os.getenv("BTC_MIN",    "60000"))
+BTC_MIN    = float(os.getenv("BTC_MIN",    "55000"))
 BTC_MAX    = float(os.getenv("BTC_MAX",    "75000"))
-ETH_MIN    = float(os.getenv("ETH_MIN",    "2800"))
-ETH_MAX    = float(os.getenv("ETH_MAX",    "4500"))
-CHANGE_PCT = float(os.getenv("CHANGE_PCT", "3.0"))
+ETH_MIN    = float(os.getenv("ETH_MIN",    "1500"))
+ETH_MAX    = float(os.getenv("ETH_MAX",    "2000"))
+CHANGE_PCT = float(os.getenv("CHANGE_PCT", "5.0"))
 USD_MIN    = float(os.getenv("USD_MIN",    "24000"))
-USD_MAX    = float(os.getenv("USD_MAX",    "26500"))
-GOLD_MIN   = float(os.getenv("GOLD_MIN",   "80000000"))
-GOLD_MAX   = float(os.getenv("GOLD_MAX",   "120000000"))
+USD_MAX    = float(os.getenv("USD_MAX",    "27000"))
+GOLD_MIN   = float(os.getenv("GOLD_MIN",   "100000000"))
+GOLD_MAX   = float(os.getenv("GOLD_MAX",   "150000000"))
 
 # ─────────────────────────────────────────────
 # ALERT STATE
