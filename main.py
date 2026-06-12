@@ -852,3 +852,7 @@ async def gold_debug2():
 async def trigger_alert_now():
     await job_alert()
     return {"status": "ok", "message": "Alert job executed"}
+
+@app.get("/chat")
+def chat_page():
+    return FileResponse("static/chat.html")
