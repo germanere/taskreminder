@@ -671,7 +671,7 @@ YAHOO_HEADERS = {
 }
 
 @app.get("/api/vn/stocks")
-async def get_vn_stocks(symbols: str = "VNM.VN,FPT.VN,VCB.VN,HPG.VN,MWG.VN,TCB.VN,VIC.VN,VHM.VN"):
+async def get_vn_stocks(symbols: str = "VNM.VN,FPT.VN,VCB.VN,HPG.VN,MWG.VN,TCB.VN,VIC.VN,VHM.VN,BID.VN,CTG.VN,VPB.VN,MBB.VN,ACB.VN,STB.VN,HDB.VN,VIB.VN,SSI.VN,VND.VN,HCM.VN,MSN.VN,VRE.VN,PDR.VN,DXG.VN,NVL.VN,KDH.VN,GVR.VN,SAB.VN,GAS.VN,PLX.VN,POW.VN"):
     sym_list = [s.strip() for s in symbols.split(",")]
 
     async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=10) as client:
