@@ -537,11 +537,17 @@ async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
     except Exception as e:
         log.warning(f"Bybit kline REST error: {e} — falling back to Binance")
 
-    # ── Binance fallback ───────────────────────
+# ── Binance fallback ───────────────────────
+try:
     url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(url)
-        data = r.json()
+    data = r.json()
+
+    if not isinstance(data, list):
+        log.error(f"Binance kline unexpected response: {data}")
+        return JSONResponse(status_code=503, content={"error": "Both Bybit and Binance unavailable"})
+
     return [{
         "time":   int(k[0]) // 1000,
         "open":   float(k[1]),
@@ -550,6 +556,10 @@ async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
         "close":  float(k[4]),
         "volume": float(k[5]),
     } for k in data]
+
+except Exception as e:
+    log.error(f"Binance kline fallback error: {e}")
+    return JSONResponse(status_code=503, content={"error": "Both Bybit and Binance unavailable"})
 
 # ─────────────────────────────────────────────
 # REST — CRYPTO PRICES (CoinGecko) — rate-limited cache
