@@ -778,6 +778,56 @@ def alert_config():
         "change_pct_threshold": CHANGE_PCT,
         "alert_cooldown_sec":   ALERT_COOLDOWN,
     }
+  
+@app.get("/api/gold/debug")
+async def gold_debug():
+    """Test tất cả gold endpoint — chỉ dùng để debug"""
+    results = {}
+
+    # Test 1: SJC textContent
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            r = await client.get(
+                "https://sjc.com.vn/giavang/textContent.aspx",
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://sjc.com.vn/"},
+            )
+        results["sjc_textcontent"] = {
+            "status": r.status_code,
+            "length": len(r.text),
+            "preview": r.text[:200],
+        }
+    except Exception as e:
+        results["sjc_textcontent"] = {"error": str(e)}
+
+    # Test 2: BTMC API
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                "https://api.btmc.vn/api/BTMCAPI/getpricebtmc?key=3kd8ub1llcg9t45hnoh8hmn7t5kc2v",
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+        results["btmc"] = {
+            "status": r.status_code,
+            "preview": r.text[:300],
+        }
+    except Exception as e:
+        results["btmc"] = {"error": str(e)}
+
+    # Test 3: SJC PriceService (cái cũ bị block)
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                "https://sjc.com.vn/GoldPrice/Services/PriceService.ashx",
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://sjc.com.vn/"},
+            )
+        results["sjc_priceservice"] = {
+            "status": r.status_code,
+            "preview": r.text[:200],
+        }
+    except Exception as e:
+        results["sjc_priceservice"] = {"error": str(e)}
+
+    return results  
 
 @app.post("/api/alert/trigger-now")
 async def trigger_alert_now():
