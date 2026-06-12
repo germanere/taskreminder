@@ -781,53 +781,53 @@ def alert_config():
   
 @app.get("/api/gold/debug")
 async def gold_debug():
-    """Test tất cả gold endpoint — chỉ dùng để debug"""
     results = {}
 
-    # Test 1: SJC textContent
+    # Test 1: PNJ API
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
             r = await client.get(
-                "https://sjc.com.vn/giavang/textContent.aspx",
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://sjc.com.vn/"},
+                "https://www.pnj.com.vn/blog/gia-vang/",
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
             )
-        results["sjc_textcontent"] = {
-            "status": r.status_code,
-            "length": len(r.text),
-            "preview": r.text[:200],
-        }
+        results["pnj"] = {"status": r.status_code, "length": len(r.text), "preview": r.text[:300]}
     except Exception as e:
-        results["sjc_textcontent"] = {"error": str(e)}
+        results["pnj"] = {"error": str(e)}
 
-    # Test 2: BTMC API
+    # Test 2: giavang.net
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
             r = await client.get(
-                "https://api.btmc.vn/api/BTMCAPI/getpricebtmc?key=3kd8ub1llcg9t45hnoh8hmn7t5kc2v",
+                "https://giavang.net/",
                 headers={"User-Agent": "Mozilla/5.0"},
             )
-        results["btmc"] = {
-            "status": r.status_code,
-            "preview": r.text[:300],
-        }
+        results["giavang_net"] = {"status": r.status_code, "length": len(r.text), "preview": r.text[:300]}
     except Exception as e:
-        results["btmc"] = {"error": str(e)}
+        results["giavang_net"] = {"error": str(e)}
 
-    # Test 3: SJC PriceService (cái cũ bị block)
+    # Test 3: DOJI API
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(
-                "https://sjc.com.vn/GoldPrice/Services/PriceService.ashx",
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://sjc.com.vn/"},
+                "https://dojigroup.vn/api/product/gold-price",
+                headers={"User-Agent": "Mozilla/5.0"},
             )
-        results["sjc_priceservice"] = {
-            "status": r.status_code,
-            "preview": r.text[:200],
-        }
+        results["doji"] = {"status": r.status_code, "preview": r.text[:300]}
     except Exception as e:
-        results["sjc_priceservice"] = {"error": str(e)}
+        results["doji"] = {"error": str(e)}
 
-    return results  
+    # Test 4: Vietcombank (đã hoạt động, dùng làm baseline)
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                "https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10",
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+        results["vcb_baseline"] = {"status": r.status_code, "length": len(r.text)}
+    except Exception as e:
+        results["vcb_baseline"] = {"error": str(e)}
+
+    return results
 
 @app.post("/api/alert/trigger-now")
 async def trigger_alert_now():
