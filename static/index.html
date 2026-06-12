@@ -115,21 +115,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh
           <span class="tf" onclick="setTf(this,'4h')">4H</span>
           <span class="tf" onclick="setTf(this,'1d')">1D</span>
           <div style="width:1px;height:14px;background:var(--border)"></div>
-          <span class="itag">EMA 20/50</span>
-          <span class="itag">Volume</span>
-          <span class="itag">BB</span>
-          <span class="itag">VWAP</span>
+          <span class="itag">EMA 20/50</span><span class="itag">Volume</span>
+          <span class="itag">BB</span><span class="itag">VWAP</span>
         </div>
         <div id="mc" style="height:320px"></div>
       </div>
       <div class="g3">
         <div class="card"><div class="ct"><div class="dot2" style="background:var(--accent)"></div>Macro</div>
           <div class="stat"><div class="sl">USD/VND</div><div class="sv mono" id="uv">—</div></div>
-          <div class="stat"><div class="sl">Vàng SJC</div><div class="sv mono" id="gp">—</div></div>
+          <div class="stat"><div class="sl">Vàng (ước tính)</div><div class="sv mono" id="gp">—</div></div>
           <div class="stat"><div class="sl">Fear & Greed</div><div class="sv mono" id="fg">—</div></div>
         </div>
         <div class="card"><div class="ct"><div class="dot2" style="background:var(--accent2)"></div>Multi-TF</div><div id="mtf"></div></div>
-        <div class="card"><div class="ct"><div class="dot2" style="background:var(--accent3)"></div>VN Top</div><div id="vnm"></div></div>
+        <div class="card"><div class="ct"><div class="dot2" style="background:var(--accent3)"></div>VN Top 30</div><div id="vnm"></div></div>
       </div>
     </div>
 
@@ -245,6 +243,14 @@ let rdata = [], ridx = 0, rplay = false, rtmr;
 let trStats = {n:0, w:0, l:0, t:[]};
 let links = [];
 
+// ── VN SYMBOLS — 30 mã HOSE ───────────────────────────────────────────────
+const VN_SYMS = [
+  'VNM','FPT','VCB','HPG','MWG','TCB','VIC','VHM',
+  'BID','CTG','VPB','MBB','ACB','STB','HDB','VIB',
+  'SSI','VND','HCM','MSN','VRE','PDR','DXG','NVL',
+  'KDH','GVR','SAB','GAS','PLX','POW',
+].map(s => s + '.VN').join(',');
+
 // ── CLOCK ─────────────────────────────────────────────────────────────────
 setInterval(() => document.getElementById('clk').textContent = new Date().toLocaleTimeString('vi-VN'), 1000);
 
@@ -280,36 +286,28 @@ function sw(n) {
 function initChart() {
   const el = document.getElementById('mc');
   if (!el) return;
-
   mc = LightweightCharts.createChart(el, {
-    width:  el.offsetWidth,
-    height: 320,
+    width: el.offsetWidth, height: 320,
     layout: { background:{color:'#0a0b0f'}, textColor:'#8892a4' },
     grid:   { vertLines:{color:'#1e2330'}, horzLines:{color:'#1e2330'} },
     rightPriceScale: { borderColor:'#1e2330' },
     timeScale: { borderColor:'#1e2330', timeVisible:true, secondsVisible:false },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
   });
-
   ms = mc.addCandlestickSeries({
     upColor:'#00d4aa', downColor:'#f74b4b',
     borderUpColor:'#00d4aa', borderDownColor:'#f74b4b',
     wickUpColor:'#00d4aa', wickDownColor:'#f74b4b',
   });
-
   vs = mc.addHistogramSeries({
-    priceScaleId: 'vol',
-    scaleMargins: { top:0.85, bottom:0 },
-    lastValueVisible: false,
-    priceLineVisible: false,
+    priceScaleId:'vol', scaleMargins:{top:0.85,bottom:0},
+    lastValueVisible:false, priceLineVisible:false,
   });
-
   if (window.ResizeObserver) {
-    new ResizeObserver(() => mc.applyOptions({width: el.offsetWidth})).observe(el);
+    new ResizeObserver(() => mc.applyOptions({width:el.offsetWidth})).observe(el);
   } else {
-    window.addEventListener('resize', () => mc.applyOptions({width: el.offsetWidth}));
+    window.addEventListener('resize', () => mc.applyOptions({width:el.offsetWidth}));
   }
-
   loadK();
   connectKWS();
 }
@@ -319,28 +317,18 @@ async function loadK() {
     const r = await fetch(`${B}/api/klines?symbol=${sym}&interval=${intv}&limit=300`);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const data = await r.json();
-    if (!Array.isArray(data) || !data.length) { console.warn('loadK: empty data'); return; }
-
+    if (!Array.isArray(data) || !data.length) { console.warn('loadK: empty'); return; }
     ms.setData(data);
-    vs.setData(data.map(x => ({
-      time:  x.time,
-      value: x.volume,
-      color: x.close >= x.open ? '#00d4aa33' : '#f74b4b33',
-    })));
+    vs.setData(data.map(x => ({time:x.time, value:x.volume, color:x.close>=x.open?'#00d4aa33':'#f74b4b33'})));
     requestAnimationFrame(() => mc.timeScale().fitContent());
-
-    const last = data[data.length - 1];
+    const last = data[data.length-1];
     updatePrice(last.close, last.open);
-  } catch(e) {
-    console.error('loadK error:', e);
-  }
+  } catch(e) { console.error('loadK error:', e); }
 }
 
 function connectKWS() {
   if (kws) { try { kws.close(); } catch(_){} }
-
   kws = new WebSocket(`${WB}/ws/kline?symbol=${sym}&interval=${intv}`);
-
   kws.onmessage = e => {
     try {
       const d = JSON.parse(e.data);
@@ -348,21 +336,18 @@ function connectKWS() {
       ms.update({time:d.time, open:d.open, high:d.high, low:d.low, close:d.close});
       vs.update({time:d.time, value:d.volume, color:d.close>=d.open?'#00d4aa33':'#f74b4b33'});
       updatePrice(d.close, d.open);
-    } catch(err) { console.warn('kws message error:', err); }
+    } catch(err) { console.warn('kws err:', err); }
   };
-
-  kws.onerror = err => console.warn('kws error:', err);
-  kws.onclose = () => {
-    setTimeout(() => { if (kws && kws.readyState === WebSocket.CLOSED) connectKWS(); }, 3000);
-  };
+  kws.onerror = e => console.warn('kws error:', e);
+  kws.onclose = () => { setTimeout(() => { if(kws&&kws.readyState===WebSocket.CLOSED) connectKWS(); }, 3000); };
 }
 
 function updatePrice(close, open) {
   const prev = parseFloat(document.getElementById('cp').dataset.prev || open);
-  const pct  = ((close - prev) / (prev || 1) * 100).toFixed(2);
+  const pct  = ((close - prev) / (prev||1) * 100).toFixed(2);
   const cpEl = document.getElementById('cp');
   const ccEl = document.getElementById('cc');
-  cpEl.textContent  = '$' + close.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  cpEl.textContent  = '$' + close.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
   cpEl.dataset.prev = open;
   cpEl.style.color  = close >= open ? 'var(--green)' : 'var(--red)';
   ccEl.textContent  = (pct >= 0 ? '+' : '') + pct + '%';
@@ -372,16 +357,9 @@ function updatePrice(close, open) {
 function setTf(el, tf) {
   document.querySelectorAll('.tf').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
-  intv = tf;
-  loadK();
-  connectKWS();
+  intv = tf; loadK(); connectKWS();
 }
-
-function changeSym(s) {
-  sym = s;
-  loadK();
-  connectKWS();
-}
+function changeSym(s) { sym = s; loadK(); connectKWS(); }
 
 // ── MACRO ─────────────────────────────────────────────────────────────────
 async function loadMacro() {
@@ -389,24 +367,22 @@ async function loadMacro() {
   try {
     const r = await fetch(`${B}/api/forex/vnd`);
     const d = await r.json();
-    if (d.USD) document.getElementById('uv').textContent =
-      d.USD.sell?.toLocaleString('vi-VN') + 'đ';
+    if (d.USD) document.getElementById('uv').textContent = d.USD.sell?.toLocaleString('vi-VN') + 'đ';
   } catch(e) {}
 
-  // Vàng SJC — backend trả {price, unit, source} hoặc {error}
+  // Vàng — backend trả {price, unit, source} hoặc {error}
   try {
     const r = await fetch(`${B}/api/gold`);
     const d = await r.json();
     const el = document.getElementById('gp');
     if (d.price && d.price > 0) {
-      el.textContent = d.price.toLocaleString('vi-VN') + 'đ';
+      el.textContent = '~' + d.price.toLocaleString('vi-VN') + 'đ';
+      el.style.color = '';
     } else {
       el.textContent = d.error || '—';
       el.style.color = 'var(--text2)';
     }
-  } catch(e) {
-    document.getElementById('gp').textContent = '—';
-  }
+  } catch(e) { document.getElementById('gp').textContent = '—'; }
 
   // Fear & Greed
   try {
@@ -434,33 +410,33 @@ function renderMTF() {
   ).join('');
 }
 
-// ── VN STOCKS ─────────────────────────────────────────────────────────────
+// ── VN STOCKS — 30 mã, scrollable ─────────────────────────────────────────
 async function loadVNM() {
   try {
-    const r = await fetch(`${B}/api/vn/stocks`);
+    const r = await fetch(`${B}/api/vn/stocks?symbols=${VN_SYMS}`);
     const d = await r.json();
     if (!Array.isArray(d)) return;
-    document.getElementById('vnm').innerHTML = d.slice(0, 5).map(s =>
-      `<div class="sr" style="padding:5px 0">
-        <span style="font-size:11px;font-weight:600;width:36px">${s.symbol}</span>
-        <span class="mono fw6" style="font-size:11px;margin-left:4px">${s.price?.toLocaleString()}</span>
-        <span class="tag ml ${s.change >= 0 ? 'tg':'tr'}">${(s.change||0).toFixed(1)}%</span>
-      </div>`
-    ).join('');
+    document.getElementById('vnm').innerHTML =
+      `<div style="max-height:200px;overflow-y:auto">` +
+      d.map(s =>
+        `<div class="sr" style="padding:4px 0">
+          <span style="font-size:11px;font-weight:600;width:40px;flex-shrink:0">${s.symbol}</span>
+          <span class="mono fw6" style="font-size:11px;margin-left:4px">${s.price?.toLocaleString()}</span>
+          <span class="tag ml ${s.change>=0?'tg':'tr'}">${(s.change||0).toFixed(1)}%</span>
+        </div>`
+      ).join('') + `</div>`;
   } catch(e) {}
 }
 
 // ── ORDERBOOK WS ──────────────────────────────────────────────────────────
 function initOB() {
   if (ows) { try { ows.close(); } catch(_){} }
-
   ows = new WebSocket(`${WB}/ws/orderbook?symbol=${sym}`);
   ows.onmessage = e => {
     try {
       const d = JSON.parse(e.data);
       if (!d || d.reconnecting || !d.asks || !d.bids) return;
-
-      const max = Math.max(...d.asks.map(a => a[1]), ...d.bids.map(b => b[1]));
+      const max = Math.max(...d.asks.map(a=>a[1]), ...d.bids.map(b=>b[1]));
       let h = '';
       [...d.asks].reverse().forEach(([p,s]) => {
         h += `<div class="ob-row ob-ask"><div class="ob-bar" style="width:${s/max*100}%"></div>
@@ -474,11 +450,9 @@ function initOB() {
                <span style="color:var(--text2)">${parseFloat(s).toFixed(3)}</span></div>`;
       });
       document.getElementById('ob').innerHTML = h;
-    } catch(err) { console.warn('ows message error:', err); }
+    } catch(err) { console.warn('ows err:', err); }
   };
-  ows.onclose = () => {
-    setTimeout(() => { if (ows && ows.readyState === WebSocket.CLOSED) initOB(); }, 3000);
-  };
+  ows.onclose = () => { setTimeout(() => { if(ows&&ows.readyState===WebSocket.CLOSED) initOB(); }, 3000); };
 }
 
 // ── SIGNALS ───────────────────────────────────────────────────────────────
@@ -535,10 +509,10 @@ function renderLM() {
 function renderWR() {
   const el = document.getElementById('wr'); if (!el) return;
   el.innerHTML = [
-    {l:'Retail Long', v:'61.4%', p:61, c:'accent3'},
-    {l:'Whale Long',  v:'78.2%', p:78, c:'accent2'},
-    {l:'Smart Money', v:'+$1.2B',p:68, c:'accent2'},
-    {l:'VN Ngoại',    v:'-420B', p:72, c:'red'},
+    {l:'Retail Long',v:'61.4%',p:61,c:'accent3'},
+    {l:'Whale Long', v:'78.2%',p:78,c:'accent2'},
+    {l:'Smart Money',v:'+$1.2B',p:68,c:'accent2'},
+    {l:'VN Ngoại',  v:'-420B', p:72,c:'red'},
   ].map(x =>
     `<div style="margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;margin-bottom:3px">
@@ -554,8 +528,10 @@ function renderOpt() {
   const el = document.getElementById('opt'); if (!el) return;
   el.innerHTML = `<table class="tbl">
     <tr><th>Strike</th><th>Put</th><th>Call</th><th>P/C</th></tr>
-    ${[['65K','12.4K','8.1K','1.53','tr'],['68K','6.8K','21.2K','0.32','tg'],['70K','4.1K','18.9K','0.22','tg'],['72K','2.3K','9.4K','0.24','tg']].map(r =>
-      `<tr><td class="mono">${r[0]}</td><td class="r mono">${r[1]}</td><td class="g mono">${r[2]}</td><td><span class="tag ${r[4]}">${r[3]}</span></td></tr>`
+    ${[['65K','12.4K','8.1K','1.53','tr'],['68K','6.8K','21.2K','0.32','tg'],
+       ['70K','4.1K','18.9K','0.22','tg'],['72K','2.3K','9.4K','0.24','tg']].map(r =>
+      `<tr><td class="mono">${r[0]}</td><td class="r mono">${r[1]}</td>
+           <td class="g mono">${r[2]}</td><td><span class="tag ${r[4]}">${r[3]}</span></td></tr>`
     ).join('')}
   </table>`;
 }
@@ -575,22 +551,19 @@ async function loadFA(mkt) {
   mkt = mkt || document.getElementById('fam')?.value || 'crypto';
   const el = document.getElementById('fat'); if (!el) return;
   el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">Loading...</div>';
-
   try {
     if (mkt === 'crypto') {
-      const r = await fetch(`${B}/api/crypto/top200`);
+      const r   = await fetch(`${B}/api/crypto/top200`);
       const raw = await r.json();
-
-      // FIX: CoinGecko trả object {} khi 429 → guard bằng Array.isArray
+      // FIX: CoinGecko trả {} khi 429 → guard Array.isArray
       const list = Array.isArray(raw) ? raw : [];
       if (!list.length) {
         el.innerHTML = '<div style="color:var(--accent3);padding:12px">⚠ CoinGecko rate limit — thử lại sau 60s</div>';
         return;
       }
-
       el.innerHTML = `<div class="card"><table class="tbl">
         <tr><th>#</th><th>Asset</th><th>Price</th><th>24h</th><th>7d</th><th>MCap</th><th>Score</th></tr>
-        ${list.slice(0, 50).map((c, i) => {
+        ${list.slice(0,50).map((c,i) => {
           const ch  = c.price_change_percentage_24h || 0;
           const ch7 = c.price_change_percentage_7d_in_currency || 0;
           const sc  = Math.min(99, Math.max(10, 50 + ch7*2 + ch));
@@ -605,12 +578,11 @@ async function loadFA(mkt) {
           </tr>`;
         }).join('')}
       </table></div>`;
-
     } else {
-      const r = await fetch(`${B}/api/vn/stocks?symbols=VNM.VN,FPT.VN,VCB.VN,HPG.VN,MWG.VN,TCB.VN,VIC.VN,VHM.VN`);
-      const raw = await r.json();
+      // VN Stocks — dùng VN_SYMS 30 mã
+      const r    = await fetch(`${B}/api/vn/stocks?symbols=${VN_SYMS}`);
+      const raw  = await r.json();
       const list = Array.isArray(raw) ? raw : [];
-
       el.innerHTML = `<div class="card"><table class="tbl">
         <tr><th>Mã</th><th>Giá</th><th>%</th><th>KL</th><th>P/E</th><th>Score</th></tr>
         ${list.map(s => {
@@ -626,7 +598,6 @@ async function loadFA(mkt) {
         }).join('')}
       </table></div>`;
     }
-
     document.getElementById('fau').textContent = 'Updated ' + new Date().toLocaleTimeString('vi-VN');
   } catch(e) {
     el.innerHTML = '<div style="color:var(--red);padding:12px">' + e.message + '</div>';
@@ -637,11 +608,7 @@ async function loadFA(mkt) {
 function saveLink() {
   const v = document.getElementById('li').value.trim();
   if (!v) return;
-  links.unshift({
-    url:   v,
-    title: v.startsWith('http') ? new URL(v).hostname : v,
-    d:     new Date().toLocaleDateString('vi-VN'),
-  });
+  links.unshift({url:v, title:v.startsWith('http')?new URL(v).hostname:v, d:new Date().toLocaleDateString('vi-VN')});
   document.getElementById('li').value = '';
   renderLinks();
 }
@@ -652,14 +619,14 @@ function renderLinks() {
     {url:'https://arxiv.org',    title:'arxiv.org',    d:'Demo'},
     {url:'https://glassnode.com',title:'glassnode.com',d:'Demo'},
   ];
-  el.innerHTML = all.map((l, i) =>
+  el.innerHTML = all.map((l,i) =>
     `<div class="cev">
       <div class="cdot" style="background:var(--${['accent','accent2','accent3','green','red'][i%5]})"></div>
       <div style="flex:1">
         <div style="font-size:12px;font-weight:500">${l.title}</div>
         <div class="xs">${l.d}</div>
       </div>
-      ${l.url.startsWith('http') ? `<a href="${l.url}" target="_blank" style="font-size:10px;color:var(--accent)">↗</a>` : ''}
+      ${l.url.startsWith('http')?`<a href="${l.url}" target="_blank" style="font-size:10px;color:var(--accent)">↗</a>`:''}
     </div>`
   ).join('');
 }
@@ -685,7 +652,7 @@ async function renderCal() {
 function renderTK() {
   const el = document.getElementById('tk'); if (!el) return;
   el.innerHTML = [
-    {n:'Arthur Hayes',c:'Macro·Crypto', i:'🧠'},
+    {n:'Arthur Hayes',c:'Macro·Crypto',i:'🧠'},
     {n:'Raoul Pal',   c:'Macro·Cycles',i:'📊'},
     {n:'Willy Woo',   c:'On-chain',    i:'🔬'},
     {n:'CryptoKaleo', c:'TA·Crypto',   i:'📈'},
@@ -731,34 +698,27 @@ function renderPHm() {
 async function initRC() {
   const el = document.getElementById('rc');
   if (!el || rc2) return;
-
   rc2 = LightweightCharts.createChart(el, {
-    width:  el.offsetWidth,
-    height: 240,
-    layout: { background:{color:'#0a0b0f'}, textColor:'#8892a4' },
-    grid:   { vertLines:{color:'#1e2330'}, horzLines:{color:'#1e2330'} },
-    rightPriceScale: { borderColor:'#1e2330' },
-    timeScale: { borderColor:'#1e2330', timeVisible:true },
+    width:el.offsetWidth, height:240,
+    layout:{background:{color:'#0a0b0f'},textColor:'#8892a4'},
+    grid:{vertLines:{color:'#1e2330'},horzLines:{color:'#1e2330'}},
+    rightPriceScale:{borderColor:'#1e2330'},
+    timeScale:{borderColor:'#1e2330',timeVisible:true},
   });
-
   rs2 = rc2.addCandlestickSeries({
     upColor:'#00d4aa', downColor:'#f74b4b',
     borderUpColor:'#00d4aa', borderDownColor:'#f74b4b',
     wickUpColor:'#00d4aa', wickDownColor:'#f74b4b',
   });
-
   if (window.ResizeObserver) {
-    new ResizeObserver(() => rc2.applyOptions({width: el.offsetWidth})).observe(el);
+    new ResizeObserver(() => rc2.applyOptions({width:el.offsetWidth})).observe(el);
   }
-
   try {
     const r = await fetch(`${B}/api/klines?symbol=BTCUSDT&interval=4h&limit=300`);
     rdata = await r.json();
     if (!Array.isArray(rdata)) rdata = [];
     ridx = 100;
-    renderRC();
-    renderTS();
-    renderTJ();
+    renderRC(); renderTS(); renderTJ();
   } catch(e) { console.error('initRC:', e); }
 }
 
@@ -766,8 +726,7 @@ function renderRC() {
   if (!rs2 || !rdata.length) return;
   rs2.setData(rdata.slice(0, ridx));
   requestAnimationFrame(() => rc2.timeScale().fitContent());
-  const d = new Date(rdata[ridx - 1].time * 1000);
-  document.getElementById('rd').textContent = d.toLocaleDateString('vi-VN');
+  document.getElementById('rd').textContent = new Date(rdata[ridx-1].time*1000).toLocaleDateString('vi-VN');
 }
 
 function rNext() { if (ridx < rdata.length) { ridx += 3; renderRC(); } }
@@ -781,9 +740,7 @@ function tglReplay() {
       rNext();
       if (ridx >= rdata.length) { clearInterval(rtmr); rplay = false; document.getElementById('rb').textContent = '▶'; }
     }, 500);
-  } else {
-    clearInterval(rtmr);
-  }
+  } else { clearInterval(rtmr); }
 }
 
 function trade(d) {
@@ -791,15 +748,13 @@ function trade(d) {
   trStats.n++;
   const w = Math.random() > .45;
   if (w) trStats.w++; else trStats.l++;
-  trStats.t.unshift({d, r: w ? 'win' : 'loss', t: new Date().toLocaleTimeString('vi-VN')});
-  renderTS();
-  renderTJ();
-  rNext();
+  trStats.t.unshift({d, r:w?'win':'loss', t:new Date().toLocaleTimeString('vi-VN')});
+  renderTS(); renderTJ(); rNext();
 }
 
 function renderTS() {
   const el = document.getElementById('ts2'); if (!el) return;
-  const wr = trStats.n ? ((trStats.w / trStats.n) * 100).toFixed(1) : 0;
+  const wr = trStats.n ? ((trStats.w/trStats.n)*100).toFixed(1) : 0;
   el.innerHTML = `
     <div class="g2" style="gap:6px">
       <div class="stat" style="padding:6px 0"><div class="sl">Sessions</div><div class="sv mono">${trStats.n}</div></div>
@@ -811,7 +766,7 @@ function renderTS() {
 
 function renderTJ() {
   const el = document.getElementById('tj'); if (!el) return;
-  el.innerHTML = trStats.t.slice(0, 20).map(t =>
+  el.innerHTML = trStats.t.slice(0,20).map(t =>
     `<div style="display:flex;gap:8px;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);font-size:11px">
       <span class="${t.d==='long'?'g':'r'}">${t.d==='long'?'L':'S'}</span>
       <span class="tag ${t.r==='win'?'tg':'tr'}">${t.r}</span>
