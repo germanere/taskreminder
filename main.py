@@ -202,65 +202,45 @@ async def fetch_price(symbol_bybit: str, symbol_binance: str) -> float:
 
 async def fetch_gold_price() -> float | None:
     """
-    Lấy giá vàng SJC (VND/lượng).
-    Endpoint 1: sjc.com.vn/giavang/textContent.aspx
-    Endpoint 2: api.btmc.vn (Bảo Tín Minh Châu) — public, không block Render
+    Giá vàng SJC (VND/lượng).
+    Yahoo Finance XAU/USD → quy đổi VND/lượng
+    1 troy oz = 31.1035g | 1 lượng VN = 37.5g → 1 lượng = 1.20565 troy oz
     """
-    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+    LUONG_PER_OZ = 37.5 / 31.1035  # = 1.20565
 
-        # ── Endpoint 1: SJC textContent ──────────────────────
-        try:
-            r = await client.get(
-                "https://sjc.com.vn/giavang/textContent.aspx",
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://sjc.com.vn/"},
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            # Lấy giá vàng USD/oz
+            rg = await client.get(
+                "https://query1.finance.yahoo.com/v8/finance/chart/GC%3DF",
+                params={"interval": "1d", "range": "1d"},
+                headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
             )
-            if r.status_code == 200 and r.text.strip():
-                # Tìm số dạng 1xx.xxx.xxx hoặc xx.xxx.xxx (giá vàng ~80-130 triệu)
-                nums = re.findall(r"\b\d{2,3}[.,]\d{3}[.,]\d{3}\b", r.text)
-                for n in nums:
-                    val = float(n.replace(",", "").replace(".", ""))
-                    if 70_000_000 < val < 200_000_000:
-                        log.info(f"SJC textContent gold price: {val}")
-                        return val
-            else:
-                log.warning(f"SJC textContent status: {r.status_code}")
-        except Exception as e:
-            log.warning(f"SJC textContent error: {e}")
+            gold_usd_oz = rg.json()["chart"]["result"][0]["meta"]["regularMarketPrice"]
 
-        # ── Endpoint 2: BTMC API ──────────────────────────────
-        try:
-            r = await client.get(
-                "https://api.btmc.vn/api/BTMCAPI/getpricebtmc?key=3kd8ub1llcg9t45hnoh8hmn7t5kc2v",
+            # Lấy tỷ giá USD/VND từ Vietcombank (đã hoạt động)
+            import xml.etree.ElementTree as ET
+            rv = await client.get(
+                "https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10",
                 headers={"User-Agent": "Mozilla/5.0"},
             )
-            data = r.json()
-            rows = data.get("DataList", {}).get("Data", [])
+            root = ET.fromstring(rv.text)
+            usd_vnd = 0.0
+            for ex in root.findall(".//Exrate"):
+                if ex.get("CurrencyCode") == "USD":
+                    usd_vnd = float(ex.get("Sell", "0").replace(",", ""))
+                    break
 
-            # Ưu tiên row có tên chứa "SJC"
-            for row in rows:
-                name = str(row.get("n_1", "") + row.get("@rowid", "")).upper()
-                try:
-                    sell = float(str(row.get("pb_1", 0)).replace(",", "")) * 1000
-                    if "SJC" in name and sell > 70_000_000:
-                        log.info(f"BTMC SJC gold price: {sell}")
-                        return sell
-                except (ValueError, TypeError):
-                    continue
+            if gold_usd_oz > 0 and usd_vnd > 0:
+                # Giá vàng VND/lượng (thêm ~8% thuế + phí SJC so với thế giới)
+                price = gold_usd_oz * usd_vnd * LUONG_PER_OZ * 1.08
+                price = round(price / 100_000) * 100_000  # làm tròn 100k
+                log.info(f"Gold Yahoo: {gold_usd_oz} USD/oz × {usd_vnd} VND × {LUONG_PER_OZ:.5f} × 1.08 = {price:,.0f} VND/lượng")
+                return price
 
-            # Fallback: row đầu tiên hợp lệ
-            for row in rows:
-                try:
-                    sell = float(str(row.get("pb_1", 0)).replace(",", "")) * 1000
-                    if sell > 70_000_000:
-                        log.info(f"BTMC fallback gold price: {sell}")
-                        return sell
-                except (ValueError, TypeError):
-                    continue
+    except Exception as e:
+        log.error(f"fetch_gold_price Yahoo error: {e}")
 
-        except Exception as e:
-            log.warning(f"BTMC API error: {e}")
-
-    log.error("fetch_gold_price: tất cả endpoint thất bại")
     return None
 
 # ─────────────────────────────────────────────
