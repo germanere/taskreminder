@@ -90,9 +90,6 @@ async def send_telegram_async(text: str):
 # ─────────────────────────────────────────────
 
 def _fmt(value: float, unit: str) -> str:
-    """Format giá trị với đơn vị đúng vị trí.
-    $ → $103,456  |  đ/... → 103,456 đ/lượng  |  blank → 103,456
-    """
     if unit.startswith("$"):
         return f"${value:,.2f}" if value < 1000 else f"${value:,.0f}"
     elif unit:
@@ -158,11 +155,6 @@ def check_alert(
 # ─────────────────────────────────────────────
 
 async def fetch_price(symbol_bybit: str, symbol_binance: str) -> float:
-    """
-    Lấy giá từ Bybit (linear → spot fallback) rồi Binance.
-    Raise ValueError nếu tất cả đều thất bại — tránh trả về 0 gây alert sai.
-    """
-    # Bybit v5 — thử linear trước, rồi spot
     for category in ("linear", "spot"):
         try:
             async with httpx.AsyncClient(timeout=8) as client:
@@ -186,7 +178,10 @@ async def fetch_price(symbol_bybit: str, symbol_binance: str) -> float:
             r = await client.get(
                 f"https://api.binance.com/api/v3/ticker/price?symbol={symbol_binance}"
             )
-        price = float(r.json().get("price", 0))
+        data = r.json()
+        if not isinstance(data, dict):
+            raise ValueError(f"Binance unexpected response type: {type(data)}")
+        price = float(data.get("price", 0))
         if price > 0:
             log.info(f"Binance fallback price {symbol_binance}: {price}")
             return price
@@ -196,8 +191,7 @@ async def fetch_price(symbol_bybit: str, symbol_binance: str) -> float:
     raise ValueError(f"Không lấy được giá cho {symbol_bybit} / {symbol_binance}")
 
 # ─────────────────────────────────────────────
-# GOLD PRICE FETCH — SJC textContent → BTMC fallback
-# PriceService.ashx bị block 403 từ Render US IP
+# GOLD PRICE FETCH
 # ─────────────────────────────────────────────
 
 async def fetch_gold_price() -> float | None:
@@ -206,11 +200,10 @@ async def fetch_gold_price() -> float | None:
     Yahoo Finance XAU/USD → quy đổi VND/lượng
     1 troy oz = 31.1035g | 1 lượng VN = 37.5g → 1 lượng = 1.20565 troy oz
     """
-    LUONG_PER_OZ = 37.5 / 31.1035  # = 1.20565
+    LUONG_PER_OZ = 37.5 / 31.1035
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            # Lấy giá vàng USD/oz
             rg = await client.get(
                 "https://query1.finance.yahoo.com/v8/finance/chart/GC%3DF",
                 params={"interval": "1d", "range": "1d"},
@@ -218,7 +211,6 @@ async def fetch_gold_price() -> float | None:
             )
             gold_usd_oz = rg.json()["chart"]["result"][0]["meta"]["regularMarketPrice"]
 
-            # Lấy tỷ giá USD/VND từ Vietcombank (đã hoạt động)
             import xml.etree.ElementTree as ET
             rv = await client.get(
                 "https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10",
@@ -232,9 +224,8 @@ async def fetch_gold_price() -> float | None:
                     break
 
             if gold_usd_oz > 0 and usd_vnd > 0:
-                # Giá vàng VND/lượng (thêm ~8% thuế + phí SJC so với thế giới)
                 price = gold_usd_oz * usd_vnd * LUONG_PER_OZ * 1.08
-                price = round(price / 100_000) * 100_000  # làm tròn 100k
+                price = round(price / 100_000) * 100_000
                 log.info(f"Gold Yahoo: {gold_usd_oz} USD/oz × {usd_vnd} VND × {LUONG_PER_OZ:.5f} × 1.08 = {price:,.0f} VND/lượng")
                 return price
 
@@ -250,21 +241,18 @@ async def fetch_gold_price() -> float | None:
 async def job_alert():
     all_alerts: list[str] = []
 
-    # BTC — Bybit primary, Binance fallback
     try:
         btc = await fetch_price("BTCUSDT", "BTCUSDT")
         all_alerts += check_alert("BTC", btc, BTC_MIN, BTC_MAX, "BTC/USDT", "$")
     except Exception as e:
         log.error(f"BTC alert error: {e}")
 
-    # ETH — Bybit primary, Binance fallback
     try:
         eth = await fetch_price("ETHUSDT", "ETHUSDT")
         all_alerts += check_alert("ETH", eth, ETH_MIN, ETH_MAX, "ETH/USDT", "$")
     except Exception as e:
         log.error(f"ETH alert error: {e}")
 
-    # USD/VND — Vietcombank
     try:
         import xml.etree.ElementTree as ET
         async with httpx.AsyncClient(timeout=10) as client:
@@ -284,7 +272,6 @@ async def job_alert():
     except Exception as e:
         log.error(f"USD alert error: {e}")
 
-    # GOLD — SJC textContent → BTMC fallback
     try:
         gold_price = await fetch_gold_price()
         if gold_price and gold_price > 0:
@@ -339,9 +326,6 @@ def to_bybit_symbol(symbol: str) -> str:
 
 # ─────────────────────────────────────────────
 # WEBSOCKET — BYBIT KLINE
-# ─────────────────────────────────────────────
-# Bybit interval mapping: 1m→1, 3m→3, 5m→5, 15m→15, 30m→30,
-#                         1h→60, 2h→120, 4h→240, 1d→D, 1w→W
 # ─────────────────────────────────────────────
 
 BYBIT_INTERVAL_MAP = {
@@ -503,6 +487,8 @@ async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
 # ─────────────────────────────────────────────
 # REST — HISTORICAL KLINES
 # Primary: Bybit v5  →  Fallback: Binance
+# FIX: Binance fallback nằm TRONG hàm get_klines (indent đúng)
+#      + kiểm tra isinstance(data, list) trước khi iterate
 # ─────────────────────────────────────────────
 
 @app.get("/api/klines")
@@ -524,42 +510,62 @@ async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
             )
         result = r.json()
         if result.get("retCode") == 0:
-            raw = result["result"]["list"][::-1]
-            return [{
-                "time":   int(k[0]) // 1000,
-                "open":   float(k[1]),
-                "high":   float(k[2]),
-                "low":    float(k[3]),
-                "close":  float(k[4]),
-                "volume": float(k[5]),
-            } for k in raw]
-        log.warning(f"Bybit kline non-zero retCode: {result.get('retMsg')}")
+            raw = result["result"]["list"]
+            if isinstance(raw, list) and len(raw) > 0:
+                raw = raw[::-1]  # Bybit trả mới nhất trước — đảo ngược
+                return [{
+                    "time":   int(k[0]) // 1000,
+                    "open":   float(k[1]),
+                    "high":   float(k[2]),
+                    "low":    float(k[3]),
+                    "close":  float(k[4]),
+                    "volume": float(k[5]),
+                } for k in raw]
+            log.warning("Bybit kline returned empty list")
+        else:
+            log.warning(f"Bybit kline non-zero retCode: {result.get('retMsg')}")
     except Exception as e:
         log.warning(f"Bybit kline REST error: {e} — falling back to Binance")
 
-# ── Binance fallback ───────────────────────
-try:
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(url)
-    data = r.json()
+    # ── Binance fallback ───────────────────────
+    # QUAN TRỌNG: khối này phải indent vào trong hàm get_klines
+    # Render US IP thường bị Binance geo-block (HTTP 451) → response là HTML/dict, không phải list
+    # → luôn kiểm tra isinstance(data, list) trước khi iterate để tránh ValueError
+    try:
+        url = (
+            f"https://api.binance.com/api/v3/klines"
+            f"?symbol={symbol.upper()}&interval={interval}&limit={limit}"
+        )
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(url)
 
-    if not isinstance(data, list):
-        log.error(f"Binance kline unexpected response: {data}")
-        return JSONResponse(status_code=503, content={"error": "Both Bybit and Binance unavailable"})
+        data = r.json()
 
-    return [{
-        "time":   int(k[0]) // 1000,
-        "open":   float(k[1]),
-        "high":   float(k[2]),
-        "low":    float(k[3]),
-        "close":  float(k[4]),
-        "volume": float(k[5]),
-    } for k in data]
+        if not isinstance(data, list):
+            log.error(
+                f"Binance kline fallback — unexpected response "
+                f"(HTTP {r.status_code}): {str(data)[:200]}"
+            )
+            return JSONResponse(
+                status_code=503,
+                content={"error": "Không lấy được dữ liệu kline — cả Bybit lẫn Binance đều thất bại"},
+            )
 
-except Exception as e:
-    log.error(f"Binance kline fallback error: {e}")
-    return JSONResponse(status_code=503, content={"error": "Both Bybit and Binance unavailable"})
+        return [{
+            "time":   int(k[0]) // 1000,
+            "open":   float(k[1]),
+            "high":   float(k[2]),
+            "low":    float(k[3]),
+            "close":  float(k[4]),
+            "volume": float(k[5]),
+        } for k in data]
+
+    except Exception as e:
+        log.error(f"Binance kline fallback error: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"error": f"Không lấy được dữ liệu kline: {str(e)}"},
+        )
 
 # ─────────────────────────────────────────────
 # REST — CRYPTO PRICES (CoinGecko) — rate-limited cache
@@ -576,7 +582,7 @@ async def _coingecko_get(url: str, ttl: int = COINGECKO_TTL):
         r = await client.get(url)
         if r.status_code == 429:
             log.warning("CoinGecko 429 — returning cached data if available")
-            return cached[1] if cached else []  # FIX: trả [] thay vì {} để frontend .slice() không crash
+            return cached[1] if cached else []
         data = r.json()
     _coingecko_cache[url] = (time.time(), data)
     return data
@@ -639,8 +645,6 @@ async def get_forex_vnd():
 
 # ─────────────────────────────────────────────
 # REST — GIÁ VÀNG SJC
-# PriceService.ashx bị block 403 từ Render US IP
-# → dùng textContent.aspx → BTMC fallback
 # ─────────────────────────────────────────────
 
 @app.get("/api/gold")
@@ -768,12 +772,11 @@ def alert_config():
         "change_pct_threshold": CHANGE_PCT,
         "alert_cooldown_sec":   ALERT_COOLDOWN,
     }
-  
+
 @app.get("/api/gold/debug")
 async def gold_debug():
     results = {}
 
-    # Test 1: PNJ API
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
             r = await client.get(
@@ -784,29 +787,20 @@ async def gold_debug():
     except Exception as e:
         results["pnj"] = {"error": str(e)}
 
-    # Test 2: giavang.net
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-            r = await client.get(
-                "https://giavang.net/",
-                headers={"User-Agent": "Mozilla/5.0"},
-            )
+            r = await client.get("https://giavang.net/", headers={"User-Agent": "Mozilla/5.0"})
         results["giavang_net"] = {"status": r.status_code, "length": len(r.text), "preview": r.text[:300]}
     except Exception as e:
         results["giavang_net"] = {"error": str(e)}
 
-    # Test 3: DOJI API
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                "https://dojigroup.vn/api/product/gold-price",
-                headers={"User-Agent": "Mozilla/5.0"},
-            )
+            r = await client.get("https://dojigroup.vn/api/product/gold-price", headers={"User-Agent": "Mozilla/5.0"})
         results["doji"] = {"status": r.status_code, "preview": r.text[:300]}
     except Exception as e:
         results["doji"] = {"error": str(e)}
 
-    # Test 4: Vietcombank (đã hoạt động, dùng làm baseline)
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(
@@ -821,35 +815,27 @@ async def gold_debug():
 
 @app.get("/api/gold/debug2")
 async def gold_debug2():
-    import re
     results = {}
 
-    # PNJ — tìm số giá vàng trong HTML
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
             r = await client.get(
                 "https://www.pnj.com.vn/blog/gia-vang/",
                 headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
             )
-        # Tìm tất cả số dạng giá vàng (70-150 triệu)
         nums = re.findall(r'[\d]{2,3}[.,][\d]{3}[.,][\d]{3}', r.text)
         valid = [n for n in nums if 70_000_000 < float(n.replace(',','').replace('.','')) < 200_000_000]
         results["pnj"] = {
             "status": r.status_code,
             "gold_nums_found": valid[:10],
-            # Lấy 500 chars quanh từ "SJC" đầu tiên
             "sjc_context": r.text[r.text.find('SJC')-50:r.text.find('SJC')+200] if 'SJC' in r.text else "SJC not found",
         }
     except Exception as e:
         results["pnj"] = {"error": str(e)}
 
-    # giavang.net — tìm số + context
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-            r = await client.get(
-                "https://giavang.net/",
-                headers={"User-Agent": "Mozilla/5.0"},
-            )
+            r = await client.get("https://giavang.net/", headers={"User-Agent": "Mozilla/5.0"})
         nums = re.findall(r'[\d]{2,3}[.,][\d]{3}[.,][\d]{3}', r.text)
         valid = [n for n in nums if 70_000_000 < float(n.replace(',','').replace('.','')) < 200_000_000]
         results["giavang_net"] = {
