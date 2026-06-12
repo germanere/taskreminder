@@ -829,64 +829,46 @@ async def gold_debug():
 
     return results
 
-@app.get("/api/gold/debug3")
-async def gold_debug3():
+@app.get("/api/gold/debug2")
+async def gold_debug2():
+    import re
     results = {}
 
-    # Test 1: giavang.org JSON API
+    # PNJ — tìm số giá vàng trong HTML
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
             r = await client.get(
-                "https://giavang.org/api/get-gold-price",
+                "https://www.pnj.com.vn/blog/gia-vang/",
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+            )
+        # Tìm tất cả số dạng giá vàng (70-150 triệu)
+        nums = re.findall(r'[\d]{2,3}[.,][\d]{3}[.,][\d]{3}', r.text)
+        valid = [n for n in nums if 70_000_000 < float(n.replace(',','').replace('.','')) < 200_000_000]
+        results["pnj"] = {
+            "status": r.status_code,
+            "gold_nums_found": valid[:10],
+            # Lấy 500 chars quanh từ "SJC" đầu tiên
+            "sjc_context": r.text[r.text.find('SJC')-50:r.text.find('SJC')+200] if 'SJC' in r.text else "SJC not found",
+        }
+    except Exception as e:
+        results["pnj"] = {"error": str(e)}
+
+    # giavang.net — tìm số + context
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            r = await client.get(
+                "https://giavang.net/",
                 headers={"User-Agent": "Mozilla/5.0"},
             )
-        results["giavang_org"] = {"status": r.status_code, "preview": r.text[:400]}
+        nums = re.findall(r'[\d]{2,3}[.,][\d]{3}[.,][\d]{3}', r.text)
+        valid = [n for n in nums if 70_000_000 < float(n.replace(',','').replace('.','')) < 200_000_000]
+        results["giavang_net"] = {
+            "status": r.status_code,
+            "gold_nums_found": valid[:10],
+            "sjc_context": r.text[r.text.find('SJC')-50:r.text.find('SJC')+200] if 'SJC' in r.text else "SJC not found",
+        }
     except Exception as e:
-        results["giavang_org"] = {"error": str(e)}
-
-    # Test 2: API24h
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                "https://api.api24h.com/gold",
-                headers={"User-Agent": "Mozilla/5.0"},
-            )
-        results["api24h"] = {"status": r.status_code, "preview": r.text[:400]}
-    except Exception as e:
-        results["api24h"] = {"error": str(e)}
-
-    # Test 3: fxmag - public gold VN
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                "https://www.fxmag.vn/api/prices/gold-vn",
-                headers={"User-Agent": "Mozilla/5.0"},
-            )
-        results["fxmag"] = {"status": r.status_code, "preview": r.text[:400]}
-    except Exception as e:
-        results["fxmag"] = {"error": str(e)}
-
-    # Test 4: cafef gold RSS (plain XML, không JS)
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                "https://s.cafef.vn/data/GetDataThiTruongVang.ashx",
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://cafef.vn/"},
-            )
-        results["cafef_vang"] = {"status": r.status_code, "preview": r.text[:400]}
-    except Exception as e:
-        results["cafef_vang"] = {"error": str(e)}
-
-    # Test 5: VNDirect market data
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                "https://fwtapi3.vndirect.com.vn/news-feeds/gold-prices?size=1",
-                headers={"User-Agent": "Mozilla/5.0"},
-            )
-        results["vndirect"] = {"status": r.status_code, "preview": r.text[:400]}
-    except Exception as e:
-        results["vndirect"] = {"error": str(e)}
+        results["giavang_net"] = {"error": str(e)}
 
     return results
 
