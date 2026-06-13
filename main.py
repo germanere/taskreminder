@@ -564,60 +564,51 @@ async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
     bybit_symbol   = to_bybit_symbol(symbol)
     bybit_interval = BYBIT_INTERVAL_MAP.get(interval, "60")
 
-    # ── Bybit ──────────────────────────────────
+    # Thử cả linear lẫn spot
+    for category in ("linear", "spot"):
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                r = await client.get(
+                    "https://api.bybit.com/v5/market/kline",
+                    params={
+                        "category": category,
+                        "symbol":   bybit_symbol,
+                        "interval": bybit_interval,
+                        "limit":    limit,
+                    },
+                )
+            result = r.json()
+            if result.get("retCode") == 0:
+                raw = result["result"]["list"]
+                if isinstance(raw, list) and len(raw) > 0:
+                    raw = raw[::-1]
+                    log.info(f"Bybit kline OK ({category}): {bybit_symbol} {bybit_interval}")
+                    return [{
+                        "time":   int(k[0]) // 1000,
+                        "open":   float(k[1]),
+                        "high":   float(k[2]),
+                        "low":    float(k[3]),
+                        "close":  float(k[4]),
+                        "volume": float(k[5]),
+                    } for k in raw]
+            log.warning(f"Bybit kline {category} retCode: {result.get('retMsg')}")
+        except Exception as e:
+            log.warning(f"Bybit kline {category} error: {e}")
+
+    # Binance fallback — chỉ dùng nếu Bybit hoàn toàn fail, bỏ qua nếu 451
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(
-                "https://api.bybit.com/v5/market/kline",
-                params={
-                    "category": "linear",
-                    "symbol":   bybit_symbol,
-                    "interval": bybit_interval,
-                    "limit":    limit,
-                },
+                f"https://api.binance.com/api/v3/klines"
+                f"?symbol={symbol.upper()}&interval={interval}&limit={limit}"
             )
-        result = r.json()
-        if result.get("retCode") == 0:
-            raw = result["result"]["list"]
-            if isinstance(raw, list) and len(raw) > 0:
-                raw = raw[::-1]  # Bybit trả mới nhất trước — đảo ngược
-                return [{
-                    "time":   int(k[0]) // 1000,
-                    "open":   float(k[1]),
-                    "high":   float(k[2]),
-                    "low":    float(k[3]),
-                    "close":  float(k[4]),
-                    "volume": float(k[5]),
-                } for k in raw]
-            log.warning("Bybit kline returned empty list")
-        else:
-            log.warning(f"Bybit kline non-zero retCode: {result.get('retMsg')}")
-    except Exception as e:
-        log.warning(f"Bybit kline REST error: {e} — falling back to Binance")
-
-    # ── Binance fallback ───────────────────────
-    # QUAN TRỌNG: khối này phải indent vào trong hàm get_klines
-    # Render US IP thường bị Binance geo-block (HTTP 451) → response là HTML/dict, không phải list
-    # → luôn kiểm tra isinstance(data, list) trước khi iterate để tránh ValueError
-    try:
-        url = (
-            f"https://api.binance.com/api/v3/klines"
-            f"?symbol={symbol.upper()}&interval={interval}&limit={limit}"
-        )
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(url)
+        if r.status_code == 451:
+            log.warning("Binance 451 geo-block — skip")
+            return JSONResponse(status_code=503, content={"error": "Bybit unavailable, Binance geo-blocked"})
 
         data = r.json()
-
         if not isinstance(data, list):
-            log.error(
-                f"Binance kline fallback — unexpected response "
-                f"(HTTP {r.status_code}): {str(data)[:200]}"
-            )
-            return JSONResponse(
-                status_code=503,
-                content={"error": "Không lấy được dữ liệu kline — cả Bybit lẫn Binance đều thất bại"},
-            )
+            return JSONResponse(status_code=503, content={"error": "Kline fetch failed"})
 
         return [{
             "time":   int(k[0]) // 1000,
@@ -629,11 +620,8 @@ async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
         } for k in data]
 
     except Exception as e:
-        log.error(f"Binance kline fallback error: {e}")
-        return JSONResponse(
-            status_code=503,
-            content={"error": f"Không lấy được dữ liệu kline: {str(e)}"},
-        )
+        log.error(f"Binance fallback error: {e}")
+        return JSONResponse(status_code=503, content={"error": str(e)})
 
 # ─────────────────────────────────────────────
 # REST — CRYPTO PRICES (CoinGecko) — rate-limited cache
