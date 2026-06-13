@@ -49,6 +49,74 @@ USD_MAX    = float(os.getenv("USD_MAX",    "27000"))
 GOLD_MIN   = float(os.getenv("GOLD_MIN",   "100000000"))
 GOLD_MAX   = float(os.getenv("GOLD_MAX",   "150000000"))
 
+# 50 mã HOSE vốn hóa lớn nhất (tháng 6/2025)
+HOSE_TOP50 = [
+    "VCB","BID","VIC","VHM","CTG","GAS","VNM","SAB","MSN","TCB",
+    "MBB","FPT","ACB","PLX","HPG","VPB","STB","HDB","GVR","POW",
+    "MWG","PNJ","REE","SSI","VND","HCM","DPM","DCM","VEA","KDH",
+    "NVL","PDR","DXG","PVD","HSG","NKG","PHR","DRC","IDC","KBC",
+    "NTC","LHG","EIB","EVF","CMG","VGI","FRT","DGW","GEX","VRE",
+]
+
+HOSE_INFO = {
+    "VCB":  {"name": "Vietcombank",        "sector": "Ngân hàng"},
+    "BID":  {"name": "BIDV",               "sector": "Ngân hàng"},
+    "VIC":  {"name": "Vingroup",           "sector": "Bất động sản"},
+    "VHM":  {"name": "Vinhomes",           "sector": "Bất động sản"},
+    "CTG":  {"name": "VietinBank",         "sector": "Ngân hàng"},
+    "GAS":  {"name": "PV Gas",             "sector": "Năng lượng"},
+    "VNM":  {"name": "Vinamilk",           "sector": "Tiêu dùng"},
+    "SAB":  {"name": "Sabeco",             "sector": "Tiêu dùng"},
+    "MSN":  {"name": "Masan Group",        "sector": "Tiêu dùng"},
+    "TCB":  {"name": "Techcombank",        "sector": "Ngân hàng"},
+    "MBB":  {"name": "MB Bank",            "sector": "Ngân hàng"},
+    "FPT":  {"name": "FPT Corp",           "sector": "Công nghệ"},
+    "ACB":  {"name": "ACB",                "sector": "Ngân hàng"},
+    "PLX":  {"name": "Petrolimex",         "sector": "Năng lượng"},
+    "HPG":  {"name": "Hòa Phát Group",     "sector": "Vật liệu"},
+    "VPB":  {"name": "VPBank",             "sector": "Ngân hàng"},
+    "STB":  {"name": "Sacombank",          "sector": "Ngân hàng"},
+    "HDB":  {"name": "HDBank",             "sector": "Ngân hàng"},
+    "GVR":  {"name": "VRG",                "sector": "Công nghiệp"},
+    "POW":  {"name": "PV Power",           "sector": "Năng lượng"},
+    "MWG":  {"name": "Thế Giới Di Động",   "sector": "Tiêu dùng"},
+    "PNJ":  {"name": "PNJ",                "sector": "Tiêu dùng"},
+    "REE":  {"name": "Cơ Điện Lạnh REE",   "sector": "Công nghiệp"},
+    "SSI":  {"name": "SSI Securities",     "sector": "Chứng khoán"},
+    "VND":  {"name": "VNDirect",           "sector": "Chứng khoán"},
+    "HCM":  {"name": "HSC",                "sector": "Chứng khoán"},
+    "DPM":  {"name": "Đạm Phú Mỹ",        "sector": "Hóa chất"},
+    "DCM":  {"name": "Đạm Cà Mau",        "sector": "Hóa chất"},
+    "VEA":  {"name": "VEAM",               "sector": "Công nghiệp"},
+    "KDH":  {"name": "Khang Điền",         "sector": "Bất động sản"},
+    "NVL":  {"name": "Novaland",           "sector": "Bất động sản"},
+    "PDR":  {"name": "Phát Đạt",           "sector": "Bất động sản"},
+    "DXG":  {"name": "Đất Xanh Group",     "sector": "Bất động sản"},
+    "PVD":  {"name": "PV Drilling",        "sector": "Năng lượng"},
+    "HSG":  {"name": "Hoa Sen Group",      "sector": "Vật liệu"},
+    "NKG":  {"name": "Nam Kim Steel",      "sector": "Vật liệu"},
+    "PHR":  {"name": "Cao su Phước Hòa",   "sector": "Vật liệu"},
+    "DRC":  {"name": "Cao su Đà Nẵng",     "sector": "Vật liệu"},
+    "IDC":  {"name": "IDICO",              "sector": "Bất động sản"},
+    "KBC":  {"name": "Kinh Bắc City",      "sector": "Bất động sản"},
+    "NTC":  {"name": "Nam Tân Uyên",       "sector": "Bất động sản"},
+    "LHG":  {"name": "Long Hậu",           "sector": "Bất động sản"},
+    "EIB":  {"name": "Eximbank",           "sector": "Ngân hàng"},
+    "EVF":  {"name": "EVNFinance",         "sector": "Ngân hàng"},
+    "CMG":  {"name": "CMC Corp",           "sector": "Công nghệ"},
+    "VGI":  {"name": "Viettel Global",     "sector": "Công nghệ"},
+    "FRT":  {"name": "FPT Retail",         "sector": "Tiêu dùng"},
+    "DGW":  {"name": "Digiworld",          "sector": "Tiêu dùng"},
+    "GEX":  {"name": "Gelex Group",        "sector": "Công nghiệp"},
+    "VRE":  {"name": "Vincom Retail",      "sector": "Bất động sản"},
+}
+
+_hose_cache: dict = {}
+HOSE_TTL = 60
+
+_multitf_cache: dict = {}
+MULTITF_TTL = 300
+
 # ─────────────────────────────────────────────
 # ALERT STATE
 # ─────────────────────────────────────────────
@@ -573,6 +641,25 @@ async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
 
 _coingecko_cache: dict = {}
 COINGECKO_TTL = 60
+async def _fetch_yahoo_stock(client: httpx.AsyncClient, sym: str) -> dict:
+    base = {"symbol": sym.replace(".VN", ""), "price": 0, "change": 0, "volume": 0}
+    try:
+        r = await client.get(
+            f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}",
+            params={"interval": "1d", "range": "2d"},
+        )
+        meta  = r.json()["chart"]["result"][0]["meta"]
+        prev  = meta.get("previousClose") or meta.get("chartPreviousClose") or 1
+        price = meta.get("regularMarketPrice", 0)
+        base.update({
+            "price":  price,
+            "change": round((price - prev) / prev * 100, 2),
+            "volume": meta.get("regularMarketVolume", 0),
+        })
+    except Exception as e:
+        log.warning(f"Yahoo v8 error [{sym}]: {e}")
+    return base
+  
 
 async def _coingecko_get(url: str, ttl: int = COINGECKO_TTL):
     cached = _coingecko_cache.get(url)
