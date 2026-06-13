@@ -45,7 +45,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh
 .sl{font-size:10px;color:var(--text2);margin-bottom:3px}
 .sv{font-size:18px;font-weight:600;font-family:var(--mono)}
 .tbl{width:100%;border-collapse:collapse;font-size:11px}
-.tbl th{text-align:left;padding:5px 7px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:10px}
+.tbl th{text-align:left;padding:5px 7px;color:var(--text2);font-weight:500;border-bottom:1px solid var(--border);font-size:10px;cursor:pointer;user-select:none;white-space:nowrap}
+.tbl th:hover{color:var(--text)}
+.tbl th.sa::after{content:" ↑";color:var(--accent)}.tbl th.sd::after{content:" ↓";color:var(--accent)}
 .tbl td{padding:6px 7px;border-bottom:1px solid var(--border)66}
 .tbl tr:last-child td{border-bottom:none}
 .tbl tr:hover td{background:var(--bg3)}
@@ -70,6 +72,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh
 .mono{font-family:var(--mono)}.fw6{font-weight:600}.ml{margin-left:auto}
 .xs{font-size:11px;color:var(--text2)}.mt8{margin-top:8px}
 ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ── VN 100 TABLE ── */
+.vn100-wrap{overflow:auto;max-height:calc(100vh - 180px)}
+.vn100-wrap::-webkit-scrollbar{width:3px;height:3px}
+.vn100-toolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.vn100-toolbar input,.vn100-toolbar select{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:11px;padding:4px 8px;outline:none}
+.vn100-toolbar input{width:130px}
+.sector-badge{font-size:9px;padding:1px 5px;border-radius:10px;background:#1a2035;color:#7c9cc0;border:1px solid #1e2a45;white-space:nowrap}
+.tf-bar-wrap{width:44px;height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:3px}
+.tf-bar{height:100%;border-radius:2px}
+.vn-sum{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);margin-bottom:8px;border-radius:var(--r);overflow:hidden}
+.vn-sc{background:var(--bg2);padding:8px 10px}
+.vn-sl{font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.vn-sv{font-size:16px;font-weight:600;font-family:var(--mono)}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-overlay{text-align:center;padding:24px;color:var(--text2);font-size:12px}
+.chip{font-size:10px;padding:2px 8px;border-radius:20px;cursor:pointer;border:1px solid var(--border);color:var(--text2);background:none;white-space:nowrap}
+.chip:hover,.chip.active{border-color:var(--accent);color:var(--accent);background:var(--accent)11}
 </style>
 </head>
 <body>
@@ -80,6 +101,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh
   <div class="ni" onclick="sw('signal')" id="n-signal">⚡<span class="tt">Signal</span></div>
   <div class="ni" onclick="sw('structure')" id="n-structure">🏗<span class="tt">Market Structure</span></div>
   <div class="ni" onclick="sw('fundamental')" id="n-fundamental">📋<span class="tt">Fundamental</span></div>
+  <div class="ni" onclick="sw('vn100')" id="n-vn100">🇻🇳<span class="tt">HOSE 100</span></div>
   <div class="sep"></div>
   <div class="ni" onclick="sw('library')" id="n-library">📁<span class="tt">Thư viện</span></div>
   <div class="ni" onclick="sw('lab')" id="n-lab">🧪<span class="tt">Quant Lab</span></div>
@@ -127,7 +149,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh
           <div class="stat"><div class="sl">Fear & Greed</div><div class="sv mono" id="fg">—</div></div>
         </div>
         <div class="card"><div class="ct"><div class="dot2" style="background:var(--accent2)"></div>Multi-TF</div><div id="mtf"></div></div>
-        <div class="card"><div class="ct"><div class="dot2" style="background:var(--accent3)"></div>VN Top 30</div><div id="vnm"></div></div>
+        <div class="card"><div class="ct"><div class="dot2" style="background:var(--accent3)"></div>VN Top 10</div><div id="vnm"></div></div>
       </div>
     </div>
 
@@ -161,6 +183,72 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh
         <span class="xs ml" id="fau"></span>
       </div>
       <div id="fat"></div>
+    </div>
+
+    <!-- VN 100 -->
+    <div class="panel" id="p-vn100">
+      <!-- summary bar -->
+      <div class="vn-sum" id="vn-sum">
+        <div class="vn-sc"><div class="vn-sl">Tổng mã</div><div class="vn-sv" id="vs-total">—</div></div>
+        <div class="vn-sc"><div class="vn-sl">Tăng</div><div class="vn-sv g" id="vs-up">—</div></div>
+        <div class="vn-sc"><div class="vn-sl">Giảm</div><div class="vn-sv r" id="vs-dn">—</div></div>
+        <div class="vn-sc"><div class="vn-sl">Đứng</div><div class="vn-sv" style="color:var(--text2)" id="vs-neu">—</div></div>
+        <div class="vn-sc"><div class="vn-sl">TF Tuần ≥65%</div><div class="vn-sv g" id="vs-bull">—</div></div>
+        <div class="vn-sc"><div class="vn-sl">Cập nhật</div><div class="vn-sv" style="font-size:11px;color:var(--text2)" id="vs-time">—</div></div>
+      </div>
+      <!-- toolbar -->
+      <div class="vn100-toolbar">
+        <input type="text" id="vn-search" placeholder="🔍 Tìm mã..." oninput="vnRender()">
+        <select id="vn-sector" onchange="vnRender()">
+          <option value="">Tất cả ngành</option>
+          <option>Ngân hàng</option><option>Bất động sản</option><option>Xây dựng</option>
+          <option>Thép</option><option>Vật liệu</option><option>Dầu khí</option>
+          <option>Chứng khoán</option><option>Thực phẩm</option><option>Tiêu dùng</option>
+          <option>Bán lẻ</option><option>Công nghệ</option><option>Điện</option>
+          <option>Hàng không</option><option>Logistics</option><option>Bảo hiểm</option>
+          <option>Nông nghiệp</option><option>Hóa chất</option><option>Dệt may</option>
+        </select>
+        <button class="chip active" data-f="all"  onclick="vnFilter(this)">Tất cả</button>
+        <button class="chip" data-f="up"   onclick="vnFilter(this)">📈 Tăng</button>
+        <button class="chip" data-f="dn"   onclick="vnFilter(this)">📉 Giảm</button>
+        <button class="chip" data-f="bull" onclick="vnFilter(this)">🟢 TF Bullish</button>
+        <button class="chip" data-f="bear" onclick="vnFilter(this)">🔴 TF Bearish</button>
+        <button class="btn bo" style="padding:3px 10px;font-size:11px;margin-left:auto" onclick="vnLoad()" id="vn-refresh-btn">
+          <span id="vn-refresh-icon">↻</span> Làm mới
+        </button>
+        <span class="xs" id="vn-status" style="color:var(--text2)"></span>
+      </div>
+      <!-- table -->
+      <div class="vn100-wrap">
+        <table class="tbl" id="vn-tbl">
+          <thead>
+            <tr>
+              <th onclick="vnSort('idx')"   style="width:28px">#</th>
+              <th onclick="vnSort('symbol')"style="width:44px">Mã</th>
+              <th onclick="vnSort('sector')">Ngành</th>
+              <th onclick="vnSort('price')" style="text-align:right">Giá</th>
+              <th onclick="vnSort('cd')"    style="text-align:right">% Ngày</th>
+              <th onclick="vnSort('cm')"    style="text-align:right">% Tháng</th>
+              <th onclick="vnSort('cq')"    style="text-align:right">% Quý</th>
+              <th onclick="vnSort('tf1h')">1H TF</th>
+              <th onclick="vnSort('tf4h')">4H TF</th>
+              <th onclick="vnSort('tf1d')">1D TF</th>
+              <th onclick="vnSort('tf1w')">1W TF</th>
+            </tr>
+          </thead>
+          <tbody id="vn-tbody">
+            <tr><td colspan="11" class="load-overlay">⏳ Đang tải dữ liệu...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- pager -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:11px;color:var(--text2)">
+        <span id="vn-page-info"></span>
+        <div style="display:flex;gap:6px">
+          <button class="btn bo" style="padding:3px 10px;font-size:11px" id="vn-prev" onclick="vnPage(-1)">‹</button>
+          <button class="btn bo" style="padding:3px 10px;font-size:11px" id="vn-next" onclick="vnPage(+1)">›</button>
+        </div>
+      </div>
     </div>
 
     <!-- LIBRARY -->
@@ -243,165 +331,183 @@ let rdata = [], ridx = 0, rplay = false, rtmr;
 let trStats = {n:0, w:0, l:0, t:[]};
 let links = [];
 
-// ── VN SYMBOLS — 30 mã HOSE ───────────────────────────────────────────────
-const VN_SYMS = [
-  'VNM','FPT','VCB','HPG','MWG','TCB','VIC','VHM',
+// ── HOSE 100 ──────────────────────────────────────────────────────────────
+const HOSE_100 = [
+  'VCB','BID','CTG','TCB','MBB','ACB','VPB','STB','HDB','VIB',
+  'EIB','LPB','NVB','BVB','ABB',
+  'VIC','VHM','VRE','NVL','PDR','DXG','KDH','HDG','DIG','BCM',
+  'KBC','VPI','NLG','TDC','CII','HBC','CTD','FCN','VCG','SCR',
+  'HPG','HSG','NKG','POM','DTL','TLS','VGC','BCC','HT1',
+  'GAS','PLX','PVD','PVT','BSR','PGD','OIL',
+  'SSI','VND','HCM','VCI','SHS','BSI','AGR','MBS','VDS','CTS',
+  'VNM','SAB','MSN','MCH','VHC','ANV','IDI','SBT','LAF','KDC',
+  'QNS','TAC','HNG',
+  'MWG','FPT','PNJ','DGW','FRT','HAX','CMC','VGT',
+  'REE','POW','NT2','PC1','GEX','PPC','SBA','VSH','TBC',
+  'HVN','VJC','SGN','SCS','GMD','VSC','TMS','HAH',
+  'BVH','GVR','PHR','DPM','DCM','CSV',
+];
+
+const SECTOR_MAP = {
+  VCB:'Ngân hàng',BID:'Ngân hàng',CTG:'Ngân hàng',TCB:'Ngân hàng',MBB:'Ngân hàng',
+  ACB:'Ngân hàng',VPB:'Ngân hàng',STB:'Ngân hàng',HDB:'Ngân hàng',VIB:'Ngân hàng',
+  EIB:'Ngân hàng',LPB:'Ngân hàng',NVB:'Ngân hàng',BVB:'Ngân hàng',ABB:'Ngân hàng',
+  VIC:'Bất động sản',VHM:'Bất động sản',VRE:'Bất động sản',NVL:'Bất động sản',
+  PDR:'Bất động sản',DXG:'Bất động sản',KDH:'Bất động sản',HDG:'Bất động sản',
+  DIG:'Xây dựng',BCM:'Bất động sản',KBC:'Bất động sản',VPI:'Bất động sản',
+  NLG:'Bất động sản',TDC:'Bất động sản',CII:'Xây dựng',HBC:'Xây dựng',
+  CTD:'Xây dựng',FCN:'Xây dựng',VCG:'Xây dựng',SCR:'Bất động sản',
+  HPG:'Thép',HSG:'Thép',NKG:'Thép',POM:'Thép',DTL:'Thép',
+  TLS:'Thép',VGC:'Vật liệu',BCC:'Vật liệu',HT1:'Vật liệu',
+  GAS:'Dầu khí',PLX:'Dầu khí',PVD:'Dầu khí',PVT:'Dầu khí',
+  BSR:'Dầu khí',PGD:'Dầu khí',OIL:'Dầu khí',
+  SSI:'Chứng khoán',VND:'Chứng khoán',HCM:'Chứng khoán',VCI:'Chứng khoán',
+  SHS:'Chứng khoán',BSI:'Chứng khoán',AGR:'Chứng khoán',MBS:'Chứng khoán',
+  VDS:'Chứng khoán',CTS:'Chứng khoán',
+  VNM:'Thực phẩm',SAB:'Thực phẩm',MSN:'Tiêu dùng',MCH:'Thực phẩm',
+  VHC:'Thực phẩm',ANV:'Thực phẩm',IDI:'Thực phẩm',SBT:'Thực phẩm',
+  LAF:'Thực phẩm',KDC:'Thực phẩm',QNS:'Thực phẩm',TAC:'Thực phẩm',HNG:'Nông nghiệp',
+  MWG:'Bán lẻ',FPT:'Công nghệ',PNJ:'Bán lẻ',DGW:'Bán lẻ',
+  FRT:'Bán lẻ',HAX:'Bán lẻ',CMC:'Công nghệ',VGT:'Dệt may',
+  REE:'Điện',POW:'Điện',NT2:'Điện',PC1:'Điện',GEX:'Điện',
+  PPC:'Điện',SBA:'Điện',VSH:'Điện',TBC:'Điện',
+  HVN:'Hàng không',VJC:'Hàng không',SGN:'Logistics',SCS:'Logistics',
+  GMD:'Logistics',VSC:'Logistics',TMS:'Logistics',HAH:'Logistics',
+  BVH:'Bảo hiểm',GVR:'Nông nghiệp',PHR:'Nông nghiệp',
+  DPM:'Hóa chất',DCM:'Hóa chất',CSV:'Hóa chất',
+};
+
+// VN_SYMS cho Fundamental (30 mã cũ)
+const VN_SYMS = ['VNM','FPT','VCB','HPG','MWG','TCB','VIC','VHM',
   'BID','CTG','VPB','MBB','ACB','STB','HDB','VIB',
   'SSI','VND','HCM','MSN','VRE','PDR','DXG','NVL',
-  'KDH','GVR','SAB','GAS','PLX','POW',
-].map(s => s + '.VN').join(',');
+  'KDH','GVR','SAB','GAS','PLX','POW'
+].map(s=>s+'.VN').join(',');
+
+// ── VN100 STATE ───────────────────────────────────────────────────────────
+let vnStocks  = [];   // [{symbol, sector, price, cd, cm, cq, volume}]
+let vnTF      = {};   // {symbol: {tf1h,tf4h,tf1d,tf1w}}
+let vnMerged  = [];
+let vnFiltered= [];
+let vnSort_   = {col:'idx', dir:'asc'};
+let vnFilter_ = 'all';
+let vnPage    = 0;
+const VN_PAGE = 25;
 
 // ── CLOCK ─────────────────────────────────────────────────────────────────
-setInterval(() => document.getElementById('clk').textContent = new Date().toLocaleTimeString('vi-VN'), 1000);
+setInterval(()=>document.getElementById('clk').textContent=new Date().toLocaleTimeString('vi-VN'),1000);
 
 // ── NAV META ──────────────────────────────────────────────────────────────
 const META = {
-  chart:       {i:'📈', t:'Chart',            s:'Bybit WebSocket · Realtime'},
-  signal:      {i:'⚡', t:'Signal',           s:'Auto signals · Context · Liquidation'},
-  structure:   {i:'🏗',  t:'Market Structure', s:'Orderbook · Footprint · Whale'},
-  fundamental: {i:'📋', t:'Fundamental',      s:'Crypto + VN · Auto-scan'},
-  library:     {i:'📁', t:'Thư viện',         s:'Links · Calendar · Thinkers'},
-  lab:         {i:'🧪', t:'Quant Lab',        s:'Backtest · Monte Carlo · Param scan'},
-  training:    {i:'🎯', t:'Training',         s:'Replay · Demo · Journal'},
+  chart:       {i:'📈',t:'Chart',           s:'Bybit WebSocket · Realtime'},
+  signal:      {i:'⚡',t:'Signal',          s:'Auto signals · Context · Liquidation'},
+  structure:   {i:'🏗', t:'Market Structure',s:'Orderbook · Footprint · Whale'},
+  fundamental: {i:'📋',t:'Fundamental',     s:'Crypto + VN · Auto-scan'},
+  vn100:       {i:'🇻🇳',t:'HOSE 100',       s:'100 mã · Multi-TF · % Tháng & Quý'},
+  library:     {i:'📁',t:'Thư viện',        s:'Links · Calendar · Thinkers'},
+  lab:         {i:'🧪',t:'Quant Lab',       s:'Backtest · Monte Carlo · Param scan'},
+  training:    {i:'🎯',t:'Training',        s:'Replay · Demo · Journal'},
 };
 
 function sw(n) {
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.ni').forEach(x => x.classList.remove('active'));
-  document.getElementById('p-' + n).classList.add('active');
-  document.getElementById('n-' + n).classList.add('active');
-  const m = META[n];
-  document.getElementById('ti').textContent = m.i;
-  document.getElementById('tt').textContent = m.t;
-  document.getElementById('ts').textContent = m.s;
-  if (n === 'structure')   { renderWR(); renderOpt(); renderFP(); initOB(); }
-  if (n === 'library')     { renderLinks(); renderCal(); renderTK(); }
-  if (n === 'lab')         { renderBTR(); renderPHm(); }
-  if (n === 'training')    { initRC(); }
-  if (n === 'fundamental') { loadFA(); }
-  if (n === 'signal')      { renderSigs(); renderCtx(); renderLM(); }
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));
+  document.getElementById('p-'+n).classList.add('active');
+  document.getElementById('n-'+n).classList.add('active');
+  const m=META[n];
+  document.getElementById('ti').textContent=m.i;
+  document.getElementById('tt').textContent=m.t;
+  document.getElementById('ts').textContent=m.s;
+  if(n==='structure')  {renderWR();renderOpt();renderFP();initOB();}
+  if(n==='library')    {renderLinks();renderCal();renderTK();}
+  if(n==='lab')        {renderBTR();renderPHm();}
+  if(n==='training')   {initRC();}
+  if(n==='fundamental'){loadFA();}
+  if(n==='signal')     {renderSigs();renderCtx();renderLM();}
+  if(n==='vn100')      {if(!vnStocks.length) vnLoad(); }
 }
 
 // ── CHART ─────────────────────────────────────────────────────────────────
-function initChart() {
-  const el = document.getElementById('mc');
-  if (!el) return;
-  mc = LightweightCharts.createChart(el, {
-    width: el.offsetWidth, height: 320,
-    layout: { background:{color:'#0a0b0f'}, textColor:'#8892a4' },
-    grid:   { vertLines:{color:'#1e2330'}, horzLines:{color:'#1e2330'} },
-    rightPriceScale: { borderColor:'#1e2330' },
-    timeScale: { borderColor:'#1e2330', timeVisible:true, secondsVisible:false },
-    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+function initChart(){
+  const el=document.getElementById('mc');if(!el)return;
+  mc=LightweightCharts.createChart(el,{
+    width:el.offsetWidth,height:320,
+    layout:{background:{color:'#0a0b0f'},textColor:'#8892a4'},
+    grid:{vertLines:{color:'#1e2330'},horzLines:{color:'#1e2330'}},
+    rightPriceScale:{borderColor:'#1e2330'},
+    timeScale:{borderColor:'#1e2330',timeVisible:true,secondsVisible:false},
+    crosshair:{mode:LightweightCharts.CrosshairMode.Normal},
   });
-  ms = mc.addCandlestickSeries({
-    upColor:'#00d4aa', downColor:'#f74b4b',
-    borderUpColor:'#00d4aa', borderDownColor:'#f74b4b',
-    wickUpColor:'#00d4aa', wickDownColor:'#f74b4b',
-  });
-  vs = mc.addHistogramSeries({
-    priceScaleId:'vol', scaleMargins:{top:0.85,bottom:0},
-    lastValueVisible:false, priceLineVisible:false,
-  });
-  if (window.ResizeObserver) {
-    new ResizeObserver(() => mc.applyOptions({width:el.offsetWidth})).observe(el);
-  } else {
-    window.addEventListener('resize', () => mc.applyOptions({width:el.offsetWidth}));
-  }
-  loadK();
-  connectKWS();
+  ms=mc.addCandlestickSeries({upColor:'#00d4aa',downColor:'#f74b4b',borderUpColor:'#00d4aa',borderDownColor:'#f74b4b',wickUpColor:'#00d4aa',wickDownColor:'#f74b4b'});
+  vs=mc.addHistogramSeries({priceScaleId:'vol',scaleMargins:{top:0.85,bottom:0},lastValueVisible:false,priceLineVisible:false});
+  if(window.ResizeObserver){new ResizeObserver(()=>mc.applyOptions({width:el.offsetWidth})).observe(el);}
+  else{window.addEventListener('resize',()=>mc.applyOptions({width:el.offsetWidth}));}
+  loadK();connectKWS();
 }
 
-async function loadK() {
-  try {
-    const r = await fetch(`${B}/api/klines?symbol=${sym}&interval=${intv}&limit=300`);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const data = await r.json();
-    if (!Array.isArray(data) || !data.length) { console.warn('loadK: empty'); return; }
+async function loadK(){
+  try{
+    const r=await fetch(`${B}/api/klines?symbol=${sym}&interval=${intv}&limit=300`);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    if(!Array.isArray(data)||!data.length){console.warn('loadK: empty');return;}
     ms.setData(data);
-    vs.setData(data.map(x => ({time:x.time, value:x.volume, color:x.close>=x.open?'#00d4aa33':'#f74b4b33'})));
-    requestAnimationFrame(() => mc.timeScale().fitContent());
-    const last = data[data.length-1];
-    updatePrice(last.close, last.open);
-  } catch(e) { console.error('loadK error:', e); }
+    vs.setData(data.map(x=>({time:x.time,value:x.volume,color:x.close>=x.open?'#00d4aa33':'#f74b4b33'})));
+    requestAnimationFrame(()=>mc.timeScale().fitContent());
+    const last=data[data.length-1];
+    updatePrice(last.close,last.open);
+  }catch(e){console.error('loadK error:',e);}
 }
 
-function connectKWS() {
-  if (kws) { try { kws.close(); } catch(_){} }
-  kws = new WebSocket(`${WB}/ws/kline?symbol=${sym}&interval=${intv}`);
-  kws.onmessage = e => {
-    try {
-      const d = JSON.parse(e.data);
-      if (!d || d.ping || d.reconnecting || !d.time) return;
-      ms.update({time:d.time, open:d.open, high:d.high, low:d.low, close:d.close});
-      vs.update({time:d.time, value:d.volume, color:d.close>=d.open?'#00d4aa33':'#f74b4b33'});
-      updatePrice(d.close, d.open);
-    } catch(err) { console.warn('kws err:', err); }
+function connectKWS(){
+  if(kws){try{kws.close();}catch(_){}}
+  kws=new WebSocket(`${WB}/ws/kline?symbol=${sym}&interval=${intv}`);
+  kws.onmessage=e=>{
+    try{
+      const d=JSON.parse(e.data);
+      if(!d||d.ping||d.reconnecting||!d.time)return;
+      ms.update({time:d.time,open:d.open,high:d.high,low:d.low,close:d.close});
+      vs.update({time:d.time,value:d.volume,color:d.close>=d.open?'#00d4aa33':'#f74b4b33'});
+      updatePrice(d.close,d.open);
+    }catch(err){console.warn('kws err:',err);}
   };
-  kws.onerror = e => console.warn('kws error:', e);
-  kws.onclose = () => { setTimeout(() => { if(kws&&kws.readyState===WebSocket.CLOSED) connectKWS(); }, 3000); };
+  kws.onerror=e=>console.warn('kws error:',e);
+  kws.onclose=()=>{setTimeout(()=>{if(kws&&kws.readyState===WebSocket.CLOSED)connectKWS();},3000);};
 }
 
-function updatePrice(close, open) {
-  const prev = parseFloat(document.getElementById('cp').dataset.prev || open);
-  const pct  = ((close - prev) / (prev||1) * 100).toFixed(2);
-  const cpEl = document.getElementById('cp');
-  const ccEl = document.getElementById('cc');
-  cpEl.textContent  = '$' + close.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
-  cpEl.dataset.prev = open;
-  cpEl.style.color  = close >= open ? 'var(--green)' : 'var(--red)';
-  ccEl.textContent  = (pct >= 0 ? '+' : '') + pct + '%';
-  ccEl.className    = 'tag ' + (pct >= 0 ? 'tg' : 'tr');
+function updatePrice(close,open){
+  const prev=parseFloat(document.getElementById('cp').dataset.prev||open);
+  const pct=((close-prev)/(prev||1)*100).toFixed(2);
+  const cpEl=document.getElementById('cp'),ccEl=document.getElementById('cc');
+  cpEl.textContent='$'+close.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  cpEl.dataset.prev=open;
+  cpEl.style.color=close>=open?'var(--green)':'var(--red)';
+  ccEl.textContent=(pct>=0?'+':'')+pct+'%';
+  ccEl.className='tag '+(pct>=0?'tg':'tr');
 }
 
-function setTf(el, tf) {
-  document.querySelectorAll('.tf').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
-  intv = tf; loadK(); connectKWS();
-}
-function changeSym(s) { sym = s; loadK(); connectKWS(); }
+function setTf(el,tf){document.querySelectorAll('.tf').forEach(b=>b.classList.remove('active'));el.classList.add('active');intv=tf;loadK();connectKWS();}
+function changeSym(s){sym=s;loadK();connectKWS();}
 
 // ── MACRO ─────────────────────────────────────────────────────────────────
-async function loadMacro() {
-  // USD/VND
-  try {
-    const r = await fetch(`${B}/api/forex/vnd`);
-    const d = await r.json();
-    if (d.USD) document.getElementById('uv').textContent = d.USD.sell?.toLocaleString('vi-VN') + 'đ';
-  } catch(e) {}
-
-  // Vàng — backend trả {price, unit, source} hoặc {error}
-  try {
-    const r = await fetch(`${B}/api/gold`);
-    const d = await r.json();
-    const el = document.getElementById('gp');
-    if (d.price && d.price > 0) {
-      el.textContent = '~' + d.price.toLocaleString('vi-VN') + 'đ';
-      el.style.color = '';
-    } else {
-      el.textContent = d.error || '—';
-      el.style.color = 'var(--text2)';
-    }
-  } catch(e) { document.getElementById('gp').textContent = '—'; }
-
-  // Fear & Greed
-  try {
-    const r = await fetch(`${B}/api/fear-greed`);
-    const d = await r.json();
-    const v = d.data?.[0];
-    if (v) {
-      const el = document.getElementById('fg');
-      el.textContent = v.value + ' ' + v.value_classification;
-      el.className   = 'sv mono ' + (v.value > 60 ? 'g' : v.value < 40 ? 'r' : 'y');
-    }
-  } catch(e) {}
+async function loadMacro(){
+  try{const r=await fetch(`${B}/api/forex/vnd`);const d=await r.json();if(d.USD)document.getElementById('uv').textContent=d.USD.sell?.toLocaleString('vi-VN')+'đ';}catch(e){}
+  try{
+    const r=await fetch(`${B}/api/gold`);const d=await r.json();const el=document.getElementById('gp');
+    if(d.price&&d.price>0){el.textContent='~'+d.price.toLocaleString('vi-VN')+'đ';el.style.color='';}
+    else{el.textContent=d.error||'—';el.style.color='var(--text2)';}
+  }catch(e){document.getElementById('gp').textContent='—';}
+  try{
+    const r=await fetch(`${B}/api/fear-greed`);const d=await r.json();const v=d.data?.[0];
+    if(v){const el=document.getElementById('fg');el.textContent=v.value+' '+v.value_classification;el.className='sv mono '+(v.value>60?'g':v.value<40?'r':'y');}
+  }catch(e){}
 }
 
-// ── MTF ───────────────────────────────────────────────────────────────────
-function renderMTF() {
-  document.getElementById('mtf').innerHTML = [
+// ── MTF (chart panel) ─────────────────────────────────────────────────────
+function renderMTF(){
+  document.getElementById('mtf').innerHTML=[
     ['1H',75,'green'],['4H',58,'green'],['1D',42,'accent3'],['1W',80,'green'],
-  ].map(([tf,v,c]) =>
+  ].map(([tf,v,c])=>
     `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
       <span class="xs">${tf}</span>
       <div class="meter" style="width:90px"><div class="mf" style="width:${v}%;background:var(--${c})"></div></div>
@@ -410,378 +516,433 @@ function renderMTF() {
   ).join('');
 }
 
-// ── VN STOCKS — 30 mã, scrollable ─────────────────────────────────────────
-async function loadVNM() {
-  try {
-    const r = await fetch(`${B}/api/vn/stocks?symbols=${VN_SYMS}`);
-    const d = await r.json();
-    if (!Array.isArray(d)) return;
-    document.getElementById('vnm').innerHTML =
-      `<div style="max-height:200px;overflow-y:auto">` +
-      d.map(s =>
+// ── VN TOP 10 (chart panel — chỉ 10 mã đầu để gọn) ───────────────────────
+async function loadVNM(){
+  const top10 = ['VNM.VN','FPT.VN','VCB.VN','HPG.VN','MWG.VN','TCB.VN','VIC.VN','VHM.VN','BID.VN','CTG.VN'].join(',');
+  try{
+    const r=await fetch(`${B}/api/vn/stocks?symbols=${top10}`);
+    const d=await r.json();
+    if(!Array.isArray(d))return;
+    document.getElementById('vnm').innerHTML=
+      `<div style="max-height:200px;overflow-y:auto">`+
+      d.map(s=>
         `<div class="sr" style="padding:4px 0">
           <span style="font-size:11px;font-weight:600;width:40px;flex-shrink:0">${s.symbol}</span>
           <span class="mono fw6" style="font-size:11px;margin-left:4px">${s.price?.toLocaleString()}</span>
           <span class="tag ml ${s.change>=0?'tg':'tr'}">${(s.change||0).toFixed(1)}%</span>
         </div>`
-      ).join('') + `</div>`;
-  } catch(e) {}
+      ).join('')+`</div>`;
+  }catch(e){}
 }
 
 // ── ORDERBOOK WS ──────────────────────────────────────────────────────────
-function initOB() {
-  if (ows) { try { ows.close(); } catch(_){} }
-  ows = new WebSocket(`${WB}/ws/orderbook?symbol=${sym}`);
-  ows.onmessage = e => {
-    try {
-      const d = JSON.parse(e.data);
-      if (!d || d.reconnecting || !d.asks || !d.bids) return;
-      const max = Math.max(...d.asks.map(a=>a[1]), ...d.bids.map(b=>b[1]));
-      let h = '';
-      [...d.asks].reverse().forEach(([p,s]) => {
-        h += `<div class="ob-row ob-ask"><div class="ob-bar" style="width:${s/max*100}%"></div>
-               <span style="width:75px;color:var(--red);font-weight:600">${parseFloat(p).toLocaleString()}</span>
-               <span style="color:var(--text2)">${parseFloat(s).toFixed(3)}</span></div>`;
-      });
-      h += `<div style="text-align:center;padding:4px;font-size:11px;font-weight:700;background:var(--bg3);font-family:var(--mono)">Mid</div>`;
-      d.bids.forEach(([p,s]) => {
-        h += `<div class="ob-row ob-bid"><div class="ob-bar" style="width:${s/max*100}%"></div>
-               <span style="width:75px;color:var(--green);font-weight:600">${parseFloat(p).toLocaleString()}</span>
-               <span style="color:var(--text2)">${parseFloat(s).toFixed(3)}</span></div>`;
-      });
-      document.getElementById('ob').innerHTML = h;
-    } catch(err) { console.warn('ows err:', err); }
+function initOB(){
+  if(ows){try{ows.close();}catch(_){}}
+  ows=new WebSocket(`${WB}/ws/orderbook?symbol=${sym}`);
+  ows.onmessage=e=>{
+    try{
+      const d=JSON.parse(e.data);if(!d||d.reconnecting||!d.asks||!d.bids)return;
+      const max=Math.max(...d.asks.map(a=>a[1]),...d.bids.map(b=>b[1]));
+      let h='';
+      [...d.asks].reverse().forEach(([p,s])=>{h+=`<div class="ob-row ob-ask"><div class="ob-bar" style="width:${s/max*100}%"></div><span style="width:75px;color:var(--red);font-weight:600">${parseFloat(p).toLocaleString()}</span><span style="color:var(--text2)">${parseFloat(s).toFixed(3)}</span></div>`;});
+      h+=`<div style="text-align:center;padding:4px;font-size:11px;font-weight:700;background:var(--bg3);font-family:var(--mono)">Mid</div>`;
+      d.bids.forEach(([p,s])=>{h+=`<div class="ob-row ob-bid"><div class="ob-bar" style="width:${s/max*100}%"></div><span style="width:75px;color:var(--green);font-weight:600">${parseFloat(p).toLocaleString()}</span><span style="color:var(--text2)">${parseFloat(s).toFixed(3)}</span></div>`;});
+      document.getElementById('ob').innerHTML=h;
+    }catch(err){console.warn('ows err:',err);}
   };
-  ows.onclose = () => { setTimeout(() => { if(ows&&ows.readyState===WebSocket.CLOSED) initOB(); }, 3000); };
+  ows.onclose=()=>{setTimeout(()=>{if(ows&&ows.readyState===WebSocket.CLOSED)initOB();},3000);};
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// VN 100 — FULL IMPLEMENTATION
+// ══════════════════════════════════════════════════════════════════════════
+
+// EMA helper
+function ema(prices, period=20){
+  if(prices.length<period)return[];
+  const k=2/(period+1);
+  const r=[prices.slice(0,period).reduce((a,b)=>a+b,0)/period];
+  for(let i=period;i<prices.length;i++) r.push(prices[i]*k+r[r.length-1]*(1-k));
+  return r;
+}
+
+// TF score: % nến close > EMA20
+function tfScore(closes, period=20){
+  if(closes.length<period+5)return 50;
+  const e=ema(closes,period);
+  const offset=period-1;
+  const count=e.filter((v,i)=>closes[offset+i]>v).length;
+  return Math.round(count/e.length*100);
+}
+
+// Fetch Yahoo klines → list of close prices
+async function fetchYahooCloses(sym, interval, range){
+  try{
+    const r=await fetch(`${B}/api/vn/yahoo-klines?symbol=${sym}&interval=${interval}&range=${range}`);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    return Array.isArray(d)?d:[];
+  }catch(e){ return[]; }
+}
+
+// Tính TF cho 1 mã qua backend (dùng endpoint mới)
+// Nếu backend chưa có /api/vn/stocks/multitf → fallback dummy 50
+async function calcTF(sym){
+  if(vnTF[sym])return vnTF[sym]; // cache client-side
+  return {tf1h:null,tf4h:null,tf1d:null,tf1w:null};
+}
+
+// Load stocks (giá + % ngày/tháng/quý)
+async function vnLoadStocks(){
+  const syms=HOSE_100.map(s=>s+'.VN').join(',');
+  const r=await fetch(`${B}/api/vn/stocks?symbols=${syms}`);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const raw=await r.json();
+  if(!Array.isArray(raw)) throw new Error('Dữ liệu không hợp lệ');
+  return raw.map((s,i)=>({
+    idx:    i+1,
+    symbol: s.symbol,
+    sector: SECTOR_MAP[s.symbol]||s.sector||'Khác',
+    price:  s.price||0,
+    cd:     s.change_day   ?? s.change ?? 0,
+    cm:     s.change_month ?? 0,
+    cq:     s.change_quarter ?? 0,
+    volume: s.volume||0,
+    tf1h:   null, tf4h:null, tf1d:null, tf1w:null,
+  }));
+}
+
+// Load Multi-TF (sau khi có stocks)
+async function vnLoadTF(){
+  const syms=HOSE_100.join(',');
+  const r=await fetch(`${B}/api/vn/stocks/multitf?symbols=${syms}&limit=100`);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const arr=await r.json();
+  if(!Array.isArray(arr)) return;
+  arr.forEach(t=>{ vnTF[t.symbol]={tf1h:t.tf1h,tf4h:t.tf4h,tf1d:t.tf1d,tf1w:t.tf1w}; });
+}
+
+async function vnLoad(){
+  const btn=document.getElementById('vn-refresh-btn');
+  const icon=document.getElementById('vn-refresh-icon');
+  btn.disabled=true; icon.className='spin'; icon.textContent='↻';
+  document.getElementById('vn-status').textContent='Đang tải giá...';
+  document.getElementById('vn-tbody').innerHTML='<tr><td colspan="11" class="load-overlay">⏳ Đang tải dữ liệu từ Yahoo Finance...</td></tr>';
+
+  try{
+    // Bước 1: Giá + % ngày/tháng/quý
+    vnStocks=await vnLoadStocks();
+    vnBuild(); vnApplyFilter(); vnRender(); vnUpdateSummary();
+    document.getElementById('vn-status').textContent='Đang tải Multi-TF...';
+
+    // Bước 2: Multi-TF (chậm hơn)
+    try{
+      await vnLoadTF();
+      // Merge TF vào stocks
+      vnStocks.forEach(s=>{
+        const tf=vnTF[s.symbol];
+        if(tf){s.tf1h=tf.tf1h;s.tf4h=tf.tf4h;s.tf1d=tf.tf1d;s.tf1w=tf.tf1w;}
+      });
+      vnBuild(); vnApplyFilter(); vnRender(); vnUpdateSummary();
+      document.getElementById('vn-status').textContent='';
+    }catch(e){
+      document.getElementById('vn-status').textContent='⚠ Multi-TF: '+e.message;
+    }
+
+    const now=new Date().toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    document.getElementById('vs-time').textContent=now;
+
+  }catch(e){
+    document.getElementById('vn-tbody').innerHTML=`<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--red)">⚠ ${e.message}</td></tr>`;
+    document.getElementById('vn-status').textContent='Lỗi: '+e.message;
+  }
+
+  btn.disabled=false; icon.className=''; icon.textContent='↻';
+}
+
+function vnBuild(){
+  vnMerged=vnStocks.map((s,i)=>({...s,idx:i+1}));
+}
+
+function vnApplyFilter(){
+  const q=(document.getElementById('vn-search')?.value||'').toLowerCase();
+  const sec=document.getElementById('vn-sector')?.value||'';
+  vnFiltered=vnMerged.filter(s=>{
+    if(q&&!s.symbol.toLowerCase().includes(q)&&!s.sector.toLowerCase().includes(q))return false;
+    if(sec&&s.sector!==sec)return false;
+    if(vnFilter_==='up'  &&s.cd<=0) return false;
+    if(vnFilter_==='dn'  &&s.cd>=0) return false;
+    if(vnFilter_==='bull'&&(s.tf1w===null||s.tf1w<65)) return false;
+    if(vnFilter_==='bear'&&(s.tf1w===null||s.tf1w>=45))return false;
+    return true;
+  });
+  // Sort
+  const {col,dir}=vnSort_;
+  vnFiltered.sort((a,b)=>{
+    let va=a[col],vb=b[col];
+    if(va===null||va===undefined)va=dir==='asc'?Infinity:-Infinity;
+    if(vb===null||vb===undefined)vb=dir==='asc'?Infinity:-Infinity;
+    if(typeof va==='string')return dir==='asc'?va.localeCompare(vb):vb.localeCompare(va);
+    return dir==='asc'?va-vb:vb-va;
+  });
+}
+
+function vnRender(){
+  vnApplyFilter();
+  const total=vnFiltered.length;
+  const pages=Math.max(1,Math.ceil(total/VN_PAGE));
+  if(vnPage>=pages)vnPage=pages-1;
+  const slice=vnFiltered.slice(vnPage*VN_PAGE,(vnPage+1)*VN_PAGE);
+
+  document.getElementById('vn-page-info').textContent=`Trang ${vnPage+1}/${pages} · ${total} mã`;
+  document.getElementById('vn-prev').disabled=vnPage===0;
+  document.getElementById('vn-next').disabled=vnPage>=pages-1;
+
+  const tbody=document.getElementById('vn-tbody');
+  if(!slice.length){tbody.innerHTML='<tr><td colspan="11" class="load-overlay">Không có mã nào phù hợp</td></tr>';return;}
+
+  tbody.innerHTML=slice.map(s=>`
+    <tr>
+      <td style="color:var(--text2);font-size:10px">${s.idx}</td>
+      <td style="font-weight:600;font-family:var(--mono);font-size:12px;color:#93c5fd">${s.symbol}</td>
+      <td><span class="sector-badge">${s.sector}</span></td>
+      <td style="text-align:right;font-family:var(--mono);font-weight:600">${s.price?s.price.toLocaleString('vi-VN'):'—'}</td>
+      <td style="text-align:right" class="${pClass(s.cd)}">${pFmt(s.cd)}</td>
+      <td style="text-align:right" class="${pClass(s.cm)}">${pFmt(s.cm)}</td>
+      <td style="text-align:right" class="${pClass(s.cq)}">${pFmt(s.cq)}</td>
+      <td>${tfCell(s.tf1h)}</td>
+      <td>${tfCell(s.tf4h)}</td>
+      <td>${tfCell(s.tf1d)}</td>
+      <td>${tfCell(s.tf1w)}</td>
+    </tr>`).join('');
+}
+
+function pClass(v){ return v>0?'g':v<0?'r':''; }
+function pFmt(v){
+  if(v===null||v===undefined||v===0)return '<span style="color:var(--text2)">—</span>';
+  const cls=v>0?'g':'r';
+  return `<span class="${cls} mono">${v>0?'+':''}${v.toFixed(2)}%</span>`;
+}
+function tfColor(v){
+  if(v===null||v===undefined)return '#374151';
+  if(v>=65)return 'var(--green)';
+  if(v>=45)return 'var(--accent3)';
+  return 'var(--red)';
+}
+function tfCell(v){
+  if(v===null||v===undefined)
+    return `<span style="color:var(--text2);font-size:10px">—</span>`;
+  const c=tfColor(v);
+  return `<span style="display:inline-flex;align-items:center;gap:3px">
+    <span class="tf-bar-wrap"><span class="tf-bar" style="width:${v}%;background:${c}"></span></span>
+    <span style="font-size:10px;font-family:var(--mono);color:${c}">${v}%</span>
+  </span>`;
+}
+
+function vnUpdateSummary(){
+  const all=vnMerged;
+  document.getElementById('vs-total').textContent=all.length;
+  document.getElementById('vs-up').textContent=all.filter(s=>s.cd>0).length;
+  document.getElementById('vs-dn').textContent=all.filter(s=>s.cd<0).length;
+  document.getElementById('vs-neu').textContent=all.filter(s=>s.cd===0).length;
+  const bull=all.filter(s=>s.tf1w!==null&&s.tf1w>=65).length;
+  document.getElementById('vs-bull').textContent=bull||'—';
+}
+
+function vnSort(col){
+  // Update header
+  document.querySelectorAll('#vn-tbl thead th').forEach(th=>{th.classList.remove('sa','sd');});
+  const cols=['idx','symbol','sector','price','cd','cm','cq','tf1h','tf4h','tf1d','tf1w'];
+  const idx=cols.indexOf(col);
+  if(idx>=0){
+    const ths=document.querySelectorAll('#vn-tbl thead th');
+    if(vnSort_.col===col) vnSort_.dir=vnSort_.dir==='asc'?'desc':'asc';
+    else vnSort_={col,dir:'desc'};
+    ths[idx].classList.add(vnSort_.dir==='asc'?'sa':'sd');
+  }
+  vnPage=0; vnRender();
+}
+
+function vnFilter(btn){
+  document.querySelectorAll('.chip').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  vnFilter_=btn.dataset.f;
+  vnPage=0; vnRender();
+}
+
+function vnPage_(delta){
+  const pages=Math.ceil(vnFiltered.length/VN_PAGE);
+  vnPage=Math.max(0,Math.min(pages-1,vnPage+delta));
+  vnRender();
+}
+// override pager buttons
+function vnPage(delta){ vnPage_(delta); }
+
+// Auto-refresh VN100 every 5 min nếu đang active
+setInterval(()=>{
+  if(document.getElementById('p-vn100').classList.contains('active')&&vnStocks.length)
+    vnLoad();
+},5*60*1000);
+
 // ── SIGNALS ───────────────────────────────────────────────────────────────
-function renderSigs() {
-  document.getElementById('sigs').innerHTML = [
-    {d:'LONG',  a:'BTC/USDT', tf:'4H', r:'EMA Cross + RSI', s:87, t:'2h'},
-    {d:'SHORT', a:'EUR/USD',  tf:'1D', r:'DXY Breakout',    s:74, t:'4h'},
-    {d:'LONG',  a:'ETH/USDT', tf:'1H', r:'Support + Vol',   s:68, t:'30m'},
-    {d:'WATCH', a:'SOL/USDT', tf:'4H', r:'Consolidation',   s:55, t:'1h'},
-  ].map(x =>
-    `<div class="sr">
-      <div class="si" style="background:var(--${x.d==='LONG'?'green':x.d==='SHORT'?'red':'accent3'})22">
-        ${x.d==='LONG'?'📈':x.d==='SHORT'?'📉':'⚡'}
-      </div>
-      <div>
-        <div style="font-size:12px;font-weight:600">${x.d} ${x.a}</div>
-        <div class="xs">${x.tf} · ${x.r} · ${x.t} ago</div>
-      </div>
-      <div class="ml" style="text-align:right">
-        <div class="mono fw6 ${x.s>=70?'g':x.s>=55?'y':'r'}" style="font-size:15px">${x.s}</div>
-        <div style="font-size:9px;color:var(--text2)">score</div>
-      </div>
-    </div>`
+function renderSigs(){
+  document.getElementById('sigs').innerHTML=[
+    {d:'LONG', a:'BTC/USDT',tf:'4H',r:'EMA Cross + RSI',s:87,t:'2h'},
+    {d:'SHORT',a:'EUR/USD', tf:'1D',r:'DXY Breakout',   s:74,t:'4h'},
+    {d:'LONG', a:'ETH/USDT',tf:'1H',r:'Support + Vol',  s:68,t:'30m'},
+    {d:'WATCH',a:'SOL/USDT',tf:'4H',r:'Consolidation',  s:55,t:'1h'},
+  ].map(x=>
+    `<div class="sr"><div class="si" style="background:var(--${x.d==='LONG'?'green':x.d==='SHORT'?'red':'accent3'})22">${x.d==='LONG'?'📈':x.d==='SHORT'?'📉':'⚡'}</div>
+    <div><div style="font-size:12px;font-weight:600">${x.d} ${x.a}</div><div class="xs">${x.tf} · ${x.r} · ${x.t} ago</div></div>
+    <div class="ml" style="text-align:right"><div class="mono fw6 ${x.s>=70?'g':x.s>=55?'y':'r'}" style="font-size:15px">${x.s}</div><div style="font-size:9px;color:var(--text2)">score</div></div></div>`
   ).join('');
 }
 
-function renderCtx() {
-  document.getElementById('ctx').innerHTML = [
-    {l:'Macro Regime',   v:'Risk-Off',   c:'accent3', p:55},
-    {l:'Crypto Trend',   v:'Uptrend',    c:'green',   p:72},
-    {l:'Liq Pressure',   v:'High @ 68K', c:'red',     p:78},
-    {l:'Whale Position', v:'Accumulate', c:'accent2', p:64},
-    {l:'Retail FOMO',    v:'FOMO zone',  c:'accent3', p:81},
-  ].map(x =>
+function renderCtx(){
+  document.getElementById('ctx').innerHTML=[
+    {l:'Macro Regime',  v:'Risk-Off',  c:'accent3',p:55},
+    {l:'Crypto Trend',  v:'Uptrend',   c:'green',  p:72},
+    {l:'Liq Pressure',  v:'High @ 68K',c:'red',    p:78},
+    {l:'Whale Position',v:'Accumulate',c:'accent2',p:64},
+    {l:'Retail FOMO',   v:'FOMO zone', c:'accent3',p:81},
+  ].map(x=>
     `<div style="margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-        <span class="xs">${x.l}</span>
-        <span style="font-size:10px;color:var(--${x.c})">${x.v}</span>
-      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span class="xs">${x.l}</span><span style="font-size:10px;color:var(--${x.c})">${x.v}</span></div>
       <div class="meter"><div class="mf" style="width:${x.p}%;background:var(--${x.c})"></div></div>
     </div>`
   ).join('');
 }
 
-function renderLM() {
-  const ps = ['63K','64K','65K','66K','67K','68K','69K','70K','71K','72K'];
-  document.getElementById('lm').innerHTML = ps.map(p => {
-    const v = Math.random();
-    return `<div class="hmc" style="background:rgba(${v>.6?247:0},${v>.6?75:212},${v>.6?75:170},${v>.6?0.2+v*.7:0.1+v*.3})">${p}</div>`;
-  }).join('');
+function renderLM(){
+  const ps=['63K','64K','65K','66K','67K','68K','69K','70K','71K','72K'];
+  document.getElementById('lm').innerHTML=ps.map(p=>{const v=Math.random();return `<div class="hmc" style="background:rgba(${v>.6?247:0},${v>.6?75:212},${v>.6?75:170},${v>.6?0.2+v*.7:0.1+v*.3})">${p}</div>`;}).join('');
 }
 
 // ── STRUCTURE ─────────────────────────────────────────────────────────────
-function renderWR() {
-  const el = document.getElementById('wr'); if (!el) return;
-  el.innerHTML = [
-    {l:'Retail Long',v:'61.4%',p:61,c:'accent3'},
-    {l:'Whale Long', v:'78.2%',p:78,c:'accent2'},
-    {l:'Smart Money',v:'+$1.2B',p:68,c:'accent2'},
-    {l:'VN Ngoại',  v:'-420B', p:72,c:'red'},
-  ].map(x =>
-    `<div style="margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-        <span class="xs">${x.l}</span>
-        <span style="font-size:11px;font-family:var(--mono)">${x.v}</span>
-      </div>
-      <div class="meter"><div class="mf" style="width:${x.p}%;background:var(--${x.c})"></div></div>
-    </div>`
-  ).join('');
+function renderWR(){
+  const el=document.getElementById('wr');if(!el)return;
+  el.innerHTML=[{l:'Retail Long',v:'61.4%',p:61,c:'accent3'},{l:'Whale Long',v:'78.2%',p:78,c:'accent2'},{l:'Smart Money',v:'+$1.2B',p:68,c:'accent2'},{l:'VN Ngoại',v:'-420B',p:72,c:'red'}]
+  .map(x=>`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span class="xs">${x.l}</span><span style="font-size:11px;font-family:var(--mono)">${x.v}</span></div><div class="meter"><div class="mf" style="width:${x.p}%;background:var(--${x.c})"></div></div></div>`).join('');
 }
 
-function renderOpt() {
-  const el = document.getElementById('opt'); if (!el) return;
-  el.innerHTML = `<table class="tbl">
-    <tr><th>Strike</th><th>Put</th><th>Call</th><th>P/C</th></tr>
-    ${[['65K','12.4K','8.1K','1.53','tr'],['68K','6.8K','21.2K','0.32','tg'],
-       ['70K','4.1K','18.9K','0.22','tg'],['72K','2.3K','9.4K','0.24','tg']].map(r =>
-      `<tr><td class="mono">${r[0]}</td><td class="r mono">${r[1]}</td>
-           <td class="g mono">${r[2]}</td><td><span class="tag ${r[4]}">${r[3]}</span></td></tr>`
-    ).join('')}
-  </table>`;
+function renderOpt(){
+  const el=document.getElementById('opt');if(!el)return;
+  el.innerHTML=`<table class="tbl"><tr><th>Strike</th><th>Put</th><th>Call</th><th>P/C</th></tr>
+  ${[['65K','12.4K','8.1K','1.53','tr'],['68K','6.8K','21.2K','0.32','tg'],['70K','4.1K','18.9K','0.22','tg'],['72K','2.3K','9.4K','0.24','tg']]
+  .map(r=>`<tr><td class="mono">${r[0]}</td><td class="r mono">${r[1]}</td><td class="g mono">${r[2]}</td><td><span class="tag ${r[4]}">${r[3]}</span></td></tr>`).join('')}</table>`;
 }
 
-function renderFP() {
-  const el = document.getElementById('fp'); if (!el) return;
-  el.innerHTML = `<div style="overflow-x:auto"><table class="tbl" style="min-width:450px">
-    <tr><th>Price</th><th>Bid Vol</th><th>Ask Vol</th><th>Delta</th><th>CVD</th><th>POC</th></tr>
-    <tr><td class="mono fw6">67,500</td><td class="r mono">142</td><td class="g mono">389</td><td class="g mono fw6">+247</td><td class="g mono">+1,842</td><td>●</td></tr>
-    <tr><td class="mono fw6">67,200</td><td class="r mono">298</td><td class="g mono">201</td><td class="r mono fw6">-97</td><td class="g mono">+1,595</td><td></td></tr>
-    <tr><td class="mono fw6">67,000</td><td class="r mono">512</td><td class="g mono">724</td><td class="g mono fw6">+212</td><td class="g mono">+1,692</td><td>●</td></tr>
-  </table></div>`;
+function renderFP(){
+  const el=document.getElementById('fp');if(!el)return;
+  el.innerHTML=`<div style="overflow-x:auto"><table class="tbl" style="min-width:450px"><tr><th>Price</th><th>Bid Vol</th><th>Ask Vol</th><th>Delta</th><th>CVD</th><th>POC</th></tr>
+  <tr><td class="mono fw6">67,500</td><td class="r mono">142</td><td class="g mono">389</td><td class="g mono fw6">+247</td><td class="g mono">+1,842</td><td>●</td></tr>
+  <tr><td class="mono fw6">67,200</td><td class="r mono">298</td><td class="g mono">201</td><td class="r mono fw6">-97</td><td class="g mono">+1,595</td><td></td></tr>
+  <tr><td class="mono fw6">67,000</td><td class="r mono">512</td><td class="g mono">724</td><td class="g mono fw6">+212</td><td class="g mono">+1,692</td><td>●</td></tr></table></div>`;
 }
 
 // ── FUNDAMENTAL ───────────────────────────────────────────────────────────
-async function loadFA(mkt) {
-  mkt = mkt || document.getElementById('fam')?.value || 'crypto';
-  const el = document.getElementById('fat'); if (!el) return;
-  el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">Loading...</div>';
-  try {
-    if (mkt === 'crypto') {
-      const r   = await fetch(`${B}/api/crypto/top200`);
-      const raw = await r.json();
-      // FIX: CoinGecko trả {} khi 429 → guard Array.isArray
-      const list = Array.isArray(raw) ? raw : [];
-      if (!list.length) {
-        el.innerHTML = '<div style="color:var(--accent3);padding:12px">⚠ CoinGecko rate limit — thử lại sau 60s</div>';
-        return;
-      }
-      el.innerHTML = `<div class="card"><table class="tbl">
+async function loadFA(mkt){
+  mkt=mkt||document.getElementById('fam')?.value||'crypto';
+  const el=document.getElementById('fat');if(!el)return;
+  el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text2)">Loading...</div>';
+  try{
+    if(mkt==='crypto'){
+      const r=await fetch(`${B}/api/crypto/top200`);
+      const raw=await r.json();
+      const list=Array.isArray(raw)?raw:[];
+      if(!list.length){el.innerHTML='<div style="color:var(--accent3);padding:12px">⚠ CoinGecko rate limit — thử lại sau 60s</div>';return;}
+      el.innerHTML=`<div class="card"><table class="tbl">
         <tr><th>#</th><th>Asset</th><th>Price</th><th>24h</th><th>7d</th><th>MCap</th><th>Score</th></tr>
-        ${list.slice(0,50).map((c,i) => {
-          const ch  = c.price_change_percentage_24h || 0;
-          const ch7 = c.price_change_percentage_7d_in_currency || 0;
-          const sc  = Math.min(99, Math.max(10, 50 + ch7*2 + ch));
-          return `<tr>
-            <td class="mono" style="color:var(--text2)">${i+1}</td>
-            <td><span class="fw6">${c.symbol?.toUpperCase()}</span></td>
-            <td class="mono fw6">$${c.current_price?.toLocaleString()}</td>
-            <td class="${ch>=0?'g':'r'} mono">${ch>=0?'+':''}${ch.toFixed(1)}%</td>
-            <td class="${ch7>=0?'g':'r'} mono">${ch7>=0?'+':''}${ch7.toFixed(1)}%</td>
-            <td class="mono xs">${(c.market_cap/1e9).toFixed(1)}B</td>
-            <td><span class="tag ${sc>=65?'tg':sc>=45?'ty':'tr'}">${sc.toFixed(0)}</span></td>
-          </tr>`;
-        }).join('')}
-      </table></div>`;
-    } else {
-      // VN Stocks — dùng VN_SYMS 30 mã
-      const r    = await fetch(`${B}/api/vn/stocks?symbols=${VN_SYMS}`);
-      const raw  = await r.json();
-      const list = Array.isArray(raw) ? raw : [];
-      el.innerHTML = `<div class="card"><table class="tbl">
+        ${list.slice(0,50).map((c,i)=>{const ch=c.price_change_percentage_24h||0,ch7=c.price_change_percentage_7d_in_currency||0,sc=Math.min(99,Math.max(10,50+ch7*2+ch));
+          return`<tr><td class="mono" style="color:var(--text2)">${i+1}</td><td><span class="fw6">${c.symbol?.toUpperCase()}</span></td><td class="mono fw6">$${c.current_price?.toLocaleString()}</td><td class="${ch>=0?'g':'r'} mono">${ch>=0?'+':''}${ch.toFixed(1)}%</td><td class="${ch7>=0?'g':'r'} mono">${ch7>=0?'+':''}${ch7.toFixed(1)}%</td><td class="mono xs">${(c.market_cap/1e9).toFixed(1)}B</td><td><span class="tag ${sc>=65?'tg':sc>=45?'ty':'tr'}">${sc.toFixed(0)}</span></td></tr>`;
+        }).join('')}</table></div>`;
+    }else{
+      const r=await fetch(`${B}/api/vn/stocks?symbols=${VN_SYMS}`);
+      const raw=await r.json();const list=Array.isArray(raw)?raw:[];
+      el.innerHTML=`<div class="card"><table class="tbl">
         <tr><th>Mã</th><th>Giá</th><th>%</th><th>KL</th><th>P/E</th><th>Score</th></tr>
-        ${list.map(s => {
-          const sc = Math.min(99, Math.max(10, 60 + (s.change||0)*3));
-          return `<tr>
-            <td class="fw6">${s.symbol}</td>
-            <td class="mono fw6">${s.price?.toLocaleString()}</td>
-            <td class="${s.change>=0?'g':'r'} mono">${(s.change||0).toFixed(1)}%</td>
-            <td class="mono xs">${((s.volume||0)/1000).toFixed(0)}K</td>
-            <td class="mono">${s.pe?.toFixed(1)||'—'}</td>
-            <td><span class="tag ${sc>=65?'tg':sc>=45?'ty':'tr'}">${sc.toFixed(0)}</span></td>
-          </tr>`;
-        }).join('')}
-      </table></div>`;
+        ${list.map(s=>{const sc=Math.min(99,Math.max(10,60+(s.change||0)*3));
+          return`<tr><td class="fw6">${s.symbol}</td><td class="mono fw6">${s.price?.toLocaleString()}</td><td class="${s.change>=0?'g':'r'} mono">${(s.change||0).toFixed(1)}%</td><td class="mono xs">${((s.volume||0)/1000).toFixed(0)}K</td><td class="mono">${s.pe?.toFixed(1)||'—'}</td><td><span class="tag ${sc>=65?'tg':sc>=45?'ty':'tr'}">${sc.toFixed(0)}</span></td></tr>`;
+        }).join('')}</table></div>`;
     }
-    document.getElementById('fau').textContent = 'Updated ' + new Date().toLocaleTimeString('vi-VN');
-  } catch(e) {
-    el.innerHTML = '<div style="color:var(--red);padding:12px">' + e.message + '</div>';
-  }
+    document.getElementById('fau').textContent='Updated '+new Date().toLocaleTimeString('vi-VN');
+  }catch(e){el.innerHTML='<div style="color:var(--red);padding:12px">'+e.message+'</div>';}
 }
 
 // ── LIBRARY ───────────────────────────────────────────────────────────────
-function saveLink() {
-  const v = document.getElementById('li').value.trim();
-  if (!v) return;
-  links.unshift({url:v, title:v.startsWith('http')?new URL(v).hostname:v, d:new Date().toLocaleDateString('vi-VN')});
-  document.getElementById('li').value = '';
-  renderLinks();
+function saveLink(){
+  const v=document.getElementById('li').value.trim();if(!v)return;
+  links.unshift({url:v,title:v.startsWith('http')?new URL(v).hostname:v,d:new Date().toLocaleDateString('vi-VN')});
+  document.getElementById('li').value='';renderLinks();
 }
-
-function renderLinks() {
-  const el = document.getElementById('ll'); if (!el) return;
-  const all = links.length ? links : [
-    {url:'https://arxiv.org',    title:'arxiv.org',    d:'Demo'},
-    {url:'https://glassnode.com',title:'glassnode.com',d:'Demo'},
-  ];
-  el.innerHTML = all.map((l,i) =>
-    `<div class="cev">
-      <div class="cdot" style="background:var(--${['accent','accent2','accent3','green','red'][i%5]})"></div>
-      <div style="flex:1">
-        <div style="font-size:12px;font-weight:500">${l.title}</div>
-        <div class="xs">${l.d}</div>
-      </div>
-      ${l.url.startsWith('http')?`<a href="${l.url}" target="_blank" style="font-size:10px;color:var(--accent)">↗</a>`:''}
-    </div>`
+function renderLinks(){
+  const el=document.getElementById('ll');if(!el)return;
+  const all=links.length?links:[{url:'https://arxiv.org',title:'arxiv.org',d:'Demo'},{url:'https://glassnode.com',title:'glassnode.com',d:'Demo'}];
+  el.innerHTML=all.map((l,i)=>
+    `<div class="cev"><div class="cdot" style="background:var(--${['accent','accent2','accent3','green','red'][i%5]})"></div>
+    <div style="flex:1"><div style="font-size:12px;font-weight:500">${l.title}</div><div class="xs">${l.d}</div></div>
+    ${l.url.startsWith('http')?`<a href="${l.url}" target="_blank" style="font-size:10px;color:var(--accent)">↗</a>`:''}</div>`
   ).join('');
 }
-
-async function renderCal() {
-  const el = document.getElementById('ec'); if (!el) return;
-  try {
-    const r = await fetch(`${B}/api/calendar`);
-    const d = await r.json();
-    el.innerHTML = d.map(e =>
-      `<div class="cev">
-        <div class="cdot" style="background:var(--${e.impact==='high'?'red':e.impact==='medium'?'accent3':'accent'})"></div>
-        <div>
-          <div style="font-size:12px;font-weight:500">${e.event}</div>
-          <div class="xs">${e.date} · ${e.time} · Est: ${e.forecast}</div>
-        </div>
-        <span class="tag ${e.impact==='high'?'tr':e.impact==='medium'?'ty':'tg'} ml">${e.impact}</span>
-      </div>`
+async function renderCal(){
+  const el=document.getElementById('ec');if(!el)return;
+  try{
+    const r=await fetch(`${B}/api/calendar`);const d=await r.json();
+    el.innerHTML=d.map(e=>
+      `<div class="cev"><div class="cdot" style="background:var(--${e.impact==='high'?'red':e.impact==='medium'?'accent3':'accent'})"></div>
+      <div><div style="font-size:12px;font-weight:500">${e.event}</div><div class="xs">${e.date} · ${e.time} · Est: ${e.forecast}</div></div>
+      <span class="tag ${e.impact==='high'?'tr':e.impact==='medium'?'ty':'tg'} ml">${e.impact}</span></div>`
     ).join('');
-  } catch(e) {}
+  }catch(e){}
 }
-
-function renderTK() {
-  const el = document.getElementById('tk'); if (!el) return;
-  el.innerHTML = [
-    {n:'Arthur Hayes',c:'Macro·Crypto',i:'🧠'},
-    {n:'Raoul Pal',   c:'Macro·Cycles',i:'📊'},
-    {n:'Willy Woo',   c:'On-chain',    i:'🔬'},
-    {n:'CryptoKaleo', c:'TA·Crypto',   i:'📈'},
-    {n:'Glassnode',   c:'On-chain',    i:'📡'},
-    {n:'M. Burry',    c:'Macro·Value', i:'🎯'},
-  ].map(t =>
-    `<div style="text-align:center;width:72px">
-      <div style="font-size:22px">${t.i}</div>
-      <div style="font-size:11px;font-weight:600;margin-top:3px">${t.n}</div>
-      <div class="xs">${t.c}</div>
-    </div>`
-  ).join('');
+function renderTK(){
+  const el=document.getElementById('tk');if(!el)return;
+  el.innerHTML=[{n:'Arthur Hayes',c:'Macro·Crypto',i:'🧠'},{n:'Raoul Pal',c:'Macro·Cycles',i:'📊'},{n:'Willy Woo',c:'On-chain',i:'🔬'},{n:'CryptoKaleo',c:'TA·Crypto',i:'📈'},{n:'Glassnode',c:'On-chain',i:'📡'},{n:'M. Burry',c:'Macro·Value',i:'🎯'}]
+  .map(t=>`<div style="text-align:center;width:72px"><div style="font-size:22px">${t.i}</div><div style="font-size:11px;font-weight:600;margin-top:3px">${t.n}</div><div class="xs">${t.c}</div></div>`).join('');
 }
 
 // ── LAB ───────────────────────────────────────────────────────────────────
-function renderBTR() {
-  const el = document.getElementById('btr'); if (!el) return;
-  el.innerHTML = `
-    <div class="g2" style="gap:6px">
-      <div class="stat" style="padding:6px 0"><div class="sl">Return</div><div class="sv g">+284%</div></div>
-      <div class="stat" style="padding:6px 0"><div class="sl">Sharpe</div><div class="sv p">1.84</div></div>
-      <div class="stat" style="padding:6px 0"><div class="sl">Drawdown</div><div class="sv r">-23.4%</div></div>
-      <div class="stat" style="padding:6px 0"><div class="sl">Win Rate</div><div class="sv y">58%</div></div>
-    </div>
-    <div style="margin-top:10px">
-      <div class="xs" style="margin-bottom:3px">Overfit Risk</div>
-      <div class="meter"><div class="mf" style="width:28%;background:var(--green)"></div></div>
-      <div class="xs mt8 g">Low (28%)</div>
-    </div>`;
+function renderBTR(){
+  const el=document.getElementById('btr');if(!el)return;
+  el.innerHTML=`<div class="g2" style="gap:6px">
+    <div class="stat" style="padding:6px 0"><div class="sl">Return</div><div class="sv g">+284%</div></div>
+    <div class="stat" style="padding:6px 0"><div class="sl">Sharpe</div><div class="sv p">1.84</div></div>
+    <div class="stat" style="padding:6px 0"><div class="sl">Drawdown</div><div class="sv r">-23.4%</div></div>
+    <div class="stat" style="padding:6px 0"><div class="sl">Win Rate</div><div class="sv y">58%</div></div>
+  </div>
+  <div style="margin-top:10px"><div class="xs" style="margin-bottom:3px">Overfit Risk</div>
+  <div class="meter"><div class="mf" style="width:28%;background:var(--green)"></div></div>
+  <div class="xs mt8 g">Low (28%)</div></div>`;
 }
-
-function renderPHm() {
-  const el = document.getElementById('phm'); if (!el) return;
-  let h = '';
-  for (let i = 0; i < 50; i++) {
-    const v = Math.random();
-    h += `<div class="hmc" style="background:rgba(${Math.floor(247*v)},${Math.floor(212*(1-v))},75,0.8);color:#fff">${(v*2.5).toFixed(1)}</div>`;
-  }
-  el.innerHTML = h;
+function renderPHm(){
+  const el=document.getElementById('phm');if(!el)return;
+  let h='';for(let i=0;i<50;i++){const v=Math.random();h+=`<div class="hmc" style="background:rgba(${Math.floor(247*v)},${Math.floor(212*(1-v))},75,0.8);color:#fff">${(v*2.5).toFixed(1)}</div>`;}
+  el.innerHTML=h;
 }
 
 // ── TRAINING ──────────────────────────────────────────────────────────────
-async function initRC() {
-  const el = document.getElementById('rc');
-  if (!el || rc2) return;
-  rc2 = LightweightCharts.createChart(el, {
-    width:el.offsetWidth, height:240,
-    layout:{background:{color:'#0a0b0f'},textColor:'#8892a4'},
-    grid:{vertLines:{color:'#1e2330'},horzLines:{color:'#1e2330'}},
-    rightPriceScale:{borderColor:'#1e2330'},
-    timeScale:{borderColor:'#1e2330',timeVisible:true},
-  });
-  rs2 = rc2.addCandlestickSeries({
-    upColor:'#00d4aa', downColor:'#f74b4b',
-    borderUpColor:'#00d4aa', borderDownColor:'#f74b4b',
-    wickUpColor:'#00d4aa', wickDownColor:'#f74b4b',
-  });
-  if (window.ResizeObserver) {
-    new ResizeObserver(() => rc2.applyOptions({width:el.offsetWidth})).observe(el);
-  }
-  try {
-    const r = await fetch(`${B}/api/klines?symbol=BTCUSDT&interval=4h&limit=300`);
-    rdata = await r.json();
-    if (!Array.isArray(rdata)) rdata = [];
-    ridx = 100;
-    renderRC(); renderTS(); renderTJ();
-  } catch(e) { console.error('initRC:', e); }
+async function initRC(){
+  const el=document.getElementById('rc');if(!el||rc2)return;
+  rc2=LightweightCharts.createChart(el,{width:el.offsetWidth,height:240,layout:{background:{color:'#0a0b0f'},textColor:'#8892a4'},grid:{vertLines:{color:'#1e2330'},horzLines:{color:'#1e2330'}},rightPriceScale:{borderColor:'#1e2330'},timeScale:{borderColor:'#1e2330',timeVisible:true}});
+  rs2=rc2.addCandlestickSeries({upColor:'#00d4aa',downColor:'#f74b4b',borderUpColor:'#00d4aa',borderDownColor:'#f74b4b',wickUpColor:'#00d4aa',wickDownColor:'#f74b4b'});
+  if(window.ResizeObserver){new ResizeObserver(()=>rc2.applyOptions({width:el.offsetWidth})).observe(el);}
+  try{const r=await fetch(`${B}/api/klines?symbol=BTCUSDT&interval=4h&limit=300`);rdata=await r.json();if(!Array.isArray(rdata))rdata=[];ridx=100;renderRC();renderTS();renderTJ();}catch(e){console.error('initRC:',e);}
 }
-
-function renderRC() {
-  if (!rs2 || !rdata.length) return;
-  rs2.setData(rdata.slice(0, ridx));
-  requestAnimationFrame(() => rc2.timeScale().fitContent());
-  document.getElementById('rd').textContent = new Date(rdata[ridx-1].time*1000).toLocaleDateString('vi-VN');
-}
-
-function rNext() { if (ridx < rdata.length) { ridx += 3; renderRC(); } }
-function rPrev() { if (ridx > 10)            { ridx -= 3; renderRC(); } }
-
-function tglReplay() {
-  rplay = !rplay;
-  document.getElementById('rb').textContent = rplay ? '⏸' : '▶';
-  if (rplay) {
-    rtmr = setInterval(() => {
-      rNext();
-      if (ridx >= rdata.length) { clearInterval(rtmr); rplay = false; document.getElementById('rb').textContent = '▶'; }
-    }, 500);
-  } else { clearInterval(rtmr); }
-}
-
-function trade(d) {
-  if (!rdata[ridx]) return;
-  trStats.n++;
-  const w = Math.random() > .45;
-  if (w) trStats.w++; else trStats.l++;
-  trStats.t.unshift({d, r:w?'win':'loss', t:new Date().toLocaleTimeString('vi-VN')});
-  renderTS(); renderTJ(); rNext();
-}
-
-function renderTS() {
-  const el = document.getElementById('ts2'); if (!el) return;
-  const wr = trStats.n ? ((trStats.w/trStats.n)*100).toFixed(1) : 0;
-  el.innerHTML = `
-    <div class="g2" style="gap:6px">
-      <div class="stat" style="padding:6px 0"><div class="sl">Sessions</div><div class="sv mono">${trStats.n}</div></div>
-      <div class="stat" style="padding:6px 0"><div class="sl">Win Rate</div><div class="sv mono g">${wr}%</div></div>
-      <div class="stat" style="padding:6px 0"><div class="sl">Wins</div><div class="sv mono g">${trStats.w}</div></div>
-      <div class="stat" style="padding:6px 0"><div class="sl">Losses</div><div class="sv mono r">${trStats.l}</div></div>
-    </div>`;
-}
-
-function renderTJ() {
-  const el = document.getElementById('tj'); if (!el) return;
-  el.innerHTML = trStats.t.slice(0,20).map(t =>
-    `<div style="display:flex;gap:8px;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);font-size:11px">
-      <span class="${t.d==='long'?'g':'r'}">${t.d==='long'?'L':'S'}</span>
-      <span class="tag ${t.r==='win'?'tg':'tr'}">${t.r}</span>
-      <span class="xs ml">${t.t}</span>
-    </div>`
-  ).join('') || '<div class="xs" style="padding:6px 0">Chưa có trade</div>';
-}
+function renderRC(){if(!rs2||!rdata.length)return;rs2.setData(rdata.slice(0,ridx));requestAnimationFrame(()=>rc2.timeScale().fitContent());document.getElementById('rd').textContent=new Date(rdata[ridx-1].time*1000).toLocaleDateString('vi-VN');}
+function rNext(){if(ridx<rdata.length){ridx+=3;renderRC();}}
+function rPrev(){if(ridx>10){ridx-=3;renderRC();}}
+function tglReplay(){rplay=!rplay;document.getElementById('rb').textContent=rplay?'⏸':'▶';if(rplay){rtmr=setInterval(()=>{rNext();if(ridx>=rdata.length){clearInterval(rtmr);rplay=false;document.getElementById('rb').textContent='▶';}},500);}else{clearInterval(rtmr);}}
+function trade(d){if(!rdata[ridx])return;trStats.n++;const w=Math.random()>.45;if(w)trStats.w++;else trStats.l++;trStats.t.unshift({d,r:w?'win':'loss',t:new Date().toLocaleTimeString('vi-VN')});renderTS();renderTJ();rNext();}
+function renderTS(){const el=document.getElementById('ts2');if(!el)return;const wr=trStats.n?((trStats.w/trStats.n)*100).toFixed(1):0;el.innerHTML=`<div class="g2" style="gap:6px"><div class="stat" style="padding:6px 0"><div class="sl">Sessions</div><div class="sv mono">${trStats.n}</div></div><div class="stat" style="padding:6px 0"><div class="sl">Win Rate</div><div class="sv mono g">${wr}%</div></div><div class="stat" style="padding:6px 0"><div class="sl">Wins</div><div class="sv mono g">${trStats.w}</div></div><div class="stat" style="padding:6px 0"><div class="sl">Losses</div><div class="sv mono r">${trStats.l}</div></div></div>`;}
+function renderTJ(){const el=document.getElementById('tj');if(!el)return;el.innerHTML=trStats.t.slice(0,20).map(t=>`<div style="display:flex;gap:8px;align-items:center;padding:3px 0;border-bottom:1px solid var(--border);font-size:11px"><span class="${t.d==='long'?'g':'r'}">${t.d==='long'?'L':'S'}</span><span class="tag ${t.r==='win'?'tg':'tr'}">${t.r}</span><span class="xs ml">${t.t}</span></div>`).join('')||'<div class="xs" style="padding:6px 0">Chưa có trade</div>';}
 
 // ── BOOT ──────────────────────────────────────────────────────────────────
 initChart();
 loadMacro();
 renderMTF();
 loadVNM();
-setInterval(loadMacro, 60000);
-setInterval(loadVNM,   60000);
+setInterval(loadMacro,60000);
+setInterval(loadVNM,60000);
 </script>
 </body>
 </html>
