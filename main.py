@@ -2,8 +2,8 @@
 Market Research Hub — Backend
 ==============================
 - FastAPI server
-- WebSocket proxy: Bybit → client
-- REST APIs: Bybit klines, CoinGecko, Yahoo Finance, TCBS, SJC, Vietcombank
+- WebSocket proxy: OKX → client (Bybit/Binance bị geo-block trên Render US IP)
+- REST APIs: OKX klines, CoinGecko, Yahoo Finance, TCBS, SJC, Vietcombank
 - HOSE Top 50 endpoint
 - Telegram alerts: BTC, ETH, USD/VND, Gold (SJC)
 - Serve static files
@@ -41,6 +41,74 @@ USD_MIN    = float(os.getenv("USD_MIN",    "24000"))
 USD_MAX    = float(os.getenv("USD_MAX",    "27000"))
 GOLD_MIN   = float(os.getenv("GOLD_MIN",   "100000000"))
 GOLD_MAX   = float(os.getenv("GOLD_MAX",   "150000000"))
+
+# 50 mã HOSE vốn hóa lớn nhất (tháng 6/2025)
+HOSE_TOP50 = [
+    "VCB","BID","VIC","VHM","CTG","GAS","VNM","SAB","MSN","TCB",
+    "MBB","FPT","ACB","PLX","HPG","VPB","STB","HDB","GVR","POW",
+    "MWG","PNJ","REE","SSI","VND","HCM","DPM","DCM","VEA","KDH",
+    "NVL","PDR","DXG","PVD","HSG","NKG","PHR","DRC","IDC","KBC",
+    "NTC","LHG","EIB","EVF","CMG","VGI","FRT","DGW","GEX","VRE",
+]
+
+HOSE_INFO = {
+    "VCB":  {"name": "Vietcombank",        "sector": "Ngân hàng"},
+    "BID":  {"name": "BIDV",               "sector": "Ngân hàng"},
+    "VIC":  {"name": "Vingroup",           "sector": "Bất động sản"},
+    "VHM":  {"name": "Vinhomes",           "sector": "Bất động sản"},
+    "CTG":  {"name": "VietinBank",         "sector": "Ngân hàng"},
+    "GAS":  {"name": "PV Gas",             "sector": "Năng lượng"},
+    "VNM":  {"name": "Vinamilk",           "sector": "Tiêu dùng"},
+    "SAB":  {"name": "Sabeco",             "sector": "Tiêu dùng"},
+    "MSN":  {"name": "Masan Group",        "sector": "Tiêu dùng"},
+    "TCB":  {"name": "Techcombank",        "sector": "Ngân hàng"},
+    "MBB":  {"name": "MB Bank",            "sector": "Ngân hàng"},
+    "FPT":  {"name": "FPT Corp",           "sector": "Công nghệ"},
+    "ACB":  {"name": "ACB",                "sector": "Ngân hàng"},
+    "PLX":  {"name": "Petrolimex",         "sector": "Năng lượng"},
+    "HPG":  {"name": "Hòa Phát Group",     "sector": "Vật liệu"},
+    "VPB":  {"name": "VPBank",             "sector": "Ngân hàng"},
+    "STB":  {"name": "Sacombank",          "sector": "Ngân hàng"},
+    "HDB":  {"name": "HDBank",             "sector": "Ngân hàng"},
+    "GVR":  {"name": "VRG",                "sector": "Công nghiệp"},
+    "POW":  {"name": "PV Power",           "sector": "Năng lượng"},
+    "MWG":  {"name": "Thế Giới Di Động",   "sector": "Tiêu dùng"},
+    "PNJ":  {"name": "PNJ",                "sector": "Tiêu dùng"},
+    "REE":  {"name": "Cơ Điện Lạnh REE",   "sector": "Công nghiệp"},
+    "SSI":  {"name": "SSI Securities",     "sector": "Chứng khoán"},
+    "VND":  {"name": "VNDirect",           "sector": "Chứng khoán"},
+    "HCM":  {"name": "HSC",                "sector": "Chứng khoán"},
+    "DPM":  {"name": "Đạm Phú Mỹ",        "sector": "Hóa chất"},
+    "DCM":  {"name": "Đạm Cà Mau",        "sector": "Hóa chất"},
+    "VEA":  {"name": "VEAM",               "sector": "Công nghiệp"},
+    "KDH":  {"name": "Khang Điền",         "sector": "Bất động sản"},
+    "NVL":  {"name": "Novaland",           "sector": "Bất động sản"},
+    "PDR":  {"name": "Phát Đạt",           "sector": "Bất động sản"},
+    "DXG":  {"name": "Đất Xanh Group",     "sector": "Bất động sản"},
+    "PVD":  {"name": "PV Drilling",        "sector": "Năng lượng"},
+    "HSG":  {"name": "Hoa Sen Group",      "sector": "Vật liệu"},
+    "NKG":  {"name": "Nam Kim Steel",      "sector": "Vật liệu"},
+    "PHR":  {"name": "Cao su Phước Hòa",   "sector": "Vật liệu"},
+    "DRC":  {"name": "Cao su Đà Nẵng",     "sector": "Vật liệu"},
+    "IDC":  {"name": "IDICO",              "sector": "Bất động sản"},
+    "KBC":  {"name": "Kinh Bắc City",      "sector": "Bất động sản"},
+    "NTC":  {"name": "Nam Tân Uyên",       "sector": "Bất động sản"},
+    "LHG":  {"name": "Long Hậu",           "sector": "Bất động sản"},
+    "EIB":  {"name": "Eximbank",           "sector": "Ngân hàng"},
+    "EVF":  {"name": "EVNFinance",         "sector": "Ngân hàng"},
+    "CMG":  {"name": "CMC Corp",           "sector": "Công nghệ"},
+    "VGI":  {"name": "Viettel Global",     "sector": "Công nghệ"},
+    "FRT":  {"name": "FPT Retail",         "sector": "Tiêu dùng"},
+    "DGW":  {"name": "Digiworld",          "sector": "Tiêu dùng"},
+    "GEX":  {"name": "Gelex Group",        "sector": "Công nghiệp"},
+    "VRE":  {"name": "Vincom Retail",      "sector": "Bất động sản"},
+}
+
+_hose_cache: dict = {}
+HOSE_TTL = 60
+
+_multitf_cache: dict = {}
+MULTITF_TTL = 300
 
 # ─────────────────────────────────────────────
 # ALERT STATE
@@ -124,24 +192,27 @@ def check_alert(key, value, min_val, max_val, label, unit=""):
     return alerts
 
 # ─────────────────────────────────────────────
-# PRICE FETCH HELPERS
+# PRICE FETCH HELPERS (OKX primary, Binance fallback)
 # ─────────────────────────────────────────────
 
-async def fetch_price(symbol_bybit: str, symbol_binance: str) -> float:
-    for category in ("linear", "spot"):
-        try:
-            async with httpx.AsyncClient(timeout=8) as client:
-                r = await client.get(
-                    "https://api.bybit.com/v5/market/tickers",
-                    params={"category": category, "symbol": symbol_bybit},
-                )
-            lst = r.json().get("result", {}).get("list", [])
-            if lst:
-                price = float(lst[0]["lastPrice"])
-                if price > 0:
-                    return price
-        except Exception as e:
-            log.warning(f"Bybit {category} price error ({symbol_bybit}): {e}")
+async def fetch_price(symbol_okx: str, symbol_binance: str) -> float:
+    """
+    symbol_okx ví dụ: 'BTC-USDT'
+    """
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(
+                "https://www.okx.com/api/v5/market/ticker",
+                params={"instId": symbol_okx},
+            )
+        data = r.json()
+        lst  = data.get("data", [])
+        if lst:
+            price = float(lst[0]["last"])
+            if price > 0:
+                return price
+    except Exception as e:
+        log.warning(f"OKX price error ({symbol_okx}): {e}")
 
     try:
         async with httpx.AsyncClient(timeout=8) as client:
@@ -155,7 +226,7 @@ async def fetch_price(symbol_bybit: str, symbol_binance: str) -> float:
     except Exception as e:
         log.warning(f"Binance fallback price error ({symbol_binance}): {e}")
 
-    raise ValueError(f"Cannot fetch price for {symbol_bybit}/{symbol_binance}")
+    raise ValueError(f"Cannot fetch price for {symbol_okx}/{symbol_binance}")
 
 # ─────────────────────────────────────────────
 # GOLD PRICE
@@ -199,13 +270,13 @@ async def job_alert():
     all_alerts = []
 
     try:
-        btc = await fetch_price("BTCUSDT", "BTCUSDT")
+        btc = await fetch_price("BTC-USDT", "BTCUSDT")
         all_alerts += check_alert("BTC", btc, BTC_MIN, BTC_MAX, "BTC/USDT", "$")
     except Exception as e:
         log.error(f"BTC alert error: {e}")
 
     try:
-        eth = await fetch_price("ETHUSDT", "ETHUSDT")
+        eth = await fetch_price("ETH-USDT", "ETHUSDT")
         all_alerts += check_alert("ETH", eth, ETH_MIN, ETH_MAX, "ETH/USDT", "$")
     except Exception as e:
         log.error(f"ETH alert error: {e}")
@@ -270,60 +341,82 @@ def chat_page():
     return FileResponse("static/chat.html")
 
 # ─────────────────────────────────────────────
-# BYBIT SYMBOL / INTERVAL HELPERS
+# OKX SYMBOL / INTERVAL HELPERS
 # ─────────────────────────────────────────────
 
-def to_bybit_symbol(symbol: str) -> str:
-    return symbol.upper()
+def to_okx_symbol(symbol: str) -> str:
+    """
+    Chuyển 'BTCUSDT' -> 'BTC-USDT'
+    """
+    s = symbol.upper()
+    if "-" in s:
+        return s
+    for quote in ("USDT", "USDC", "BTC", "ETH"):
+        if s.endswith(quote) and len(s) > len(quote):
+            return f"{s[:-len(quote)]}-{quote}"
+    return s
 
-BYBIT_INTERVAL_MAP = {
-    "1m": "1",  "3m": "3",   "5m": "5",   "15m": "15",  "30m": "30",
-    "1h": "60", "2h": "120", "4h": "240", "6h": "360",  "12h": "720",
-    "1d": "D",  "1w": "W",   "1M": "M",
+OKX_INTERVAL_MAP = {
+    "1m": "1m",  "3m": "3m",  "5m": "5m",  "15m": "15m", "30m": "30m",
+    "1h": "1H",  "2h": "2H",  "4h": "4H",  "6h": "6H",   "12h": "12H",
+    "1d": "1D",  "1w": "1W",  "1M": "1M",
 }
 
 # ─────────────────────────────────────────────
-# WEBSOCKET — BYBIT KLINE
+# WEBSOCKET — OKX KLINE
 # ─────────────────────────────────────────────
 
 @app.websocket("/ws/kline")
 async def ws_kline(ws: WebSocket, symbol: str = "btcusdt", interval: str = "1h"):
     await ws.accept()
-    bybit_symbol   = to_bybit_symbol(symbol)
-    bybit_interval = BYBIT_INTERVAL_MAP.get(interval, "60")
-    bybit_url      = "wss://stream.bybit.com/v5/public/linear"
-    subscribe_msg  = json.dumps({"op": "subscribe", "args": [f"kline.{bybit_interval}.{bybit_symbol}"]})
+    okx_symbol   = to_okx_symbol(symbol)
+    okx_bar      = OKX_INTERVAL_MAP.get(interval, "1H")
+    okx_url      = "wss://ws.okx.com:8443/ws/v5/business"
+    subscribe_msg = json.dumps({
+        "op": "subscribe",
+        "args": [{"channel": f"candle{okx_bar}", "instId": okx_symbol}],
+    })
     RECONNECT_DELAY = 3
 
     for attempt in range(10):
         try:
-            async with websockets.connect(bybit_url, ping_interval=20, ping_timeout=10) as bybit_ws:
-                await bybit_ws.send(subscribe_msg)
+            async with websockets.connect(okx_url, ping_interval=20, ping_timeout=10) as okx_ws:
+                await okx_ws.send(subscribe_msg)
+                log.info(f"OKX kline connected: {okx_symbol} {okx_bar}")
                 while True:
                     try:
-                        msg = await asyncio.wait_for(bybit_ws.recv(), timeout=35)
+                        msg = await asyncio.wait_for(okx_ws.recv(), timeout=35)
                     except asyncio.TimeoutError:
                         await ws.send_json({"ping": True})
+                        try:
+                            await okx_ws.send("ping")
+                        except Exception:
+                            pass
                         continue
+
+                    if msg == "pong":
+                        continue
+
                     data = json.loads(msg)
                     if "data" not in data:
                         continue
+
                     for k in data["data"]:
                         await ws.send_json({
-                            "time": int(k.get("start", 0)) // 1000,
-                            "open": float(k.get("open", 0)),
-                            "high": float(k.get("high", 0)),
-                            "low":  float(k.get("low", 0)),
-                            "close": float(k.get("close", 0)),
-                            "volume": float(k.get("volume", 0)),
-                            "is_closed": k.get("confirm", False),
+                            "time":      int(k[0]) // 1000,
+                            "open":      float(k[1]),
+                            "high":      float(k[2]),
+                            "low":       float(k[3]),
+                            "close":     float(k[4]),
+                            "volume":    float(k[5]),
+                            "is_closed": k[8] == "1" if len(k) > 8 else False,
                         })
         except WebSocketDisconnect:
             return
         except websockets.exceptions.ConnectionClosed as e:
-            log.warning(f"Bybit kline closed (attempt {attempt+1}): {e}")
+            log.warning(f"OKX kline closed (attempt {attempt+1}): {e}")
         except Exception as e:
-            log.error(f"Bybit kline error (attempt {attempt+1}): {e}")
+            log.error(f"OKX kline error (attempt {attempt+1}): {e}")
 
         try:
             await ws.send_json({"reconnecting": True, "attempt": attempt + 1})
@@ -333,59 +426,55 @@ async def ws_kline(ws: WebSocket, symbol: str = "btcusdt", interval: str = "1h")
         RECONNECT_DELAY = min(RECONNECT_DELAY * 2, 60)
 
 # ─────────────────────────────────────────────
-# WEBSOCKET — BYBIT ORDERBOOK
+# WEBSOCKET — OKX ORDERBOOK
 # ─────────────────────────────────────────────
 
 @app.websocket("/ws/orderbook")
 async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
     await ws.accept()
-    bybit_symbol  = to_bybit_symbol(symbol)
-    bybit_url     = "wss://stream.bybit.com/v5/public/linear"
-    subscribe_msg = json.dumps({"op": "subscribe", "args": [f"orderbook.50.{bybit_symbol}"]})
+    okx_symbol  = to_okx_symbol(symbol)
+    okx_url     = "wss://ws.okx.com:8443/ws/v5/public"
+    subscribe_msg = json.dumps({
+        "op": "subscribe",
+        "args": [{"channel": "books5", "instId": okx_symbol}],
+    })
     RECONNECT_DELAY = 3
-
-    local_bids: dict = {}
-    local_asks: dict = {}
-
-    def apply_delta(book, entries):
-        for price, qty in entries:
-            if float(qty) == 0:
-                book.pop(price, None)
-            else:
-                book[price] = float(qty)
 
     for attempt in range(10):
         try:
-            local_bids.clear()
-            local_asks.clear()
-            async with websockets.connect(bybit_url, ping_interval=20, ping_timeout=10) as bybit_ws:
-                await bybit_ws.send(subscribe_msg)
+            async with websockets.connect(okx_url, ping_interval=20, ping_timeout=10) as okx_ws:
+                await okx_ws.send(subscribe_msg)
+                log.info(f"OKX orderbook connected: {okx_symbol}")
                 while True:
-                    msg  = await bybit_ws.recv()
+                    try:
+                        msg = await asyncio.wait_for(okx_ws.recv(), timeout=35)
+                    except asyncio.TimeoutError:
+                        try:
+                            await okx_ws.send("ping")
+                        except Exception:
+                            pass
+                        continue
+
+                    if msg == "pong":
+                        continue
+
                     data = json.loads(msg)
                     if "data" not in data:
                         continue
-                    book_data = data["data"]
-                    msg_type  = data.get("type", "snapshot")
-                    if msg_type == "snapshot":
-                        local_bids = {p: float(q) for p, q in book_data.get("b", [])}
-                        local_asks = {p: float(q) for p, q in book_data.get("a", [])}
-                    else:
-                        apply_delta(local_bids, book_data.get("b", []))
-                        apply_delta(local_asks, book_data.get("a", []))
 
-                    sorted_bids = sorted(local_bids.items(), key=lambda x: float(x[0]), reverse=True)[:10]
-                    sorted_asks = sorted(local_asks.items(), key=lambda x: float(x[0]))[:10]
-                    await ws.send_json({
-                        "bids": [[float(p), q] for p, q in sorted_bids],
-                        "asks": [[float(p), q] for p, q in sorted_asks],
-                    })
+                    for book in data["data"]:
+                        bids = book.get("bids", [])[:10]
+                        asks = book.get("asks", [])[:10]
+                        await ws.send_json({
+                            "bids": [[float(p), float(q)] for p, q, *_ in bids],
+                            "asks": [[float(p), float(q)] for p, q, *_ in asks],
+                        })
         except WebSocketDisconnect:
             return
         except websockets.exceptions.ConnectionClosed as e:
-            log.warning(f"Bybit orderbook closed (attempt {attempt+1}): {e}")
+            log.warning(f"OKX orderbook closed (attempt {attempt+1}): {e}")
         except Exception as e:
-            log.error(f"Bybit orderbook error (attempt {attempt+1}): {e}")
+            log.error(f"OKX orderbook error (attempt {attempt+1}): {e}")
 
         try:
             await ws.send_json({"reconnecting": True, "attempt": attempt + 1})
@@ -395,35 +484,45 @@ async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
         RECONNECT_DELAY = min(RECONNECT_DELAY * 2, 60)
 
 # ─────────────────────────────────────────────
-# REST — HISTORICAL KLINES
+# REST — HISTORICAL KLINES (OKX primary, Binance fallback)
 # ─────────────────────────────────────────────
 
 @app.get("/api/klines")
 async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 200):
-    bybit_symbol   = to_bybit_symbol(symbol)
-    bybit_interval = BYBIT_INTERVAL_MAP.get(interval, "60")
+    okx_symbol = to_okx_symbol(symbol)
+    okx_bar    = OKX_INTERVAL_MAP.get(interval, "1H")
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(
-                "https://api.bybit.com/v5/market/kline",
-                params={"category": "linear", "symbol": bybit_symbol, "interval": bybit_interval, "limit": limit},
+                "https://www.okx.com/api/v5/market/candles",
+                params={"instId": okx_symbol, "bar": okx_bar, "limit": min(limit, 300)},
             )
         result = r.json()
-        if result.get("retCode") == 0:
-            raw = result["result"]["list"]
+        if result.get("code") == "0":
+            raw = result.get("data", [])
             if isinstance(raw, list) and len(raw) > 0:
                 raw = raw[::-1]
-                return [{"time": int(k[0])//1000, "open": float(k[1]), "high": float(k[2]),
-                         "low": float(k[3]), "close": float(k[4]), "volume": float(k[5])} for k in raw]
+                log.info(f"OKX kline OK: {okx_symbol} {okx_bar} ({len(raw)} bars)")
+                return [{
+                    "time":   int(k[0]) // 1000,
+                    "open":   float(k[1]),
+                    "high":   float(k[2]),
+                    "low":    float(k[3]),
+                    "close":  float(k[4]),
+                    "volume": float(k[5]),
+                } for k in raw]
+        log.warning(f"OKX kline non-zero code: {result.get('msg')}")
     except Exception as e:
-        log.warning(f"Bybit kline REST error: {e}")
+        log.warning(f"OKX kline REST error: {e}")
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(
                 f"https://api.binance.com/api/v3/klines?symbol={symbol.upper()}&interval={interval}&limit={limit}"
             )
+        if r.status_code == 451:
+            return JSONResponse(status_code=503, content={"error": "OKX failed, Binance geo-blocked"})
         data = r.json()
         if not isinstance(data, list):
             return JSONResponse(status_code=503, content={"error": "Kline fetch failed"})
@@ -556,309 +655,6 @@ async def get_vn_stocks(
     return [r for r in results if isinstance(r, dict)]
 
 # ─────────────────────────────────────────────
-# REST — HOSE TOP 50 (vốn hóa lớn nhất)
-# Lấy từ TCBS API — public, không cần auth
-# Fallback: Yahoo Finance với danh sách cố định
-# ─────────────────────────────────────────────
-
-# 50 mã HOSE vốn hóa lớn nhất (tháng 6/2025)
-HOSE_TOP50 = [
-    "VCB","BID","VIC","VHM","CTG","GAS","VNM","SAB","MSN","TCB",
-    "MBB","FPT","ACB","PLX","HPG","VPB","STB","HDB","GVR","POW",
-    "MWG","PNJ","REE","SSI","VND","HCM","DPM","DCM","VEA","KDH",
-    "NVL","PDR","DXG","PVD","HSG","NKG","PHR","DRC","IDC","KBC",
-    "NTC","LHG","EIB","EVF","CMG","VGI","FRT","DGW","GEX","VRE",
-]
-
-HOSE_INFO = {
-    "VCB":  {"name": "Vietcombank",          "sector": "Ngân hàng"},
-    "BID":  {"name": "BIDV",                 "sector": "Ngân hàng"},
-    "VIC":  {"name": "Vingroup",             "sector": "Bất động sản"},
-    "VHM":  {"name": "Vinhomes",             "sector": "Bất động sản"},
-    "CTG":  {"name": "VietinBank",           "sector": "Ngân hàng"},
-    "GAS":  {"name": "PV Gas",               "sector": "Năng lượng"},
-    "VNM":  {"name": "Vinamilk",             "sector": "Tiêu dùng"},
-    "SAB":  {"name": "Sabeco",               "sector": "Tiêu dùng"},
-    "MSN":  {"name": "Masan Group",          "sector": "Tiêu dùng"},
-    "TCB":  {"name": "Techcombank",          "sector": "Ngân hàng"},
-    "MBB":  {"name": "MB Bank",              "sector": "Ngân hàng"},
-    "FPT":  {"name": "FPT Corp",             "sector": "Công nghệ"},
-    "ACB":  {"name": "ACB",                  "sector": "Ngân hàng"},
-    "PLX":  {"name": "Petrolimex",           "sector": "Năng lượng"},
-    "HPG":  {"name": "Hòa Phát Group",       "sector": "Vật liệu"},
-    "VPB":  {"name": "VPBank",               "sector": "Ngân hàng"},
-    "STB":  {"name": "Sacombank",            "sector": "Ngân hàng"},
-    "HDB":  {"name": "HDBank",               "sector": "Ngân hàng"},
-    "GVR":  {"name": "VRG",                  "sector": "Công nghiệp"},
-    "POW":  {"name": "PV Power",             "sector": "Năng lượng"},
-    "MWG":  {"name": "Thế Giới Di Động",     "sector": "Tiêu dùng"},
-    "PNJ":  {"name": "PNJ",                  "sector": "Tiêu dùng"},
-    "REE":  {"name": "Cơ Điện Lạnh REE",     "sector": "Công nghiệp"},
-    "SSI":  {"name": "SSI Securities",       "sector": "Chứng khoán"},
-    "VND":  {"name": "VNDirect",             "sector": "Chứng khoán"},
-    "HCM":  {"name": "HSC",                  "sector": "Chứng khoán"},
-    "DPM":  {"name": "Đạm Phú Mỹ",          "sector": "Hóa chất"},
-    "DCM":  {"name": "Đạm Cà Mau",          "sector": "Hóa chất"},
-    "VEA":  {"name": "VEAM",                 "sector": "Công nghiệp"},
-    "KDH":  {"name": "Khang Điền",           "sector": "Bất động sản"},
-    "NVL":  {"name": "Novaland",             "sector": "Bất động sản"},
-    "PDR":  {"name": "Phát Đạt",             "sector": "Bất động sản"},
-    "DXG":  {"name": "Đất Xanh Group",       "sector": "Bất động sản"},
-    "PVD":  {"name": "PV Drilling",          "sector": "Năng lượng"},
-    "HSG":  {"name": "Hoa Sen Group",        "sector": "Vật liệu"},
-    "NKG":  {"name": "Nam Kim Steel",        "sector": "Vật liệu"},
-    "PHR":  {"name": "Cao su Phước Hòa",     "sector": "Vật liệu"},
-    "DRC":  {"name": "Cao su Đà Nẵng",       "sector": "Vật liệu"},
-    "IDC":  {"name": "IDICO",               "sector": "Bất động sản"},
-    "KBC":  {"name": "Kinh Bắc City",        "sector": "Bất động sản"},
-    "NTC":  {"name": "Nam Tân Uyên",         "sector": "Bất động sản"},
-    "LHG":  {"name": "Long Hậu",             "sector": "Bất động sản"},
-    "EIB":  {"name": "Eximbank",             "sector": "Ngân hàng"},
-    "EVF":  {"name": "EVNFinance",           "sector": "Ngân hàng"},
-    "CMG":  {"name": "CMC Corp",             "sector": "Công nghệ"},
-    "VGI":  {"name": "Viettel Global",       "sector": "Công nghệ"},
-    "FRT":  {"name": "FPT Retail",           "sector": "Tiêu dùng"},
-    "DGW":  {"name": "Digiworld",            "sector": "Tiêu dùng"},
-    "GEX":  {"name": "Gelex Group",          "sector": "Công nghiệp"},
-    "VRE":  {"name": "Vincom Retail",        "sector": "Bất động sản"},
-}
-
-_hose_cache: dict = {}
-HOSE_TTL = 60  # giây
-
-@app.get("/api/vn/hose-top50")
-async def get_hose_top50():
-    """
-    Lấy giá thực 50 mã HOSE từ TCBS API (public).
-    TCBS endpoint: https://apipublic.tcbs.com.vn/stock-insight/v1/stock/price?tickers=VCB,BID,...
-    Fallback: Yahoo Finance .VN symbols
-    Cache 60s để tránh spam API.
-    """
-    now = time.time()
-    cached = _hose_cache.get("top50")
-    if cached and (now - cached["ts"]) < HOSE_TTL:
-        return cached["data"]
-
-    results = []
-
-    # ── TCBS public API ──────────────────────
-    try:
-        tickers_str = ",".join(HOSE_TOP50)
-        async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.get(
-                "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/price",
-                params={"tickers": tickers_str},
-                headers={
-                    "User-Agent": "Mozilla/5.0",
-                    "Accept": "application/json",
-                    "Referer": "https://tcinvest.tcbs.com.vn/",
-                },
-            )
-        data = r.json()
-        price_map = {}
-
-        # TCBS trả về list hoặc dict tùy version
-        items = data if isinstance(data, list) else data.get("data", [])
-        for item in items:
-            ticker = item.get("ticker") or item.get("symbol") or ""
-            ticker = ticker.upper()
-            if not ticker:
-                continue
-            price  = float(item.get("close") or item.get("price") or item.get("lastPrice") or 0)
-            prev   = float(item.get("referencePrice") or item.get("prevClose") or item.get("ref") or 0)
-            change = round((price - prev) / prev * 100, 2) if prev > 0 else 0
-            volume = int(item.get("volume") or item.get("totalVolume") or 0)
-            price_map[ticker] = {"price": price, "change": change, "volume": volume}
-
-        if price_map:
-            for i, sym in enumerate(HOSE_TOP50):
-                info = HOSE_INFO.get(sym, {"name": sym, "sector": "Khác"})
-                p    = price_map.get(sym, {})
-                results.append({
-                    "rank":    i + 1,
-                    "symbol":  sym,
-                    "name":    info["name"],
-                    "sector":  info["sector"],
-                    "price":   p.get("price",  0),
-                    "change":  p.get("change", 0),
-                    "volume":  p.get("volume", 0),
-                    "source":  "TCBS",
-                })
-            _hose_cache["top50"] = {"ts": now, "data": results}
-            log.info(f"HOSE top50: TCBS OK — {len(price_map)} tickers")
-            return results
-
-        log.warning(f"TCBS returned empty price_map. Raw: {str(data)[:300]}")
-
-    except Exception as e:
-        log.warning(f"TCBS API error: {e} — falling back to Yahoo Finance")
-
-    # ── Yahoo Finance fallback ───────────────
-    try:
-        sym_list = [f"{s}.VN" for s in HOSE_TOP50]
-        async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=15) as client:
-            tasks = [_fetch_yahoo_stock(client, s) for s in sym_list]
-            yahoo_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        for i, (sym, res) in enumerate(zip(HOSE_TOP50, yahoo_results)):
-            info = HOSE_INFO.get(sym, {"name": sym, "sector": "Khác"})
-            p    = res if isinstance(res, dict) else {}
-            results.append({
-                "rank":   i + 1,
-                "symbol": sym,
-                "name":   info["name"],
-                "sector": info["sector"],
-                "price":  p.get("price",  0),
-                "change": p.get("change", 0),
-                "volume": p.get("volume", 0),
-                "source": "Yahoo",
-            })
-
-        _hose_cache["top50"] = {"ts": now, "data": results}
-        log.info("HOSE top50: Yahoo Finance fallback OK")
-        return results
-
-    except Exception as e:
-        log.error(f"Yahoo fallback error: {e}")
-        return JSONResponse(status_code=503, content={"error": f"Không lấy được dữ liệu HOSE: {e}"})
-
-# ─────────────────────────────────────────────
-# REST — TCBS HISTORICAL (1D, 1W, 1M, 1Q, 1Y)
-# ─────────────────────────────────────────────
-
-@app.get("/api/vn/history")
-async def get_vn_history(symbol: str = "VCB", period: str = "1M"):
-    """
-    Lấy lịch sử giá 1 mã HOSE từ TCBS.
-    period: 1D | 1W | 1M | 3M | 6M | 1Y | 3Y
-    """
-    period_map = {
-        "1D": ("1", "day"),   "1W": ("5", "day"),
-        "1M": ("1", "month"), "3M": ("3", "month"),
-        "6M": ("6", "month"), "1Y": ("1", "year"),
-        "3Y": ("3", "year"),
-    }
-    count, unit = period_map.get(period.upper(), ("1", "month"))
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                f"https://apipublic.tcbs.com.vn/stock-insight/v1/stock/bars-long-term",
-                params={"ticker": symbol.upper(), "type": unit, "count": count},
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
-            )
-        data = r.json()
-        bars = data if isinstance(data, list) else data.get("data", [])
-        return [{
-            "time":   b.get("tradingDate") or b.get("date", ""),
-            "open":   float(b.get("open", 0)),
-            "high":   float(b.get("high", 0)),
-            "low":    float(b.get("low", 0)),
-            "close":  float(b.get("close", 0)),
-            "volume": int(b.get("volume", 0)),
-        } for b in bars]
-    except Exception as e:
-        return JSONResponse(status_code=503, content={"error": str(e)})
-
-# ─────────────────────────────────────────────
-# REST — MULTI-TF STRENGTH (HOSE)
-# Tính % mã đang uptrend trên mỗi timeframe dựa vào MA
-# ─────────────────────────────────────────────
-
-_multitf_cache: dict = {}
-MULTITF_TTL = 300  # 5 phút
-
-@app.get("/api/vn/multitf")
-async def get_multitf():
-    """
-    Tính % bullish cho từng timeframe bằng cách kiểm tra
-    giá hiện tại > MA20 trên từng khung thời gian.
-    Dùng Yahoo Finance với interval khác nhau.
-    """
-    now = time.time()
-    cached = _multitf_cache.get("multitf")
-    if cached and (now - cached["ts"]) < MULTITF_TTL:
-        return cached["data"]
-
-    # Lấy top 20 mã để tính (giới hạn để tránh quá nhiều request)
-    sample = HOSE_TOP50[:20]
-    timeframes = [
-        {"key": "1H",  "interval": "60m",  "range": "5d",   "ma": 20},
-        {"key": "4H",  "interval": "1h",   "range": "30d",  "ma": 20},
-        {"key": "1D",  "interval": "1d",   "range": "90d",  "ma": 20},
-        {"key": "1W",  "interval": "1wk",  "range": "2y",   "ma": 20},
-        {"key": "1Q",  "interval": "3mo",  "range": "10y",  "ma": 4},
-        {"key": "1Y",  "interval": "1mo",  "range": "20y",  "ma": 12},
-    ]
-
-    results = {}
-    async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=15) as client:
-        for tf in timeframes:
-            bullish = 0
-            total   = 0
-            tasks   = [
-                client.get(
-                    f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}.VN",
-                    params={"interval": tf["interval"], "range": tf["range"]},
-                )
-                for sym in sample
-            ]
-            responses = await asyncio.gather(*tasks, return_exceptions=True)
-            for resp in responses:
-                try:
-                    if isinstance(resp, Exception):
-                        continue
-                    closes = resp.json()["chart"]["result"][0]["indicators"]["quote"][0].get("close", [])
-                    closes = [c for c in closes if c is not None]
-                    if len(closes) < tf["ma"] + 1:
-                        continue
-                    ma = sum(closes[-tf["ma"]:]) / tf["ma"]
-                    if closes[-1] > ma:
-                        bullish += 1
-                    total += 1
-                except Exception:
-                    continue
-            pct = round(bullish / total * 100) if total > 0 else 50
-            results[tf["key"]] = pct
-
-    _multitf_cache["multitf"] = {"ts": now, "data": results}
-    return results
-
-# ─────────────────────────────────────────────
-# REST — ECONOMIC CALENDAR
-# ─────────────────────────────────────────────
-
-@app.get("/api/calendar")
-async def get_calendar():
-    now = datetime.now(ICT)
-    return [
-        {"date": (now + timedelta(days=1)).strftime("%d/%m/%Y"), "time": "19:30", "event": "US CPI MoM",       "impact": "high",   "prev": "0.3%",  "forecast": "0.2%"},
-        {"date": (now + timedelta(days=2)).strftime("%d/%m/%Y"), "time": "02:00", "event": "FED Rate Decision", "impact": "high",   "prev": "5.50%", "forecast": "5.50%"},
-        {"date": (now + timedelta(days=3)).strftime("%d/%m/%Y"), "time": "08:00", "event": "BTC Options Expiry","impact": "medium", "prev": "$1.8B", "forecast": "$2.1B"},
-        {"date": (now + timedelta(days=5)).strftime("%d/%m/%Y"), "time": "21:30", "event": "US NFP",            "impact": "high",   "prev": "175K",  "forecast": "180K"},
-    ]
-
-# ─────────────────────────────────────────────
-# REST — LIQUIDATION DATA
-# ─────────────────────────────────────────────
-
-@app.get("/api/liquidations")
-async def get_liquidations(symbol: str = "BTC"):
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                f"https://open-api.coinglass.com/public/v2/liquidation_history?symbol={symbol}&timeType=0",
-                headers={"coinglassSecret": ""},
-            )
-        return r.json()
-    except Exception:
-        return {"data": []}
-
-# ─────────────────────────────────────────────
-# REST — HEALTH & ALERT MANAGEMENT
-# ─────────────────────────────────────────────
-
-
-# ─────────────────────────────────────────────
 # REST — HOSE TOP 50
 # ─────────────────────────────────────────────
 
@@ -871,7 +667,6 @@ async def get_hose_top50():
 
     results = []
 
-    # TCBS primary
     try:
         tickers_str = ",".join(HOSE_TOP50)
         async with httpx.AsyncClient(timeout=15) as client:
@@ -910,7 +705,6 @@ async def get_hose_top50():
     except Exception as e:
         log.warning(f"TCBS error: {e} — fallback Yahoo")
 
-    # Yahoo Finance fallback
     try:
         sym_list = [f"{s}.VN" for s in HOSE_TOP50]
         async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=15) as client:
@@ -1020,7 +814,39 @@ async def get_multitf():
     _multitf_cache["multitf"] = {"ts": now, "data": results}
     return results
 
+# ─────────────────────────────────────────────
+# REST — ECONOMIC CALENDAR
+# ─────────────────────────────────────────────
 
+@app.get("/api/calendar")
+async def get_calendar():
+    now = datetime.now(ICT)
+    return [
+        {"date": (now + timedelta(days=1)).strftime("%d/%m/%Y"), "time": "19:30", "event": "US CPI MoM",       "impact": "high",   "prev": "0.3%",  "forecast": "0.2%"},
+        {"date": (now + timedelta(days=2)).strftime("%d/%m/%Y"), "time": "02:00", "event": "FED Rate Decision", "impact": "high",   "prev": "5.50%", "forecast": "5.50%"},
+        {"date": (now + timedelta(days=3)).strftime("%d/%m/%Y"), "time": "08:00", "event": "BTC Options Expiry","impact": "medium", "prev": "$1.8B", "forecast": "$2.1B"},
+        {"date": (now + timedelta(days=5)).strftime("%d/%m/%Y"), "time": "21:30", "event": "US NFP",            "impact": "high",   "prev": "175K",  "forecast": "180K"},
+    ]
+
+# ─────────────────────────────────────────────
+# REST — LIQUIDATION DATA
+# ─────────────────────────────────────────────
+
+@app.get("/api/liquidations")
+async def get_liquidations(symbol: str = "BTC"):
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                f"https://open-api.coinglass.com/public/v2/liquidation_history?symbol={symbol}&timeType=0",
+                headers={"coinglassSecret": ""},
+            )
+        return r.json()
+    except Exception:
+        return {"data": []}
+
+# ─────────────────────────────────────────────
+# REST — HEALTH & ALERT MANAGEMENT
+# ─────────────────────────────────────────────
 
 @app.get("/health")
 def health():
