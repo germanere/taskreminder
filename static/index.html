@@ -1433,11 +1433,8 @@ window.loadHoseTop50    = loadHoseTop50;
 window.testAlert        = testAlert;
 
 /* ══════════════════════════════════════════════
-   GEMINI CHATBOT
+   CHATBOT (via backend proxy /api/chat)
    ══════════════════════════════════════════════ */
-
-const GEMINI_API_KEY = "AIzaSyAuyo29mp7c7FghH4TM-F_Z51odFoaA88s";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 let chatHistory = [];
 let chatOpen = false;
@@ -1468,9 +1465,6 @@ async function sendChat() {
   input.value = "";
   appendMsg("user", msg);
 
-  // Thêm vào history
-  chatHistory.push({ role: "user", parts: [{ text: msg }] });
-
   // Typing indicator
   const box = document.getElementById("chat-messages");
   const typing = document.createElement("div");
@@ -1480,26 +1474,31 @@ async function sendChat() {
   box.scrollTop = box.scrollHeight;
 
   try {
-    const res = await fetch(GEMINI_URL, {
+    const res = await fetch(`${API}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        system_instruction: {
-          parts: [{ text: "Bạn là trợ lý phân tích thị trường tài chính. Hỗ trợ phân tích crypto, chứng khoán Việt Nam (HOSE), tỷ giá, vàng. Trả lời ngắn gọn, súc tích bằng tiếng Việt." }]
-        },
-        contents: chatHistory,
-        generationConfig: { maxOutputTokens: 1024, temperature: 0.7 }
+        message: msg,
+        history: chatHistory,
       }),
     });
     const data = await res.json();
     typing.remove();
 
-    const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || "Xin lỗi, không lấy được phản hồi.";
-    chatHistory.push({ role: "model", parts: [{ text: reply }] });
+    if (data.error) {
+      appendMsg("bot", "Lỗi: " + data.error);
+      return;
+    }
+
+    const reply = data.reply || "Xin lỗi, không lấy được phản hồi.";
+    chatHistory.push({ role: "user",  text: msg });
+    chatHistory.push({ role: "model", text: reply });
+    // Giữ history không quá dài
+    if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
     appendMsg("bot", reply);
   } catch (e) {
     typing.remove();
-    appendMsg("bot", "Lỗi kết nối Gemini: " + e.message);
+    appendMsg("bot", "Lỗi kết nối server: " + e.message);
   }
 }
 
