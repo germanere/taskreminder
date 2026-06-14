@@ -912,6 +912,65 @@ async def get_news_calendar():
         ]
 
 # ─────────────────────────────────────────────
+# CHATBOT — Gemini proxy (tránh CORS từ frontend)
+# ─────────────────────────────────────────────
+
+from pydantic import BaseModel
+
+class ChatMessage(BaseModel):
+    role: str   # "user" hoặc "model"
+    text: str
+
+class ChatRequest(BaseModel):
+    message: str
+    history: list[ChatMessage] = []
+
+@app.post("/api/chat")
+async def chat_with_gemini(req: ChatRequest):
+    if not GEMINI_API_KEY:
+        return JSONResponse(status_code=503, content={"error": "GEMINI_API_KEY chưa được cấu hình trên server"})
+
+    contents = [
+        {"role": m.role, "parts": [{"text": m.text}]}
+        for m in req.history
+    ]
+    contents.append({"role": "user", "parts": [{"text": req.message}]})
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                GEMINI_URL,
+                json={
+                    "system_instruction": {
+                        "parts": [{"text": "Bạn là trợ lý phân tích thị trường tài chính. Hỗ trợ phân tích crypto, chứng khoán Việt Nam (HOSE), tỷ giá, vàng, FED và lãi suất. Trả lời ngắn gọn, súc tích bằng tiếng Việt."}]
+                    },
+                    "contents": contents,
+                    "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.7},
+                },
+            )
+        data = r.json()
+
+        if "error" in data:
+            log.error(f"Gemini chat error: {data['error']}")
+            return JSONResponse(status_code=502, content={"error": data["error"].get("message", "Gemini API error")})
+
+        reply = (
+            data.get("candidates", [{}])[0]
+                .get("content", {})
+                .get("parts", [{}])[0]
+                .get("text", "")
+        )
+        if not reply:
+            log.warning(f"Gemini empty reply: {str(data)[:300]}")
+            return {"reply": "Xin lỗi, không nhận được phản hồi từ AI."}
+
+        return {"reply": reply}
+
+    except Exception as e:
+        log.error(f"Chat proxy error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+# ─────────────────────────────────────────────
 # REST — LIQUIDATION DATA
 # ─────────────────────────────────────────────
 
@@ -961,7 +1020,3 @@ def alert_config():
 async def trigger_alert_now():
     await job_alert()
     return {"status": "ok", "message": "Alert job executed"}
-
-@app.get("/chat")
-def chat_page():
-    return FileResponse("static/chat.html")
