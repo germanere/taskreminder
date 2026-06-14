@@ -761,11 +761,15 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 
     <!-- CALENDAR -->
     <section class="tab-content" id="tab-calendar">
+      <div class="toolbar">
+        <span class="update-time" id="calendar-updated"></span>
+        <button class="btn-refresh" onclick="loadCalendar(true)" style="margin-left:auto">↻ Cập nhật</button>
+      </div>
       <table class="data-table">
         <thead>
           <tr>
             <th>Ngày</th><th>Giờ (ICT)</th><th>Sự kiện</th>
-            <th>Tác động</th><th>Trước</th><th>Dự báo</th>
+            <th>Loại</th><th>Tác động</th><th>Tóm tắt</th>
           </tr>
         </thead>
         <tbody id="calendar-tbody"></tbody>
@@ -1307,24 +1311,41 @@ async function loadForexFull() {
    CALENDAR
    ══════════════════════════════════════════════ */
 
-async function loadCalendar() {
+const CATEGORY_LABELS = {
+  fed:    { label: "FED",     color: "#ef4444" },
+  stock:  { label: "Cổ phiếu",color: "#3b82f6" },
+  crypto: { label: "Crypto",  color: "#f59e0b" },
+  macro:  { label: "Vĩ mô",   color: "#8b5cf6" },
+};
+
+async function loadCalendar(forceRefresh = false) {
+  const tbody = document.getElementById("calendar-tbody");
+  tbody.innerHTML = `<tr><td colspan="6" class="loading">Đang tải tin tức từ Gemini...</td></tr>`;
   try {
-    const events = await apiFetch("/api/calendar");
-    document.getElementById("calendar-tbody").innerHTML = events.map(ev => {
+    const events = await apiFetch("/api/news-calendar" + (forceRefresh ? "?t=" + Date.now() : ""));
+    if (!Array.isArray(events) || events.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" class="loading">Không có sự kiện nào</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = events.map(ev => {
+      const cat = CATEGORY_LABELS[ev.category] || { label: ev.category || "—", color: "#6b7280" };
+      const impact = ev.impact || "low";
       return `<tr>
-        <td class="mono">${ev.date}</td>
-        <td class="mono">${ev.time}</td>
-        <td>${ev.event}</td>
-        <td><span class="impact-badge impact-${ev.impact}">${ev.impact.toUpperCase()}</span></td>
-        <td class="mono text-gray">${ev.prev}</td>
-        <td class="mono">${ev.forecast}</td>
+        <td class="mono">${ev.date || "--"}</td>
+        <td class="mono">${ev.time || "--"}</td>
+        <td>${ev.event || "--"}</td>
+        <td><span style="font-size:10px;color:${cat.color};border:1px solid ${cat.color};border-radius:3px;padding:1px 6px;">${cat.label}</span></td>
+        <td><span class="impact-badge impact-${impact}">${impact.toUpperCase()}</span></td>
+        <td style="font-size:12px;color:var(--text2)">${ev.summary || ""}</td>
       </tr>`;
     }).join("");
+    document.getElementById("calendar-updated").textContent =
+      "Cập nhật: " + new Date().toLocaleTimeString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
   } catch (e) {
-    document.getElementById("calendar-tbody").innerHTML =
-      `<tr><td colspan="6" class="loading">Lỗi: ${e.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="loading">Lỗi: ${e.message}</td></tr>`;
   }
 }
+
 
 /* ══════════════════════════════════════════════
    ALERTS
