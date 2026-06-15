@@ -549,16 +549,142 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 }
 
 /* ── RESPONSIVE ────────────────────────────── */
+
+/* TABLET (≤1100px) */
 @media (max-width: 1100px) {
   .overview-grid {
     grid-template-columns: 1fr 1fr;
   }
   .card-multitf { grid-column: 1 / -1; }
+
+  .ob-card { max-width: 100%; }
 }
-@media (max-width: 700px) {
-  .overview-grid { grid-template-columns: 1fr; }
-  .alerts-grid   { grid-template-columns: 1fr; }
+
+/* MOBILE / SMALL TABLET (≤768px) */
+@media (max-width: 768px) {
+  html, body { font-size: 12px; }
+
+  .main { padding: 8px 10px; }
+
+  /* Header: cho phép wrap, ẩn time nếu chật */
+  .header {
+    height: auto;
+    min-height: 44px;
+    flex-wrap: wrap;
+    padding: 6px 10px;
+    gap: 6px;
+  }
+  .header-time { display: none; }
+  .logo { font-size: 14px; }
+
+  .tab-bar {
+    order: 3;
+    width: 100%;
+    flex-basis: 100%;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab { padding: 6px 10px; font-size: 11px; }
+
+  .header-right { gap: 6px !important; }
+  #chat-toggle-btn { padding: 4px 8px !important; font-size: 11px !important; }
+  .conn-badge { font-size: 10px; }
+
+  /* Overview: 1 column */
+  .overview-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .card-multitf { grid-column: auto; }
+
+  .card { padding: 10px; }
+
+  /* Toolbars wrap nicely */
+  .toolbar {
+    gap: 6px;
+  }
+  .search-input { width: 100%; flex: 1 1 140px; }
+  .select-input { flex: 1 1 110px; }
+  .btn-refresh { flex: 0 0 auto; }
+  .update-time { width: 100%; order: 10; }
+
+  /* Tables: allow horizontal scroll */
+  .data-table-wrap,
+  .tab-content table.data-table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .data-table thead th,
+  .data-table tbody td {
+    padding: 5px 6px;
+    font-size: 11px;
+  }
+  .name-cell { font-size: 10px; }
+
+  /* Chart */
+  .chart-toolbar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .chart-price-label {
+    margin-left: 0;
+    flex-basis: 100%;
+    text-align: right;
+  }
+  .interval-btns { flex-wrap: wrap; }
   .chart-container { height: 280px; }
+
+  .ob-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ob-row { font-size: 10px; }
+
+  /* HOSE multi-tf bar wraps */
+  .hose-multitf-bar { gap: 6px; }
+  .tf-mini { padding: 4px 8px; }
+  .tf-mini-bar { width: 50px; }
+
+  /* Forex / Alerts grids */
+  .forex-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+  .alerts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Pager */
+  .pager { flex-wrap: wrap; }
+
+  /* Chatbot panel: full width on mobile */
+  #chat-panel {
+    right: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 70vh !important;
+    border-radius: 12px 12px 0 0 !important;
+  }
+  #chat-toggle-btn {
+    position: fixed;
+    bottom: 12px;
+    right: 12px;
+    z-index: 9998;
+    border-radius: 20px !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,.4);
+  }
+}
+
+/* VERY SMALL PHONES (≤400px) */
+@media (max-width: 400px) {
+  .logo { font-size: 13px; }
+  .tab { padding: 5px 8px; font-size: 10px; }
+  .fg-svg { max-width: 140px; }
+  .gold-price { font-size: 18px; }
+  .price-row, .forex-row { padding: 4px 6px; }
+}
+
+/* LANDSCAPE PHONES — keep chart usable */
+@media (max-width: 900px) and (orientation: landscape) {
+  .chart-container { height: 240px; }
+  #chat-panel { height: 85vh !important; }
 }
 </style>
 </head>
