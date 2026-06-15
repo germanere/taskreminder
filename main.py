@@ -1001,6 +1001,183 @@ async def get_vn_history(symbol: str = "VCB", period: str = "1M"):
 
 
 # ─────────────────────────────────────────────
+# REST — PHÂN TÍCH KỸ THUẬT: MA, SUPPORT/RESISTANCE, XU HƯỚNG
+# ─────────────────────────────────────────────
+
+def _sma(values: list[float], period: int) -> list[float | None]:
+    """Simple moving average, trả None cho các điểm chưa đủ dữ liệu."""
+    out = []
+    for i in range(len(values)):
+        if i + 1 < period:
+            out.append(None)
+        else:
+            out.append(sum(values[i+1-period:i+1]) / period)
+    return out
+
+
+def _find_pivots(highs: list[float], lows: list[float], window: int = 3):
+    """
+    Tìm swing high/low đơn giản: điểm cao/thấp hơn `window` nến lân cận mỗi bên.
+    Trả về list các giá trị pivot high và pivot low.
+    """
+    pivot_highs, pivot_lows = [], []
+    n = len(highs)
+    for i in range(window, n - window):
+        if highs[i] == max(highs[i-window:i+window+1]):
+            pivot_highs.append(highs[i])
+        if lows[i] == min(lows[i-window:i+window+1]):
+            pivot_lows.append(lows[i])
+    return pivot_highs, pivot_lows
+
+
+def _cluster_levels(levels: list[float], tolerance_pct: float = 0.015) -> list[dict]:
+    """
+    Gộp các mức giá gần nhau thành 1 vùng (cluster), trả về
+    [{"price": giá_trung_bình, "strength": số_lần_chạm}], sort theo strength giảm dần.
+    """
+    if not levels:
+        return []
+    levels = sorted(levels)
+    clusters = []
+    current = [levels[0]]
+    for lv in levels[1:]:
+        if abs(lv - current[-1]) / current[-1] <= tolerance_pct:
+            current.append(lv)
+        else:
+            clusters.append(current)
+            current = [lv]
+    clusters.append(current)
+
+    result = [{"price": sum(c)/len(c), "strength": len(c)} for c in clusters]
+    result.sort(key=lambda x: x["strength"], reverse=True)
+    return result
+
+
+@app.get("/api/vn/analysis/{symbol}")
+async def get_vn_analysis(symbol: str):
+    """
+    Phân tích kỹ thuật 1 mã HOSE dựa trên dữ liệu 6 tháng (nến ngày):
+    - MA20, MA50 và vị trí giá hiện tại so với MA
+    - Vùng hỗ trợ / kháng cự từ swing high-low (gộp cluster)
+    - Xu hướng tổng quan (uptrend/downtrend/sideway)
+    - Gợi ý vùng vào tiền (mua) / vùng thoát (chốt lời) / vùng cắt lỗ
+    """
+    symbol = symbol.upper()
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(
+                "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/bars-long-term",
+                params={"ticker": symbol, "type": "month", "count": "6"},
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
+            )
+        data = r.json()
+        bars = data if isinstance(data, list) else data.get("data", [])
+
+        if not bars or len(bars) < 25:
+            return JSONResponse(status_code=503, content={"error": "Không đủ dữ liệu lịch sử để phân tích"})
+
+        closes = [float(b.get("close", 0)) for b in bars]
+        highs  = [float(b.get("high",  0)) for b in bars]
+        lows   = [float(b.get("low",   0)) for b in bars]
+
+        current_price = closes[-1]
+
+        ma20_series = _sma(closes, 20)
+        ma50_series = _sma(closes, 50)
+        ma20 = ma20_series[-1]
+        ma50 = ma50_series[-1]
+
+        # Xu hướng
+        if ma20 is not None and ma50 is not None:
+            if current_price > ma20 > ma50:
+                trend = "uptrend"
+                trend_label = "Xu hướng tăng"
+            elif current_price < ma20 < ma50:
+                trend = "downtrend"
+                trend_label = "Xu hướng giảm"
+            else:
+                trend = "sideway"
+                trend_label = "Tích lũy / Đi ngang"
+        elif ma20 is not None:
+            if current_price > ma20:
+                trend, trend_label = "uptrend", "Xu hướng tăng (ngắn hạn)"
+            else:
+                trend, trend_label = "downtrend", "Xu hướng giảm (ngắn hạn)"
+        else:
+            trend, trend_label = "sideway", "Chưa đủ dữ liệu xác định xu hướng"
+
+        # Support / Resistance từ swing pivots
+        pivot_highs, pivot_lows = _find_pivots(highs, lows, window=3)
+        resistance_clusters = _cluster_levels([p for p in pivot_highs if p > current_price])
+        support_clusters    = _cluster_levels([p for p in pivot_lows  if p < current_price])
+
+        nearest_resistance = resistance_clusters[0]["price"] if resistance_clusters else None
+        nearest_support    = support_clusters[0]["price"] if support_clusters else None
+
+        # Nếu không tìm được support/resistance từ pivot, fallback dùng min/max gần đây
+        recent_high = max(highs[-60:]) if len(highs) >= 60 else max(highs)
+        recent_low  = min(lows[-60:])  if len(lows)  >= 60 else min(lows)
+        if nearest_resistance is None:
+            nearest_resistance = recent_high
+        if nearest_support is None:
+            nearest_support = recent_low
+
+        # Vùng giao dịch gợi ý
+        buy_zone_low  = nearest_support
+        buy_zone_high = nearest_support * 1.02  # +2% trên hỗ trợ
+        sell_zone_low  = nearest_resistance * 0.98
+        sell_zone_high = nearest_resistance
+        stop_loss = nearest_support * 0.97  # -3% dưới hỗ trợ
+
+        # Vị trí giá hiện tại trong biên độ support-resistance
+        if nearest_resistance > nearest_support:
+            position_pct = round((current_price - nearest_support) / (nearest_resistance - nearest_support) * 100, 1)
+        else:
+            position_pct = 50.0
+        position_pct = max(0, min(100, position_pct))
+
+        # Khuyến nghị hành động dựa trên vị trí + xu hướng
+        if position_pct <= 25 and trend != "downtrend":
+            action = "buy_zone"
+            action_label = "Đang gần vùng hỗ trợ — cân nhắc tích lũy"
+        elif position_pct >= 80:
+            action = "sell_zone"
+            action_label = "Đang gần vùng kháng cự — cân nhắc chốt lời / giảm tỷ trọng"
+        elif trend == "downtrend":
+            action = "wait"
+            action_label = "Xu hướng giảm — chờ tín hiệu đảo chiều rõ ràng"
+        elif trend == "uptrend":
+            action = "hold"
+            action_label = "Xu hướng tăng — có thể nắm giữ, theo dõi sát kháng cự"
+        else:
+            action = "wait"
+            action_label = "Đang tích lũy — chờ phá vùng để xác nhận xu hướng"
+
+        return {
+            "symbol": symbol,
+            "current_price": round(current_price, 2),
+            "ma20": round(ma20, 2) if ma20 else None,
+            "ma50": round(ma50, 2) if ma50 else None,
+            "trend": trend,
+            "trend_label": trend_label,
+            "support": round(nearest_support, 2),
+            "resistance": round(nearest_resistance, 2),
+            "position_pct": position_pct,
+            "buy_zone":  {"low": round(buy_zone_low, 2),  "high": round(buy_zone_high, 2)},
+            "sell_zone": {"low": round(sell_zone_low, 2), "high": round(sell_zone_high, 2)},
+            "stop_loss": round(stop_loss, 2),
+            "action": action,
+            "action_label": action_label,
+            "support_levels":    [{"price": round(c["price"],2), "strength": c["strength"]} for c in support_clusters[:3]],
+            "resistance_levels": [{"price": round(c["price"],2), "strength": c["strength"]} for c in resistance_clusters[:3]],
+            "history": [{"time": b.get("tradingDate") or b.get("date",""), "close": float(b.get("close",0))} for b in bars[-60:]],
+        }
+
+    except Exception as e:
+        log.error(f"Analysis error [{symbol}]: {e}")
+        return JSONResponse(status_code=503, content={"error": str(e)})
+
+# ─────────────────────────────────────────────
 # REST — MULTI-TF STRENGTH
 # ─────────────────────────────────────────────
 
