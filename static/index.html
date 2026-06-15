@@ -1274,8 +1274,15 @@ function connectOrderbookWs() {
   };
 }
 
-function switchChart() {
-  loadKlines();
+async function switchChart() {
+  // Đóng WS cũ trước để tránh update() đến giữa lúc đang load data mới
+  if (chartWs) { chartWs.close(); chartWs = null; }
+  if (obWs)    { obWs.close();    obWs    = null; }
+
+  // Clear series trước khi load data mới — tránh lỗi "data must be asc ordered"
+  if (candleSeries) candleSeries.setData([]);
+
+  await loadKlines();      // đợi setData(bars) xong hẳn
   connectKlineWs();
   connectOrderbookWs();
 }
