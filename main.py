@@ -41,8 +41,8 @@ ETH_MAX    = float(os.getenv("ETH_MAX",    "2000"))
 CHANGE_PCT = float(os.getenv("CHANGE_PCT", "5.0"))
 USD_MIN    = float(os.getenv("USD_MIN",    "24000"))
 USD_MAX    = float(os.getenv("USD_MAX",    "27000"))
-GOLD_MIN   = float(os.getenv("GOLD_MIN",   "100000000"))
-GOLD_MAX   = float(os.getenv("GOLD_MAX",   "150000000"))
+GOLD_MIN   = float(os.getenv("GOLD_MIN",   "120000000"))
+GOLD_MAX   = float(os.getenv("GOLD_MAX",   "155000000"))
 
 # ─────────────────────────────────────────────
 # GOOGLE SHEETS — Chat Log Storage
