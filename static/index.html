@@ -654,6 +654,16 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   /* Pager */
   .pager { flex-wrap: wrap; }
 
+  /* Analysis modal: full width on mobile */
+  #analysis-modal {
+    max-height: 92vh;
+    padding: 14px;
+  }
+  .an-zone-grid { grid-template-columns: 1fr; gap: 6px; }
+  .an-zone-card { display: flex; justify-content: space-between; align-items: center; text-align: left; padding: 8px 10px; }
+  .an-zone-card .an-zone-label { margin-bottom: 0; }
+  .an-price { font-size: 20px; }
+
   /* Chatbot panel: full width on mobile */
   #chat-panel {
     right: 0 !important;
@@ -1353,7 +1363,8 @@ function renderHoseTable() {
     const chg = r.change ?? 0;
     const sColor = SECTOR_COLORS[r.sector] || "#6b7280";
     const srcColor = r.source === "TCBS" ? "var(--green)" : "var(--yellow)";
-    return `<tr>
+    const safeName = r.name.replace(/'/g, "\\'");
+    return `<tr onclick="openAnalysisModal('${r.symbol}', '${safeName}')">
       <td class="text-gray mono" style="font-size:11px">${r.rank}</td>
       <td>
         <span class="sym-cell">${r.symbol}</span>
@@ -1698,6 +1709,235 @@ window.sendChat   = sendChat;
 .chat-msg.typing { color: #6b7280; font-style: italic; }
 #chat-messages::-webkit-scrollbar { width: 3px; }
 #chat-messages::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+
+/* ── ANALYSIS MODAL ─────────────────────────── */
+#analysis-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,.6);
+  z-index: 10000;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+#analysis-modal {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 18px;
+}
+#analysis-modal::-webkit-scrollbar { width: 4px; }
+#analysis-modal::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+
+.an-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.an-title { font-size: 16px; font-weight: 700; color: var(--text0); }
+.an-close {
+  background: none; border: none; color: var(--text3);
+  font-size: 18px; cursor: pointer; line-height: 1;
+}
+.an-section { margin-bottom: 14px; }
+.an-label {
+  font-size: 11px; color: var(--text3); text-transform: uppercase;
+  letter-spacing: .05em; margin-bottom: 6px;
+}
+.an-price-row {
+  display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px;
+}
+.an-price { font-size: 24px; font-weight: 700; font-family: var(--font-mono); color: var(--text0); }
+.an-trend-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 5px;
+  font-size: 12px; font-weight: 600;
+}
+.an-trend-badge.uptrend   { background: var(--green2); color: var(--green); }
+.an-trend-badge.downtrend { background: var(--red2);   color: var(--red); }
+.an-trend-badge.sideway   { background: var(--bg3);     color: var(--yellow); }
+
+.an-gauge-track {
+  position: relative;
+  height: 10px;
+  background: linear-gradient(90deg, var(--green) 0%, var(--yellow) 50%, var(--red) 100%);
+  border-radius: 5px;
+  margin: 10px 0 6px;
+}
+.an-gauge-marker {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 18px;
+  background: var(--text0);
+  transform: translateX(-1px);
+}
+.an-gauge-labels {
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: var(--text3); font-family: var(--font-mono);
+}
+
+.an-zone-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+.an-zone-card {
+  background: var(--bg2);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+.an-zone-card .an-zone-label { font-size: 10px; color: var(--text3); margin-bottom: 4px; }
+.an-zone-card .an-zone-val { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
+.an-zone-card.buy  .an-zone-val { color: var(--green); }
+.an-zone-card.sell .an-zone-val { color: var(--red); }
+.an-zone-card.stop .an-zone-val { color: var(--yellow); }
+
+.an-action-box {
+  background: var(--bg2);
+  border-left: 3px solid var(--blue);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text1);
+  line-height: 1.5;
+}
+.an-action-box.buy_zone  { border-left-color: var(--green); }
+.an-action-box.sell_zone { border-left-color: var(--red); }
+.an-action-box.wait      { border-left-color: var(--yellow); }
+
+.an-levels-list { display: flex; flex-direction: column; gap: 4px; }
+.an-level-row {
+  display: flex; justify-content: space-between;
+  font-size: 12px; padding: 4px 8px;
+  background: var(--bg2); border-radius: 4px;
+}
+.an-level-row .an-strength { color: var(--text3); font-size: 10px; }
+
+.an-disclaimer {
+  font-size: 10px; color: var(--text3);
+  margin-top: 8px; line-height: 1.4;
+}
 </style>
+
+<!-- ANALYSIS MODAL -->
+<div id="analysis-overlay" onclick="closeAnalysisModal(event)">
+  <div id="analysis-modal" onclick="event.stopPropagation()">
+    <div class="an-header">
+      <span class="an-title" id="an-title">Phân tích</span>
+      <button class="an-close" onclick="closeAnalysisModal()">✕</button>
+    </div>
+    <div id="an-body">
+      <div class="loading">Đang tải dữ liệu...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function openAnalysisModal(symbol, name) {
+  const overlay = document.getElementById("analysis-overlay");
+  const body = document.getElementById("an-body");
+  document.getElementById("an-title").textContent = `${symbol} — ${name}`;
+  body.innerHTML = `<div class="loading">Đang phân tích ${symbol}...</div>`;
+  overlay.style.display = "flex";
+
+  try {
+    const a = await apiFetch(`/api/vn/analysis/${symbol}`);
+    if (a.error) {
+      body.innerHTML = `<div class="loading">Lỗi: ${a.error}</div>`;
+      return;
+    }
+
+    const trendCls = a.trend;
+    const chg = a.ma20 ? ((a.current_price - a.ma20) / a.ma20 * 100) : 0;
+
+    const supportLevelsHtml = (a.support_levels || []).map(l =>
+      `<div class="an-level-row"><span>${fmtNum(l.price, 2)}</span><span class="an-strength">chạm ${l.strength} lần</span></div>`
+    ).join("") || `<div class="an-level-row"><span>${fmtNum(a.support,2)}</span><span class="an-strength">vùng thấp gần đây</span></div>`;
+
+    const resistanceLevelsHtml = (a.resistance_levels || []).map(l =>
+      `<div class="an-level-row"><span>${fmtNum(l.price, 2)}</span><span class="an-strength">chạm ${l.strength} lần</span></div>`
+    ).join("") || `<div class="an-level-row"><span>${fmtNum(a.resistance,2)}</span><span class="an-strength">vùng cao gần đây</span></div>`;
+
+    body.innerHTML = `
+      <div class="an-section">
+        <div class="an-price-row">
+          <span class="an-price">${fmtNum(a.current_price, 2)}</span>
+          <span class="an-trend-badge ${trendCls}">${a.trend_label}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text3)">
+          MA20: ${a.ma20 ? fmtNum(a.ma20,2) : "--"} &nbsp;•&nbsp; MA50: ${a.ma50 ? fmtNum(a.ma50,2) : "--"}
+        </div>
+      </div>
+
+      <div class="an-section">
+        <div class="an-label">Vị trí trong vùng Hỗ trợ — Kháng cự</div>
+        <div class="an-gauge-track">
+          <div class="an-gauge-marker" style="left:${a.position_pct}%"></div>
+        </div>
+        <div class="an-gauge-labels">
+          <span>Hỗ trợ ${fmtNum(a.support,2)}</span>
+          <span>${a.position_pct}%</span>
+          <span>Kháng cự ${fmtNum(a.resistance,2)}</span>
+        </div>
+      </div>
+
+      <div class="an-section">
+        <div class="an-label">Vùng giao dịch gợi ý</div>
+        <div class="an-zone-grid">
+          <div class="an-zone-card buy">
+            <div class="an-zone-label">Vùng vào tiền</div>
+            <div class="an-zone-val">${fmtNum(a.buy_zone.low,2)} – ${fmtNum(a.buy_zone.high,2)}</div>
+          </div>
+          <div class="an-zone-card sell">
+            <div class="an-zone-label">Vùng chốt lời</div>
+            <div class="an-zone-val">${fmtNum(a.sell_zone.low,2)} – ${fmtNum(a.sell_zone.high,2)}</div>
+          </div>
+          <div class="an-zone-card stop">
+            <div class="an-zone-label">Cắt lỗ</div>
+            <div class="an-zone-val">${fmtNum(a.stop_loss,2)}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="an-section">
+        <div class="an-label">Nhận định</div>
+        <div class="an-action-box ${a.action}">${a.action_label}</div>
+      </div>
+
+      <div class="an-section">
+        <div class="an-label">Vùng hỗ trợ gần nhất</div>
+        <div class="an-levels-list">${supportLevelsHtml}</div>
+      </div>
+
+      <div class="an-section">
+        <div class="an-label">Vùng kháng cự gần nhất</div>
+        <div class="an-levels-list">${resistanceLevelsHtml}</div>
+      </div>
+
+      <div class="an-disclaimer">
+        ⚠️ Phân tích dựa trên dữ liệu kỹ thuật (MA20/MA50, swing high/low 6 tháng), chỉ mang tính tham khảo,
+        không phải lời khuyên đầu tư. Thị trường có thể biến động ngoài dự đoán.
+      </div>
+    `;
+  } catch (e) {
+    body.innerHTML = `<div class="loading">Lỗi: ${e.message}</div>`;
+  }
+}
+
+function closeAnalysisModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  document.getElementById("analysis-overlay").style.display = "none";
+}
+
+window.openAnalysisModal = openAnalysisModal;
+window.closeAnalysisModal = closeAnalysisModal;
+</script>
 
 </body></html>
