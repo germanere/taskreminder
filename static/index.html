@@ -1571,6 +1571,7 @@ window.testAlert        = testAlert;
 
 let chatHistory = [];
 let chatOpen = false;
+let chatSessionId = sessionStorage.getItem("chat_session_id") || null;
 
 function toggleChat() {
   chatOpen = !chatOpen;
@@ -1613,10 +1614,16 @@ async function sendChat() {
       body: JSON.stringify({
         message: msg,
         history: chatHistory,
+        session_id: chatSessionId,
       }),
     });
     const data = await res.json();
     typing.remove();
+
+    if (data.session_id) {
+      chatSessionId = data.session_id;
+      sessionStorage.setItem("chat_session_id", chatSessionId);
+    }
 
     if (data.error) {
       appendMsg("bot", "Lỗi: " + data.error);
