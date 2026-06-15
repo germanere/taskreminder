@@ -20,6 +20,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import websockets
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import gspread
+from google.oauth2.service_account import Credentials
 
 ICT = pytz.timezone("Asia/Ho_Chi_Minh")
 logging.basicConfig(level=logging.INFO)
@@ -41,6 +43,67 @@ USD_MIN    = float(os.getenv("USD_MIN",    "24000"))
 USD_MAX    = float(os.getenv("USD_MAX",    "27000"))
 GOLD_MIN   = float(os.getenv("GOLD_MIN",   "100000000"))
 GOLD_MAX   = float(os.getenv("GOLD_MAX",   "150000000"))
+
+# ─────────────────────────────────────────────
+# GOOGLE SHEETS — Chat Log Storage
+# ─────────────────────────────────────────────
+
+GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON", "")
+CHAT_LOG_SHEET_ID = "12W6K3Y3-Ac2tCE1B8JBOC-ZYAB09QRdFJn-Yv1mmk3w"
+CHAT_LOG_SHEET_NAME = "Logs"
+
+_gsheet_client = None
+_chat_log_worksheet = None
+
+def _get_chat_log_worksheet():
+    """
+    Lazy-init gspread client + worksheet.
+    Trả về None nếu chưa cấu hình credentials hoặc lỗi kết nối.
+    """
+    global _gsheet_client, _chat_log_worksheet
+    if _chat_log_worksheet is not None:
+        return _chat_log_worksheet
+
+    if not GOOGLE_CREDENTIALS_JSON:
+        log.warning("GOOGLE_CREDENTIALS_JSON chưa cấu hình — bỏ qua chat log")
+        return None
+
+    try:
+        creds_dict = json.loads(GOOGLE_CREDENTIALS_JSON)
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        _gsheet_client = gspread.authorize(creds)
+
+        sheet = _gsheet_client.open_by_key(CHAT_LOG_SHEET_ID)
+        try:
+            ws = sheet.worksheet(CHAT_LOG_SHEET_NAME)
+        except gspread.WorksheetNotFound:
+            ws = sheet.add_worksheet(title=CHAT_LOG_SHEET_NAME, rows=1000, cols=5)
+            ws.append_row(["Timestamp", "Session", "Role", "Message"])
+
+        _chat_log_worksheet = ws
+        log.info("Chat log: kết nối Google Sheets OK")
+        return ws
+    except Exception as e:
+        log.error(f"Chat log: lỗi kết nối Google Sheets: {e}")
+        return None
+
+
+def log_chat_message(session_id: str, role: str, message: str):
+    """
+    Ghi 1 dòng log vào Google Sheets. Chạy non-blocking trong background task.
+    Lỗi không được làm crash chat response.
+    """
+    try:
+        ws = _get_chat_log_worksheet()
+        if ws is None:
+            return
+        timestamp = datetime.now(ICT).strftime("%Y-%m-%d %H:%M:%S")
+        ws.append_row([timestamp, session_id, role, message])
+    except Exception as e:
+        log.error(f"Chat log write error: {e}")
+
+
 
 # 50 mã HOSE vốn hóa lớn nhất (tháng 6/2025)
 HOSE_TOP100 = [
@@ -975,6 +1038,8 @@ async def get_news_calendar():
 # ─────────────────────────────────────────────
 
 from pydantic import BaseModel
+from fastapi import BackgroundTasks
+import uuid
 
 class ChatMessage(BaseModel):
     role: str   # "user" hoặc "model"
@@ -983,17 +1048,23 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: list[ChatMessage] = []
+    session_id: str | None = None
 
 @app.post("/api/chat")
-async def chat_with_gemini(req: ChatRequest):
+async def chat_with_gemini(req: ChatRequest, background_tasks: BackgroundTasks):
     if not GEMINI_API_KEY:
         return JSONResponse(status_code=503, content={"error": "GEMINI_API_KEY chưa được cấu hình trên server"})
+
+    session_id = req.session_id or str(uuid.uuid4())[:8]
 
     contents = [
         {"role": m.role, "parts": [{"text": m.text}]}
         for m in req.history
     ]
     contents.append({"role": "user", "parts": [{"text": req.message}]})
+
+    # Log câu hỏi của user (background, không block response)
+    background_tasks.add_task(log_chat_message, session_id, "user", req.message)
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
@@ -1011,7 +1082,9 @@ async def chat_with_gemini(req: ChatRequest):
 
         if "error" in data:
             log.error(f"Gemini chat error: {data['error']}")
-            return JSONResponse(status_code=502, content={"error": data["error"].get("message", "Gemini API error")})
+            err_msg = data["error"].get("message", "Gemini API error")
+            background_tasks.add_task(log_chat_message, session_id, "error", err_msg)
+            return JSONResponse(status_code=502, content={"error": err_msg, "session_id": session_id})
 
         reply = (
             data.get("candidates", [{}])[0]
@@ -1021,13 +1094,17 @@ async def chat_with_gemini(req: ChatRequest):
         )
         if not reply:
             log.warning(f"Gemini empty reply: {str(data)[:300]}")
-            return {"reply": "Xin lỗi, không nhận được phản hồi từ AI."}
+            reply = "Xin lỗi, không nhận được phản hồi từ AI."
 
-        return {"reply": reply}
+        # Log câu trả lời của bot
+        background_tasks.add_task(log_chat_message, session_id, "model", reply)
+
+        return {"reply": reply, "session_id": session_id}
 
     except Exception as e:
         log.error(f"Chat proxy error: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        background_tasks.add_task(log_chat_message, session_id, "error", str(e))
+        return JSONResponse(status_code=500, content={"error": str(e), "session_id": session_id})
 
 # ─────────────────────────────────────────────
 # REST — LIQUIDATION DATA
