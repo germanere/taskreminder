@@ -43,13 +43,20 @@ GOLD_MIN   = float(os.getenv("GOLD_MIN",   "100000000"))
 GOLD_MAX   = float(os.getenv("GOLD_MAX",   "150000000"))
 
 # 50 mã HOSE vốn hóa lớn nhất (tháng 6/2025)
-HOSE_TOP50 = [
+HOSE_TOP100 = [
     "VCB","BID","VIC","VHM","CTG","GAS","VNM","SAB","MSN","TCB",
     "MBB","FPT","ACB","PLX","HPG","VPB","STB","HDB","GVR","POW",
     "MWG","PNJ","REE","SSI","VND","HCM","DPM","DCM","VEA","KDH",
     "NVL","PDR","DXG","PVD","HSG","NKG","PHR","DRC","IDC","KBC",
     "NTC","LHG","EIB","EVF","CMG","VGI","FRT","DGW","GEX","VRE",
+    # 50 mã bổ sung
+    "BVH","BCM","PC1","PVT","BSR","BMI","DGC","CTD","HDG","HAH",
+    "ANV","VHC","DBC","NLG","CII","TCH","HHV","VCG","HT1","PAN",
+    "VOS","VTP","VCI","SHB","TPB","OCB","MSB","LPB","BAB","NAB",
+    "TLG","SCS","ASM","CTS","FTS","PVS","PVC","TIS","NT2","VSH",
+    "BWE","DPR","HAG","HNG","DHC","SBT","SZC","DIG","ITA","TDM",
 ]
+HOSE_TOP50 = HOSE_TOP100  # alias để tương thích code cũ
 
 HOSE_INFO = {
     "VCB":  {"name": "Vietcombank",        "sector": "Ngân hàng"},
@@ -102,7 +109,59 @@ HOSE_INFO = {
     "DGW":  {"name": "Digiworld",          "sector": "Tiêu dùng"},
     "GEX":  {"name": "Gelex Group",        "sector": "Công nghiệp"},
     "VRE":  {"name": "Vincom Retail",      "sector": "Bất động sản"},
+    # 50 mã bổ sung
+    "BVH":  {"name": "Bảo Việt",           "sector": "Bảo hiểm"},
+    "BCM":  {"name": "Becamex IDC",        "sector": "Bất động sản"},
+    "PC1":  {"name": "PC1 Group",          "sector": "Công nghiệp"},
+    "PVT":  {"name": "PV Trans",           "sector": "Năng lượng"},
+    "BSR":  {"name": "Bình Sơn Refinery",  "sector": "Năng lượng"},
+    "BMI":  {"name": "Bảo Minh",           "sector": "Bảo hiểm"},
+    "DGC":  {"name": "Hóa chất Đức Giang", "sector": "Hóa chất"},
+    "CTD":  {"name": "Coteccons",          "sector": "Công nghiệp"},
+    "HDG":  {"name": "Hà Đô Group",        "sector": "Bất động sản"},
+    "HAH":  {"name": "Hải An Transport",   "sector": "Công nghiệp"},
+    "ANV":  {"name": "Nam Việt",           "sector": "Tiêu dùng"},
+    "VHC":  {"name": "Vĩnh Hoàn",          "sector": "Tiêu dùng"},
+    "DBC":  {"name": "Dabaco",             "sector": "Tiêu dùng"},
+    "NLG":  {"name": "Nam Long Group",     "sector": "Bất động sản"},
+    "CII":  {"name": "CII",                "sector": "Bất động sản"},
+    "TCH":  {"name": "Hòa Phát Hospitality","sector": "Bất động sản"},
+    "HHV":  {"name": "Đèo Cả Group",       "sector": "Công nghiệp"},
+    "VCG":  {"name": "Vinaconex",          "sector": "Công nghiệp"},
+    "HT1":  {"name": "Xi măng Hà Tiên 1",  "sector": "Vật liệu"},
+    "PAN":  {"name": "PAN Group",          "sector": "Tiêu dùng"},
+    "VOS":  {"name": "Vosco",              "sector": "Công nghiệp"},
+    "VTP":  {"name": "Viettel Post",       "sector": "Công nghiệp"},
+    "VCI":  {"name": "VietCap Securities", "sector": "Chứng khoán"},
+    "SHB":  {"name": "SHB",                "sector": "Ngân hàng"},
+    "TPB":  {"name": "TPBank",             "sector": "Ngân hàng"},
+    "OCB":  {"name": "OCB",                "sector": "Ngân hàng"},
+    "MSB":  {"name": "MSB",                "sector": "Ngân hàng"},
+    "LPB":  {"name": "LPBank",             "sector": "Ngân hàng"},
+    "BAB":  {"name": "Bắc Á Bank",         "sector": "Ngân hàng"},
+    "NAB":  {"name": "Nam A Bank",         "sector": "Ngân hàng"},
+    "TLG":  {"name": "Thiên Long Group",   "sector": "Tiêu dùng"},
+    "SCS":  {"name": "SCSC",               "sector": "Công nghiệp"},
+    "ASM":  {"name": "Sao Mai Group",      "sector": "Bất động sản"},
+    "CTS":  {"name": "VietinBank Securities","sector": "Chứng khoán"},
+    "FTS":  {"name": "FPT Securities",     "sector": "Chứng khoán"},
+    "PVS":  {"name": "PV Service",         "sector": "Năng lượng"},
+    "PVC":  {"name": "PV Coating",         "sector": "Năng lượng"},
+    "TIS":  {"name": "Gang Thép Thái Nguyên","sector": "Vật liệu"},
+    "NT2":  {"name": "Nhơn Trạch 2 Power", "sector": "Năng lượng"},
+    "VSH":  {"name": "Vĩnh Sơn-Sông Hinh", "sector": "Năng lượng"},
+    "BWE":  {"name": "BIWASE",             "sector": "Công nghiệp"},
+    "DPR":  {"name": "Cao su Đồng Phú",    "sector": "Vật liệu"},
+    "HAG":  {"name": "Hoàng Anh Gia Lai",  "sector": "Tiêu dùng"},
+    "HNG":  {"name": "HAGL Agrico",        "sector": "Tiêu dùng"},
+    "DHC":  {"name": "Đông Hải Bến Tre",   "sector": "Vật liệu"},
+    "SBT":  {"name": "TTC Sugar",          "sector": "Tiêu dùng"},
+    "SZC":  {"name": "Sonadezi Châu Đức",  "sector": "Bất động sản"},
+    "DIG":  {"name": "DIC Corp",           "sector": "Bất động sản"},
+    "ITA":  {"name": "Tân Tạo Group",      "sector": "Bất động sản"},
+    "TDM":  {"name": "Thủ Dầu Một Water",  "sector": "Công nghiệp"},
 }
+
 
 _hose_cache: dict = {}
 HOSE_TTL = 60
@@ -669,7 +728,7 @@ async def get_hose_top50():
 
     try:
         tickers_str = ",".join(HOSE_TOP50)
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=25) as client:
             r = await client.get(
                 "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/price",
                 params={"tickers": tickers_str},
