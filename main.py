@@ -780,70 +780,187 @@ async def get_vn_stocks(
 # REST — HOSE TOP 50
 # ─────────────────────────────────────────────
 
+# ─────────────────────────────────────────────
+# DANH SÁCH ĐỘNG 250 MÃ HOSE TỪ TCBS
+# ─────────────────────────────────────────────
+
+_hose_list_cache: dict = {}
+HOSE_LIST_TTL = 86400  # 24 giờ — danh sách công ty ít thay đổi
+HOSE_LIST_SIZE = 200
+
+# Map ngành tiếng Anh (TCBS) -> tiếng Việt
+TCBS_SECTOR_VI = {
+    "Banks": "Ngân hàng",
+    "Real Estate": "Bất động sản",
+    "Food & Beverage": "Tiêu dùng",
+    "Food and Beverage": "Tiêu dùng",
+    "Retailing": "Tiêu dùng",
+    "Oil & Gas": "Năng lượng",
+    "Utilities": "Năng lượng",
+    "Electricity": "Năng lượng",
+    "Technology": "Công nghệ",
+    "Information Technology": "Công nghệ",
+    "Telecommunications": "Công nghệ",
+    "Steel": "Vật liệu",
+    "Construction Materials": "Vật liệu",
+    "Materials": "Vật liệu",
+    "Chemicals": "Hóa chất",
+    "Securities": "Chứng khoán",
+    "Financial Services": "Chứng khoán",
+    "Insurance": "Bảo hiểm",
+    "Industrial": "Công nghiệp",
+    "Industrials": "Công nghiệp",
+    "Construction": "Công nghiệp",
+    "Logistics": "Công nghiệp",
+    "Transportation": "Công nghiệp",
+    "Agriculture": "Tiêu dùng",
+    "Seafood": "Tiêu dùng",
+    "Healthcare": "Y tế",
+    "Pharmaceuticals": "Y tế",
+    "Plastics": "Vật liệu",
+    "Rubber": "Vật liệu",
+    "Textiles": "Tiêu dùng",
+}
+
+def _map_sector(raw_sector: str) -> str:
+    if not raw_sector:
+        return "Khác"
+    return TCBS_SECTOR_VI.get(raw_sector.strip(), raw_sector.strip() or "Khác")
+
+
+async def _fetch_hose_ticker_list() -> list[dict]:
+    """
+    Lấy danh sách mã HOSE kèm tên công ty, ngành, vốn hóa từ TCBS.
+    Trả về list sorted theo vốn hóa giảm dần, đã cache 24h.
+    Mỗi item: {symbol, name, sector, market_cap}
+    """
+    now = time.time()
+    cached = _hose_list_cache.get("list")
+    if cached and (now - cached["ts"]) < HOSE_LIST_TTL:
+        return cached["data"]
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.get(
+                "https://apipublic.tcbs.com.vn/ligo/v1/ticker/exchange",
+                params={"exchange": "hose"},
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
+            )
+        data = r.json()
+        items = data if isinstance(data, list) else data.get("data", [])
+
+        result = []
+        for item in items:
+            symbol = (item.get("ticker") or item.get("symbol") or "").upper()
+            if not symbol or len(symbol) != 3:
+                continue  # bỏ chứng quyền, ETF, mã lẻ
+            result.append({
+                "symbol": symbol,
+                "name": item.get("companyName") or item.get("name") or symbol,
+                "sector": _map_sector(item.get("industry") or item.get("sector") or ""),
+                "market_cap": float(item.get("marketCap") or item.get("market_cap") or 0),
+            })
+
+        if not result:
+            raise ValueError("TCBS exchange list trả về rỗng")
+
+        # Sort theo vốn hóa giảm dần, lấy top N
+        result.sort(key=lambda x: x["market_cap"], reverse=True)
+        result = result[:HOSE_LIST_SIZE]
+
+        _hose_list_cache["list"] = {"ts": now, "data": result}
+        log.info(f"HOSE ticker list: TCBS OK — {len(result)} mã")
+        return result
+
+    except Exception as e:
+        log.warning(f"HOSE ticker list TCBS error: {e} — fallback HOSE_TOP100 hardcode")
+        # Fallback: dùng danh sách hardcode 100 mã cũ
+        fallback = []
+        for sym in HOSE_TOP100:
+            info = HOSE_INFO.get(sym, {"name": sym, "sector": "Khác"})
+            fallback.append({"symbol": sym, "name": info["name"], "sector": info["sector"], "market_cap": 0})
+        if cached:
+            return cached["data"]
+        return fallback
+
+
 @app.get("/api/vn/hose-top50")
 async def get_hose_top50():
+    """
+    Trả về top 250 mã HOSE theo vốn hóa, kèm giá thời gian thực từ TCBS.
+    Endpoint name giữ "hose-top50" để tương thích frontend cũ.
+    """
     now = time.time()
-    cached = _hose_cache.get("top50")
+    cached = _hose_cache.get("top250")
     if cached and (now - cached["ts"]) < HOSE_TTL:
         return cached["data"]
 
+    # Bước 1: lấy danh sách 250 mã (tên, ngành, vốn hóa) — cache 24h
+    ticker_list = await _fetch_hose_ticker_list()
+    symbols = [t["symbol"] for t in ticker_list]
+
     results = []
 
+    # Bước 2: lấy giá hiện tại cho từng mã — TCBS giới hạn ~100 ticker/request, chia batch
     try:
-        tickers_str = ",".join(HOSE_TOP50)
-        async with httpx.AsyncClient(timeout=25) as client:
-            r = await client.get(
-                "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/price",
-                params={"tickers": tickers_str},
-                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
-            )
-        data  = r.json()
-        items = data if isinstance(data, list) else data.get("data", [])
         price_map = {}
-        for item in items:
-            ticker = (item.get("ticker") or item.get("symbol") or "").upper()
-            if not ticker:
-                continue
-            price  = float(item.get("close") or item.get("price") or item.get("lastPrice") or 0)
-            prev   = float(item.get("referencePrice") or item.get("prevClose") or item.get("ref") or 0)
-            change = round((price - prev) / prev * 100, 2) if prev > 0 else 0
-            volume = int(item.get("volume") or item.get("totalVolume") or 0)
-            price_map[ticker] = {"price": price, "change": change, "volume": volume}
+        BATCH = 100
+        async with httpx.AsyncClient(timeout=25) as client:
+            for i in range(0, len(symbols), BATCH):
+                batch = symbols[i:i+BATCH]
+                r = await client.get(
+                    "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/price",
+                    params={"tickers": ",".join(batch)},
+                    headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
+                )
+                data = r.json()
+                items = data if isinstance(data, list) else data.get("data", [])
+                for item in items:
+                    ticker = (item.get("ticker") or item.get("symbol") or "").upper()
+                    if not ticker:
+                        continue
+                    price  = float(item.get("close") or item.get("price") or item.get("lastPrice") or 0)
+                    prev   = float(item.get("referencePrice") or item.get("prevClose") or item.get("ref") or 0)
+                    change = round((price - prev) / prev * 100, 2) if prev > 0 else 0
+                    volume = int(item.get("volume") or item.get("totalVolume") or 0)
+                    price_map[ticker] = {"price": price, "change": change, "volume": volume}
 
         if price_map:
-            for i, sym in enumerate(HOSE_TOP50):
-                info = HOSE_INFO.get(sym, {"name": sym, "sector": "Khác"})
-                p    = price_map.get(sym, {})
+            for i, t in enumerate(ticker_list):
+                p = price_map.get(t["symbol"], {})
                 results.append({
-                    "rank": i + 1, "symbol": sym,
-                    "name": info["name"], "sector": info["sector"],
+                    "rank": i + 1, "symbol": t["symbol"],
+                    "name": t["name"], "sector": t["sector"],
                     "price": p.get("price", 0), "change": p.get("change", 0),
                     "volume": p.get("volume", 0), "source": "TCBS",
                 })
-            _hose_cache["top50"] = {"ts": now, "data": results}
+            _hose_cache["top250"] = {"ts": now, "data": results}
             return results
 
-        log.warning(f"TCBS empty. Raw: {str(data)[:200]}")
+        log.warning("TCBS price batch returned empty")
     except Exception as e:
-        log.warning(f"TCBS error: {e} — fallback Yahoo")
+        log.warning(f"TCBS price batch error: {e} — fallback Yahoo")
 
+    # Fallback: Yahoo Finance (chỉ thực tế cho top ~50, gọi nhiều mã sẽ chậm/lỗi 403)
     try:
-        sym_list = [f"{s}.VN" for s in HOSE_TOP50]
+        sym_list = [f"{t['symbol']}.VN" for t in ticker_list[:50]]
         async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=15) as client:
             yahoo_results = await asyncio.gather(
                 *[_fetch_yahoo_stock(client, s) for s in sym_list],
                 return_exceptions=True
             )
-        for i, (sym, res) in enumerate(zip(HOSE_TOP50, yahoo_results)):
-            info = HOSE_INFO.get(sym, {"name": sym, "sector": "Khác"})
-            p    = res if isinstance(res, dict) else {}
+        for i, t in enumerate(ticker_list):
+            p = {}
+            if i < len(yahoo_results):
+                res = yahoo_results[i]
+                p = res if isinstance(res, dict) else {}
             results.append({
-                "rank": i + 1, "symbol": sym,
-                "name": info["name"], "sector": info["sector"],
+                "rank": i + 1, "symbol": t["symbol"],
+                "name": t["name"], "sector": t["sector"],
                 "price": p.get("price", 0), "change": p.get("change", 0),
-                "volume": p.get("volume", 0), "source": "Yahoo",
+                "volume": p.get("volume", 0), "source": "Yahoo" if p else "—",
             })
-        _hose_cache["top50"] = {"ts": now, "data": results}
+        _hose_cache["top250"] = {"ts": now, "data": results}
         return results
     except Exception as e:
         return JSONResponse(status_code=503, content={"error": str(e)})
@@ -960,7 +1077,7 @@ async def get_calendar():
 # ─────────────────────────────────────────────
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
 
 _news_cache: dict = {}
 NEWS_TTL = 3600  # 1 giờ
