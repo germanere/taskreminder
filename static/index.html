@@ -989,6 +989,15 @@ function initTabs() {
       if (tabId === "forex")  loadForexFull();
       if (tabId === "calendar") loadCalendar();
       if (tabId === "alerts") loadAlertConfig();
+      if (tabId === "chart") {
+  requestAnimationFrame(() => {
+    if (chart) {
+      const container = document.getElementById("chart-container");
+      chart.applyOptions({ width: container.offsetWidth });
+    }
+    switchChart();
+  });
+}
     });
   });
 }
@@ -1559,11 +1568,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // Load overview immediately
   loadOverview();
 
-  // Start chart (BTC/USDT 1H)
-  loadKlines();
-  connectKlineWs();
-  connectOrderbookWs();
-
   // Connection check
   checkConnection();
   setInterval(checkConnection, 30000);
@@ -1571,6 +1575,23 @@ document.addEventListener("DOMContentLoaded", () => {
   // Auto-refresh overview every 60s
   setInterval(loadOverview, 60000);
 });
+
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted) {
+    const chartTabActive = document.getElementById("tab-chart")?.classList.contains("active");
+    if (chartTabActive) switchChart();
+    checkConnection();
+  }
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    const chartTabActive = document.getElementById("tab-chart")?.classList.contains("active");
+    if (chartTabActive && (!chartWs || chartWs.readyState !== WebSocket.OPEN)) {
+      switchChart();
+    }
+  }
+});  
 
 // expose to HTML onclick
 window.loadCryptoTop200 = loadCryptoTop200;
