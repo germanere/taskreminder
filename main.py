@@ -1313,8 +1313,7 @@ def _cluster_levels(levels: list[float], tolerance_pct: float = 0.015) -> list[d
 async def get_vn_analysis(symbol: str):
     symbol = symbol.upper()
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-       bars = []
+        bars = []
         last_src = ""
         for params in [
             {"ticker": symbol, "type": "day",   "count": "120"},
@@ -1334,9 +1333,10 @@ async def get_vn_analysis(symbol: str):
                     bars = candidate
                     log.info(f"Analysis {symbol}: {len(bars)} bars via params={params}")
                     break
-        if not bars:
-            return JSONResponse(status_code=503, content={"error": f"TCBS không trả được dữ liệu: {src}"})
 
+        if not bars:
+            return JSONResponse(status_code=503, content={"error": f"TCBS không trả được dữ liệu: {last_src}"})
+          
         closes = [float(b.get("close", 0)) for b in bars if b.get("close")]
         highs  = [float(b.get("high",  0)) for b in bars if b.get("high")]
         lows   = [float(b.get("low",   0)) for b in bars if b.get("low")]
