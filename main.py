@@ -55,6 +55,49 @@ def _safe_json(r: httpx.Response):
         return None
 
 
+def _parse_json_array_safely(text: str) -> list | None:
+    """
+    Parse 1 chuỗi text thành JSON array, với khả năng khôi phục khi LLM (Gemini)
+    bị cắt giữa dòng do hết maxOutputTokens (lỗi "Unterminated string ...").
+
+    Chiến lược:
+    1. Thử parse trực tiếp — trường hợp JSON hoàn chỉnh, nhanh nhất.
+    2. Nếu lỗi, tìm vị trí object "}" hợp lệ CUỐI CÙNG trong text, cắt bỏ phần
+       dở dang sau đó, đóng lại bằng "]", rồi parse lại.
+       Ví dụ: '[{"a":1},{"a":2},{"a":"b' (bị cắt giữa string)
+       -> khôi phục thành '[{"a":1},{"a":2}]' (bỏ object dở dang cuối, giữ các object hoàn chỉnh).
+    3. Nếu vẫn lỗi, trả None — caller tự fallback.
+    """
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        log.warning(f"_parse_json_array_safely: parse trực tiếp lỗi ({e}), thử khôi phục từ phần hoàn chỉnh")
+
+    # Tìm vị trí "}" cuối cùng — đây là điểm kết thúc của object cuối cùng còn nguyên vẹn
+    last_brace = text.rfind("}")
+    if last_brace == -1:
+        return None
+
+    candidate = text[:last_brace + 1]
+    # Đảm bảo candidate vẫn mở đầu bằng "[" 
+    if not candidate.lstrip().startswith("["):
+        return None
+
+    candidate = candidate.rstrip()
+    # Bỏ dấu "," dư ở cuối nếu có (trường hợp object cuối bị cắt ngay sau dấu phẩy)
+    if candidate.endswith(","):
+        candidate = candidate[:-1]
+    candidate += "]"
+
+    try:
+        result = json.loads(candidate)
+        log.info(f"_parse_json_array_safely: khôi phục thành công {len(result)} object từ JSON bị cắt")
+        return result
+    except json.JSONDecodeError as e:
+        log.warning(f"_parse_json_array_safely: khôi phục thất bại ({e}), candidate[-100:]={candidate[-100:]!r}")
+        return None
+
+
 # ─────────────────────────────────────────────
 # CONFIG — ENV VARS
 # ─────────────────────────────────────────────
@@ -1484,15 +1527,26 @@ async def get_news_calendar():
     today_str = datetime.now(ICT).strftime("%d/%m/%Y")
 
     prompt = (
-        f"Hôm nay là {today_str}. Tìm kiếm và liệt kê các tin tức/sự kiện kinh tế "
-        f"QUAN TRỌNG trong 7 ngày tới liên quan đến: FED, lãi suất Mỹ, CPI, NFP, "
-        f"thị trường chứng khoán Mỹ (S&P500, Nasdaq), chứng khoán Việt Nam (VN-Index, HOSE), "
-        f"và thị trường crypto (Bitcoin, Ethereum, ETF, regulation).\n\n"
+        f"Hôm nay là {today_str}. Tìm kiếm và liệt kê các tin tức/sự kiện kinh tế và thị trường "
+        f"QUAN TRỌNG trong 7 ngày qua và 7 ngày tới, chia đều theo 4 nhóm sau "
+        f"(ưu tiên ít nhất 2-3 tin mỗi nhóm nếu có, không để 1 nhóm chiếm hết danh sách):\n\n"
+        f"1. FED/Vĩ mô Mỹ: lãi suất FED, CPI, NFP, các phát biểu của FED.\n"
+        f"2. Chứng khoán Mỹ: S&P500, Nasdaq, các sự kiện lớn ảnh hưởng thị trường Mỹ.\n"
+        f"3. Chứng khoán Việt Nam: VN-Index, dòng tiền khối ngoại, chính sách (room ngoại, "
+        f"thuế, nâng hạng thị trường), VÀ tin tức cụ thể của các doanh nghiệp niêm yết lớn trên HOSE "
+        f"(kết quả kinh doanh quý/năm, chia cổ tức, phát hành thêm, M&A, thay đổi nhân sự cấp cao, "
+        f"biến động giá cổ phiếu đáng chú ý) — ưu tiên các mã vốn hóa lớn như VCB, BID, VIC, VHM, "
+        f"CTG, GAS, VNM, FPT, HPG, MWG, MSN, TCB, VPB, MBB, SSI, VND, GVR, VRE và các mã đang có tin "
+        f"nóng trong tuần.\n"
+        f"4. Crypto: Bitcoin, Ethereum, ETF, quy định pháp lý.\n\n"
         f"Trả về DUY NHẤT một JSON array, không markdown, không giải thích, theo format:\n"
         f'[{{"date": "DD/MM/YYYY", "time": "HH:MM", "event": "Tên sự kiện ngắn gọn tiếng Việt", '
-        f'"impact": "high|medium|low", "category": "fed|stock|crypto|macro", '
-        f'"summary": "Tóm tắt 1 câu ngắn về sự kiện/dự báo"}}]\n\n'
-        f"Tối đa 10 sự kiện, sắp xếp theo ngày gần nhất trước. Chỉ trả JSON, không có markdown code block."
+        f'"impact": "high|medium|low", "category": "fed|stock|vn_stock|crypto|macro", '
+        f'"summary": "Tóm tắt 1 câu ngắn về sự kiện/dự báo, nêu rõ mã cổ phiếu nếu có"}}]\n\n'
+        f"Dùng category \"vn_stock\" riêng cho tin chứng khoán Việt Nam (cả vĩ mô VN-Index và tin "
+        f"doanh nghiệp cụ thể), KHÔNG dùng \"stock\" cho tin Việt Nam — \"stock\" chỉ dùng cho thị "
+        f"trường Mỹ.\n"
+        f"Tối đa 14 sự kiện, sắp xếp theo ngày gần nhất trước. Chỉ trả JSON, không có markdown code block."
     )
 
     try:
@@ -1502,20 +1556,30 @@ async def get_news_calendar():
                 json={
                     "contents": [{"role": "user", "parts": [{"text": prompt}]}],
                     "tools": [{"google_search": {}}],
-                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 2048},
+                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096},
                 },
             )
-        data = r.json()
-        text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+        data = _safe_json(r)
+        if data is None:
+            raise ValueError(f"Gemini trả non-JSON, status={r.status_code}, body[:200]={r.text[:200]!r}")
+
+        candidate    = (data.get("candidates") or [{}])[0]
+        finish_reason = candidate.get("finishReason", "")
+        text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
 
         text = text.strip()
         if text.startswith("```"):
             text = re.sub(r"^```[a-zA-Z]*\n?", "", text)
             text = re.sub(r"```$", "", text).strip()
 
-        events = json.loads(text)
-        if not isinstance(events, list):
-            raise ValueError("Gemini response is not a list")
+        if finish_reason == "MAX_TOKENS":
+            log.warning("News calendar: Gemini bị cắt do MAX_TOKENS — sẽ thử khôi phục JSON từ phần đã có")
+
+        events = _parse_json_array_safely(text)
+        if events is None:
+            raise ValueError(f"Không parse được JSON (finish_reason={finish_reason}). raw_text[:300]={text[:300]!r}")
+        if not isinstance(events, list) or not events:
+            raise ValueError(f"Gemini response không phải list hợp lệ hoặc rỗng: {str(events)[:200]}")
 
         _news_cache["calendar"] = {"ts": now, "data": events}
         log.info(f"News calendar: Gemini OK — {len(events)} events")
@@ -1529,6 +1593,7 @@ async def get_news_calendar():
         return [
             {"date": (now_dt + timedelta(days=1)).strftime("%d/%m/%Y"), "time": "19:30", "event": "US CPI MoM", "impact": "high", "category": "macro", "summary": "Chỉ số giá tiêu dùng Mỹ"},
             {"date": (now_dt + timedelta(days=2)).strftime("%d/%m/%Y"), "time": "02:00", "event": "FED Rate Decision", "impact": "high", "category": "fed", "summary": "Quyết định lãi suất FED"},
+            {"date": now_dt.strftime("%d/%m/%Y"), "time": "--:--", "event": "VN-Index biến động", "impact": "medium", "category": "vn_stock", "summary": "Theo dõi diễn biến VN-Index và dòng tiền khối ngoại trong phiên"},
         ]
 
 # ─────────────────────────────────────────────
