@@ -1314,24 +1314,26 @@ async def get_vn_analysis(symbol: str):
     symbol = symbol.upper()
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-             bars = []
+       bars = []
+        last_src = ""
         for params in [
             {"ticker": symbol, "type": "day",   "count": "120"},
             {"ticker": symbol, "type": "daily", "count": "120"},
             {"ticker": symbol, "type": "month", "count": "24"},
         ]:
-            data, src = await _fetch_tcbs_url(
-                client,
-                "/stock-insight/v1/stock/bars-long-term",
-                params,
-            )
+            async with httpx.AsyncClient(timeout=15) as client2:
+                data, src = await _fetch_tcbs_url(
+                    client2,
+                    "/stock-insight/v1/stock/bars-long-term",
+                    params,
+                )
+            last_src = src
             if data is not None:
                 candidate = data if isinstance(data, list) else data.get("data", [])
                 if candidate and len(candidate) >= 10:
                     bars = candidate
                     log.info(f"Analysis {symbol}: {len(bars)} bars via params={params}")
                     break
-
         if not bars:
             return JSONResponse(status_code=503, content={"error": f"TCBS không trả được dữ liệu: {src}"})
 
