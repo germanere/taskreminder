@@ -1456,10 +1456,11 @@ async function loadForexFull() {
    ══════════════════════════════════════════════ */
 
 const CATEGORY_LABELS = {
-  fed:    { label: "FED",     color: "#ef4444" },
-  stock:  { label: "Cổ phiếu",color: "#3b82f6" },
-  crypto: { label: "Crypto",  color: "#f59e0b" },
-  macro:  { label: "Vĩ mô",   color: "#8b5cf6" },
+  fed:      { label: "FED",         color: "#ef4444" },
+  stock:    { label: "CK Mỹ",       color: "#3b82f6" },
+  vn_stock: { label: "CK Việt Nam", color: "#10b981" },
+  crypto:   { label: "Crypto",      color: "#f59e0b" },
+  macro:    { label: "Vĩ mô",       color: "#8b5cf6" },
 };
 
 async function loadCalendar(forceRefresh = false) {
