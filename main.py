@@ -1314,27 +1314,41 @@ async def get_vn_analysis(symbol: str):
     symbol = symbol.upper()
     try:
         async with httpx.AsyncClient(timeout=15) as client:
+             bars = []
+        for params in [
+            {"ticker": symbol, "type": "day",   "count": "120"},
+            {"ticker": symbol, "type": "daily", "count": "120"},
+            {"ticker": symbol, "type": "month", "count": "24"},
+        ]:
             data, src = await _fetch_tcbs_url(
                 client,
                 "/stock-insight/v1/stock/bars-long-term",
-                {"ticker": symbol, "type": "month", "count": "6"},
+                params,
             )
-        if data is None:
-            return JSONResponse(status_code=503, content={"error": f"TCBS không phản hồi: {src}"})
+            if data is not None:
+                candidate = data if isinstance(data, list) else data.get("data", [])
+                if candidate and len(candidate) >= 10:
+                    bars = candidate
+                    log.info(f"Analysis {symbol}: {len(bars)} bars via params={params}")
+                    break
 
-        bars = data if isinstance(data, list) else data.get("data", [])
+        if not bars:
+            return JSONResponse(status_code=503, content={"error": f"TCBS không trả được dữ liệu: {src}"})
 
-        if not bars or len(bars) < 25:
-            return JSONResponse(status_code=503, content={"error": "Không đủ dữ liệu lịch sử để phân tích"})
+        closes = [float(b.get("close", 0)) for b in bars if b.get("close")]
+        highs  = [float(b.get("high",  0)) for b in bars if b.get("high")]
+        lows   = [float(b.get("low",   0)) for b in bars if b.get("low")]
 
-        closes = [float(b.get("close", 0)) for b in bars]
-        highs  = [float(b.get("high",  0)) for b in bars]
-        lows   = [float(b.get("low",   0)) for b in bars]
+        if not closes:
+            return JSONResponse(status_code=503, content={"error": "Dữ liệu giá không hợp lệ"})
 
         current_price = closes[-1]
+        n = len(closes)
+        ma20_period = min(20, max(5, n // 4))
+        ma50_period = min(50, max(10, n // 2))
 
-        ma20_series = _sma(closes, 20)
-        ma50_series = _sma(closes, 50)
+        ma20_series = _sma(closes, ma20_period)
+        ma50_series = _sma(closes, ma50_period)
         ma20 = ma20_series[-1]
         ma50 = ma50_series[-1]
 
