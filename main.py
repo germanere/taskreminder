@@ -7,14 +7,6 @@ Market Research Hub — Backend
 - HOSE Top 50 endpoint
 - Telegram alerts: BTC, ETH, USD/VND, Gold (SJC)
 - Serve static files
-
-PATCH NOTES (fix bảng HOSE trống + Multi-TF stale):
-  • TCBS: thêm headers đầy đủ + domain fallback (apipublic -> apipubaws),
-    log rõ status_code/response khi không phải JSON hợp lệ.
-  • TCBS: nếu toàn bộ batch thất bại, fallback sang Yahoo Finance cho HOSE
-    để bảng không bị trống hoàn toàn.
-  • Multi-TF: log rõ exception thay vì nuốt im lặng, thêm timeout ngắn hơn
-    và đếm số request thành công để debug dễ hơn.
 """
 
 import os, re, json, logging, asyncio, time
@@ -35,69 +27,6 @@ ICT = pytz.timezone("Asia/Ho_Chi_Minh")
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-
-def _safe_json(r: httpx.Response):
-    """
-    Parse JSON an toàn tuyệt đối — dùng cho MỌI external API call trong file này.
-    Trả về None nếu:
-    - content-type không phải JSON (trang chặn bot trả HTML, Cloudflare challenge, v.v.)
-    - body không parse được dù content-type là JSON
-    Không bao giờ raise exception ra ngoài — chỉ trả None để caller tự fallback sang nguồn khác.
-    Đây là fix gốc cho lỗi 500 "ValueError: invalid literal for int() with base 10: 'c'"
-    (xảy ra khi sàn trả 403/451 với body HTML nhưng code cũ vẫn ép gọi r.json()).
-    """
-    ctype = r.headers.get("content-type", "")
-    if "json" not in ctype:
-        return None
-    try:
-        return r.json()
-    except Exception:
-        return None
-
-
-def _parse_json_array_safely(text: str) -> list | None:
-    """
-    Parse 1 chuỗi text thành JSON array, với khả năng khôi phục khi LLM (Gemini)
-    bị cắt giữa dòng do hết maxOutputTokens (lỗi "Unterminated string ...").
-
-    Chiến lược:
-    1. Thử parse trực tiếp — trường hợp JSON hoàn chỉnh, nhanh nhất.
-    2. Nếu lỗi, tìm vị trí object "}" hợp lệ CUỐI CÙNG trong text, cắt bỏ phần
-       dở dang sau đó, đóng lại bằng "]", rồi parse lại.
-       Ví dụ: '[{"a":1},{"a":2},{"a":"b' (bị cắt giữa string)
-       -> khôi phục thành '[{"a":1},{"a":2}]' (bỏ object dở dang cuối, giữ các object hoàn chỉnh).
-    3. Nếu vẫn lỗi, trả None — caller tự fallback.
-    """
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as e:
-        log.warning(f"_parse_json_array_safely: parse trực tiếp lỗi ({e}), thử khôi phục từ phần hoàn chỉnh")
-
-    # Tìm vị trí "}" cuối cùng — đây là điểm kết thúc của object cuối cùng còn nguyên vẹn
-    last_brace = text.rfind("}")
-    if last_brace == -1:
-        return None
-
-    candidate = text[:last_brace + 1]
-    # Đảm bảo candidate vẫn mở đầu bằng "[" 
-    if not candidate.lstrip().startswith("["):
-        return None
-
-    candidate = candidate.rstrip()
-    # Bỏ dấu "," dư ở cuối nếu có (trường hợp object cuối bị cắt ngay sau dấu phẩy)
-    if candidate.endswith(","):
-        candidate = candidate[:-1]
-    candidate += "]"
-
-    try:
-        result = json.loads(candidate)
-        log.info(f"_parse_json_array_safely: khôi phục thành công {len(result)} object từ JSON bị cắt")
-        return result
-    except json.JSONDecodeError as e:
-        log.warning(f"_parse_json_array_safely: khôi phục thất bại ({e}), candidate[-100:]={candidate[-100:]!r}")
-        return None
-
-
 # ─────────────────────────────────────────────
 # CONFIG — ENV VARS
 # ─────────────────────────────────────────────
@@ -112,8 +41,8 @@ ETH_MAX    = float(os.getenv("ETH_MAX",    "2000"))
 CHANGE_PCT = float(os.getenv("CHANGE_PCT", "5.0"))
 USD_MIN    = float(os.getenv("USD_MIN",    "24000"))
 USD_MAX    = float(os.getenv("USD_MAX",    "27000"))
-GOLD_MIN   = float(os.getenv("GOLD_MIN",   "120000000"))
-GOLD_MAX   = float(os.getenv("GOLD_MAX",   "155000000"))
+GOLD_MIN   = float(os.getenv("GOLD_MIN",   "100000000"))
+GOLD_MAX   = float(os.getenv("GOLD_MAX",   "150000000"))
 
 # ─────────────────────────────────────────────
 # GOOGLE SHEETS — Chat Log Storage
@@ -127,6 +56,10 @@ _gsheet_client = None
 _chat_log_worksheet = None
 
 def _get_chat_log_worksheet():
+    """
+    Lazy-init gspread client + worksheet.
+    Trả về None nếu chưa cấu hình credentials hoặc lỗi kết nối.
+    """
     global _gsheet_client, _chat_log_worksheet
     if _chat_log_worksheet is not None:
         return _chat_log_worksheet
@@ -157,6 +90,10 @@ def _get_chat_log_worksheet():
 
 
 def log_chat_message(session_id: str, role: str, message: str):
+    """
+    Ghi 1 dòng log vào Google Sheets. Chạy non-blocking trong background task.
+    Lỗi không được làm crash chat response.
+    """
     try:
         ws = _get_chat_log_worksheet()
         if ws is None:
@@ -167,31 +104,36 @@ def log_chat_message(session_id: str, role: str, message: str):
         log.error(f"Chat log write error: {e}")
 
 
-# 200 mã HOSE
+
+# 50 mã HOSE vốn hóa lớn nhất (tháng 6/2025)
 HOSE_TOP200 = [
     "VCB","BID","VIC","VHM","CTG","GAS","VNM","SAB","MSN","TCB",
     "MBB","FPT","ACB","PLX","HPG","VPB","STB","HDB","GVR","POW",
     "MWG","PNJ","REE","SSI","VND","HCM","DPM","DCM","VEA","KDH",
     "NVL","PDR","DXG","PVD","HSG","NKG","PHR","DRC","IDC","KBC",
     "NTC","LHG","EIB","EVF","CMG","VGI","FRT","DGW","GEX","VRE",
+    # 50 mã bổ sung (51-100)
     "BVH","BCM","PC1","PVT","BSR","BMI","DGC","CTD","HDG","HAH",
     "ANV","VHC","DBC","NLG","CII","TCH","HHV","VCG","HT1","PAN",
     "VOS","VTP","VCI","SHB","TPB","OCB","MSB","LPB","BAB","NAB",
     "TLG","SCS","ASM","CTS","FTS","PVS","PVC","TIS","NT2","VSH",
     "BWE","DPR","HAG","HNG","DHC","SBT","SZC","DIG","ITA","TDM",
+    # 50 mã bổ sung (101-150)
     "AAA","APH","BFC","BCG","BHN","CAV","CKG","CLL","CMX","CRE",
     "DAH","DBD","DHA","DPG","ELC","EVE","FCN","FIT","FTM","GEG",
     "GIL","GMD","HBC","HCD","HII","HQC","HU1","HVH","IJC","IMP",
     "ITC","KSB","LCG","LDG","LSS","MCP","NHA","NHH","NTL","OGC",
     "PDN","PGD","PGI","PHC","PIT","PLP","PMG","PTB","QCG","RAL",
+    # 50 mã bổ sung (151-200)
     "SAM","SBA","SCD","SFG","SGN","SGT","SHA","SHI","SJD","SJS",
     "SMA","SMB","SMC","SRC","SRF","SVC","SVI","TCM","TDC","TDH",
     "TDP","TEG","THG","TLH","TNA","TNI","TNT","TPC","TRA","TSC",
     "TTF","TV2","TVS","UDC","VCF","VDS","VFG","VID","VIP","VIX",
     "VNE","VNG","VPG","VPI","VSC","VTO","YEG","BMP","DXS","NAF",
 ]
-HOSE_TOP100 = HOSE_TOP200
-HOSE_TOP50  = HOSE_TOP200
+HOSE_TOP100 = HOSE_TOP200  # alias để tương thích code cũ
+HOSE_TOP50  = HOSE_TOP200  # alias để tương thích code cũ
+
 
 HOSE_INFO = {
     "VCB":  {"name": "Vietcombank",        "sector": "Ngân hàng"},
@@ -244,6 +186,7 @@ HOSE_INFO = {
     "DGW":  {"name": "Digiworld",          "sector": "Tiêu dùng"},
     "GEX":  {"name": "Gelex Group",        "sector": "Công nghiệp"},
     "VRE":  {"name": "Vincom Retail",      "sector": "Bất động sản"},
+    # 50 mã bổ sung
     "BVH":  {"name": "Bảo Việt",           "sector": "Bảo hiểm"},
     "BCM":  {"name": "Becamex IDC",        "sector": "Bất động sản"},
     "PC1":  {"name": "PC1 Group",          "sector": "Công nghiệp"},
@@ -294,6 +237,7 @@ HOSE_INFO = {
     "DIG":  {"name": "DIC Corp",           "sector": "Bất động sản"},
     "ITA":  {"name": "Tân Tạo Group",      "sector": "Bất động sản"},
     "TDM":  {"name": "Thủ Dầu Một Water",  "sector": "Công nghiệp"},
+    # 101-150
     "AAA":  {"name": "An Phát Holdings",   "sector": "Vật liệu"},
     "APH":  {"name": "An Phát Plastic",    "sector": "Vật liệu"},
     "BFC":  {"name": "Phân bón Bình Điền", "sector": "Hóa chất"},
@@ -344,6 +288,7 @@ HOSE_INFO = {
     "PTB":  {"name": "Phú Tài",            "sector": "Vật liệu"},
     "QCG":  {"name": "Quốc Cường Gia Lai", "sector": "Bất động sản"},
     "RAL":  {"name": "Rạng Đông",          "sector": "Công nghiệp"},
+    # 151-200
     "SAM":  {"name": "SAM Holdings",       "sector": "Công nghiệp"},
     "SBA":  {"name": "Sông Ba Hydropower", "sector": "Năng lượng"},
     "SCD":  {"name": "Nước giải khát Chương Dương","sector": "Tiêu dùng"},
@@ -395,6 +340,7 @@ HOSE_INFO = {
     "DXS":  {"name": "Đất Xanh Services",  "sector": "Bất động sản"},
     "NAF":  {"name": "Nafoods Group",      "sector": "Tiêu dùng"},
 }
+
 
 _hose_cache: dict = {}
 HOSE_TTL = 60
@@ -489,60 +435,36 @@ def check_alert(key, value, min_val, max_val, label, unit=""):
 
 async def fetch_price(symbol_okx: str, symbol_binance: str) -> float:
     """
-    Chain: OKX -> Bybit -> Binance.
-    Mỗi bước dùng _safe_json (không bao giờ raise từ parse JSON lỗi/HTML).
+    symbol_okx ví dụ: 'BTC-USDT'
     """
-    # ── 1) OKX ─────────────────────────────────
     try:
         async with httpx.AsyncClient(timeout=8) as client:
             r = await client.get(
                 "https://www.okx.com/api/v5/market/ticker",
                 params={"instId": symbol_okx},
             )
-        data = _safe_json(r)
-        lst  = (data or {}).get("data", [])
+        data = r.json()
+        lst  = data.get("data", [])
         if lst:
             price = float(lst[0]["last"])
             if price > 0:
                 return price
-        if data is None:
-            log.warning(f"OKX price ({symbol_okx}): HTTP {r.status_code}, non-JSON body")
     except Exception as e:
         log.warning(f"OKX price error ({symbol_okx}): {e}")
 
-    # ── 2) Bybit ───────────────────────────────
-    try:
-        async with httpx.AsyncClient(timeout=8) as client:
-            r = await client.get(
-                "https://api.bybit.com/v5/market/tickers",
-                params={"category": "linear", "symbol": symbol_binance},
-            )
-        data = _safe_json(r)
-        lst  = (data or {}).get("result", {}).get("list", [])
-        if lst:
-            price = float(lst[0]["lastPrice"])
-            if price > 0:
-                return price
-        if data is None:
-            log.warning(f"Bybit price ({symbol_binance}): HTTP {r.status_code}, non-JSON body")
-    except Exception as e:
-        log.warning(f"Bybit price error ({symbol_binance}): {e}")
-
-    # ── 3) Binance fallback ────────────────────
     try:
         async with httpx.AsyncClient(timeout=8) as client:
             r = await client.get(f"https://api.binance.com/api/v3/ticker/price?symbol={symbol_binance}")
-        data = _safe_json(r)
-        if isinstance(data, dict):
-            price = float(data.get("price", 0))
-            if price > 0:
-                return price
-        elif data is None:
-            log.warning(f"Binance price ({symbol_binance}): HTTP {r.status_code}, non-JSON body")
+        data = r.json()
+        if not isinstance(data, dict):
+            raise ValueError(f"Binance unexpected response: {type(data)}")
+        price = float(data.get("price", 0))
+        if price > 0:
+            return price
     except Exception as e:
         log.warning(f"Binance fallback price error ({symbol_binance}): {e}")
 
-    raise ValueError(f"Cannot fetch price for {symbol_okx}/{symbol_binance} (đã thử OKX, Bybit, Binance)")
+    raise ValueError(f"Cannot fetch price for {symbol_okx}/{symbol_binance}")
 
 # ─────────────────────────────────────────────
 # GOLD PRICE
@@ -557,31 +479,19 @@ async def fetch_gold_price() -> float | None:
                 params={"interval": "1d", "range": "1d"},
                 headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
             )
-            gold_data = _safe_json(rg)
-            if gold_data is None:
-                log.warning(f"fetch_gold_price: Yahoo GC=F trả non-JSON, status={rg.status_code}")
-                return None
-            try:
-                gold_usd_oz = gold_data["chart"]["result"][0]["meta"]["regularMarketPrice"]
-            except (KeyError, IndexError, TypeError) as e:
-                log.warning(f"fetch_gold_price: Yahoo response thiếu field cần thiết: {e}")
-                return None
+            gold_usd_oz = rg.json()["chart"]["result"][0]["meta"]["regularMarketPrice"]
 
             import xml.etree.ElementTree as ET
             rv = await client.get(
                 "https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10",
                 headers={"User-Agent": "Mozilla/5.0"},
             )
+            root = ET.fromstring(rv.text)
             usd_vnd = 0.0
-            try:
-                root = ET.fromstring(rv.text)
-                for ex in root.findall(".//Exrate"):
-                    if ex.get("CurrencyCode") == "USD":
-                        usd_vnd = float(ex.get("Sell", "0").replace(",", ""))
-                        break
-            except ET.ParseError as e:
-                log.warning(f"fetch_gold_price: VCB XML parse error: {e}")
-                return None
+            for ex in root.findall(".//Exrate"):
+                if ex.get("CurrencyCode") == "USD":
+                    usd_vnd = float(ex.get("Sell", "0").replace(",", ""))
+                    break
 
             if gold_usd_oz > 0 and usd_vnd > 0:
                 price = gold_usd_oz * usd_vnd * LUONG_PER_OZ * 1.08
@@ -673,6 +583,9 @@ def chat_page():
 # ─────────────────────────────────────────────
 
 def to_okx_symbol(symbol: str) -> str:
+    """
+    Chuyển 'BTCUSDT' -> 'BTC-USDT'
+    """
     s = symbol.upper()
     if "-" in s:
         return s
@@ -685,13 +598,6 @@ OKX_INTERVAL_MAP = {
     "1m": "1m",  "3m": "3m",  "5m": "5m",  "15m": "15m", "30m": "30m",
     "1h": "1H",  "2h": "2H",  "4h": "4H",  "6h": "6H",   "12h": "12H",
     "1d": "1D",  "1w": "1W",  "1M": "1M",
-}
-
-# Dùng cho fallback Bybit trong /api/klines (chain OKX -> Bybit -> Binance)
-BYBIT_INTERVAL_MAP_FALLBACK = {
-    "1m": "1",   "3m": "3",   "5m": "5",   "15m": "15",  "30m": "30",
-    "1h": "60",  "2h": "120", "4h": "240", "6h": "360",  "12h": "720",
-    "1d": "D",   "1w": "W",   "1M": "M",
 }
 
 # ─────────────────────────────────────────────
@@ -819,108 +725,49 @@ async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
 # REST — HISTORICAL KLINES (OKX primary, Binance fallback)
 # ─────────────────────────────────────────────
 
-def _parse_kline_rows(raw: list, source: str) -> list[dict] | None:
-    """
-    Parse list nến thành format chuẩn, bỏ qua an toàn nếu 1 dòng nào hỏng.
-    Trả về None nếu raw không phải list-of-list/array hợp lệ.
-    """
-    if not isinstance(raw, list):
-        return None
-    out = []
-    for k in raw:
-        try:
-            if not isinstance(k, (list, tuple)) or len(k) < 6:
-                continue
-            out.append({
-                "time":   int(float(k[0])) // 1000,
-                "open":   float(k[1]),
-                "high":   float(k[2]),
-                "low":    float(k[3]),
-                "close":  float(k[4]),
-                "volume": float(k[5]),
-            })
-        except (ValueError, TypeError, IndexError) as e:
-            log.warning(f"_parse_kline_rows [{source}]: bỏ qua 1 dòng lỗi: {e}")
-            continue
-    return out if out else None
-
-
 @app.get("/api/klines")
 async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 200):
-    """
-    Thứ tự nguồn: OKX -> Bybit -> Binance.
-    Mọi bước parse JSON đều an toàn tuyệt đối (không bao giờ raise ra ngoài),
-    nên endpoint này KHÔNG BAO GIỜ trả 500 — chỉ trả 503 với thông báo lỗi rõ ràng.
-    """
-    okx_symbol     = to_okx_symbol(symbol)
-    okx_bar        = OKX_INTERVAL_MAP.get(interval, "1H")
-    bybit_symbol   = symbol.upper()
-    bybit_interval = BYBIT_INTERVAL_MAP_FALLBACK.get(interval, "60")
-    errors = []
+    okx_symbol = to_okx_symbol(symbol)
+    okx_bar    = OKX_INTERVAL_MAP.get(interval, "1H")
 
-    # ── 1) OKX ─────────────────────────────────
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(
                 "https://www.okx.com/api/v5/market/candles",
                 params={"instId": okx_symbol, "bar": okx_bar, "limit": min(limit, 300)},
             )
-        result = _safe_json(r)
-        if result is not None and result.get("code") == "0":
-            rows = _parse_kline_rows(result.get("data", []), "OKX")
-            if rows:
-                rows = rows[::-1]
-                log.info(f"OKX kline OK: {okx_symbol} {okx_bar} ({len(rows)} bars)")
-                return rows
-        msg = (result or {}).get("msg") if result else f"HTTP {r.status_code}, non-JSON body"
-        errors.append(f"OKX: {msg}")
-        log.warning(f"OKX kline failed: {msg}")
+        result = r.json()
+        if result.get("code") == "0":
+            raw = result.get("data", [])
+            if isinstance(raw, list) and len(raw) > 0:
+                raw = raw[::-1]
+                log.info(f"OKX kline OK: {okx_symbol} {okx_bar} ({len(raw)} bars)")
+                return [{
+                    "time":   int(k[0]) // 1000,
+                    "open":   float(k[1]),
+                    "high":   float(k[2]),
+                    "low":    float(k[3]),
+                    "close":  float(k[4]),
+                    "volume": float(k[5]),
+                } for k in raw]
+        log.warning(f"OKX kline non-zero code: {result.get('msg')}")
     except Exception as e:
-        errors.append(f"OKX: {e}")
         log.warning(f"OKX kline REST error: {e}")
 
-    # ── 2) Bybit ───────────────────────────────
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(
-                "https://api.bybit.com/v5/market/kline",
-                params={"category": "linear", "symbol": bybit_symbol, "interval": bybit_interval, "limit": min(limit, 1000)},
-            )
-        result = _safe_json(r)
-        if result is not None and result.get("retCode") == 0:
-            rows = _parse_kline_rows(result.get("result", {}).get("list", []), "Bybit")
-            if rows:
-                rows = rows[::-1]
-                log.info(f"Bybit kline OK: {bybit_symbol} {bybit_interval} ({len(rows)} bars)")
-                return rows
-        msg = (result or {}).get("retMsg") if result else f"HTTP {r.status_code}, non-JSON body"
-        errors.append(f"Bybit: {msg}")
-        log.warning(f"Bybit kline failed: {msg}")
-    except Exception as e:
-        errors.append(f"Bybit: {e}")
-        log.warning(f"Bybit kline REST error: {e}")
-
-    # ── 3) Binance fallback ────────────────────
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             r = await client.get(
                 f"https://api.binance.com/api/v3/klines?symbol={symbol.upper()}&interval={interval}&limit={limit}"
             )
         if r.status_code == 451:
-            errors.append("Binance: 451 geo-blocked")
-        else:
-            data = _safe_json(r)
-            rows = _parse_kline_rows(data, "Binance") if data is not None else None
-            if rows:
-                log.info(f"Binance kline OK: {symbol} {interval} ({len(rows)} bars)")
-                return rows
-            errors.append(f"Binance: HTTP {r.status_code}, không parse được dữ liệu")
+            return JSONResponse(status_code=503, content={"error": "OKX failed, Binance geo-blocked"})
+        data = r.json()
+        if not isinstance(data, list):
+            return JSONResponse(status_code=503, content={"error": "Kline fetch failed"})
+        return [{"time": int(k[0])//1000, "open": float(k[1]), "high": float(k[2]),
+                 "low": float(k[3]), "close": float(k[4]), "volume": float(k[5])} for k in data]
     except Exception as e:
-        errors.append(f"Binance: {e}")
-
-    # ── Tất cả nguồn đều fail ──────────────────
-    log.error(f"get_klines: TẤT CẢ nguồn fail cho {symbol}/{interval} — {' | '.join(errors)}")
-    return JSONResponse(status_code=503, content={"error": "Không lấy được dữ liệu nến từ bất kỳ nguồn nào", "details": errors})
+        return JSONResponse(status_code=503, content={"error": str(e)})
 
 # ─────────────────────────────────────────────
 # REST — CRYPTO PRICES (CoinGecko)
@@ -936,12 +783,8 @@ async def _coingecko_get(url: str, ttl: int = COINGECKO_TTL):
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(url)
         if r.status_code == 429:
-            log.warning("CoinGecko 429 — trả cache cũ nếu có")
             return cached[1] if cached else []
-        data = _safe_json(r)
-        if data is None:
-            log.warning(f"CoinGecko trả non-JSON, status={r.status_code} — trả cache cũ nếu có")
-            return cached[1] if cached else []
+        data = r.json()
     _coingecko_cache[url] = (time.time(), data)
     return data
 
@@ -964,15 +807,9 @@ async def get_top200(page: int = 1):
 
 @app.get("/api/fear-greed")
 async def get_fear_greed():
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get("https://api.alternative.me/fng/?limit=1")
-        data = _safe_json(r)
-        if data is None:
-            return JSONResponse(status_code=503, content={"error": f"Fear&Greed API trả non-JSON, status={r.status_code}"})
-        return data
-    except Exception as e:
-        return JSONResponse(status_code=503, content={"error": str(e)})
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get("https://api.alternative.me/fng/?limit=1")
+        return r.json()
 
 # ─────────────────────────────────────────────
 # REST — TỶ GIÁ (Vietcombank)
@@ -1056,111 +893,16 @@ async def get_vn_stocks(
     return [r for r in results if isinstance(r, dict)]
 
 # ─────────────────────────────────────────────
-# REST — HOSE TOP 200
-# PATCHED: TCBS headers đầy đủ + domain fallback + log rõ ràng +
-#          fallback toàn bộ sang Yahoo nếu TCBS chết hoàn toàn
+# REST — HOSE TOP 50
 # ─────────────────────────────────────────────
-
-TCBS_DOMAINS = [
-    "https://apipubaws.tcbs.com.vn",
-    "https://apipublic.tcbs.com.vn",
-]
-
-TCBS_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Referer": "https://tcinvest.tcbs.com.vn/",
-    "Origin": "https://tcinvest.tcbs.com.vn",
-}
-
-
-async def _fetch_tcbs_batch(client: httpx.AsyncClient, batch: list[str]) -> dict:
-    """
-    Thử lần lượt các domain TCBS. Trả về {ticker: {price, change, volume}}.
-    Log rõ status_code + 200 ký tự đầu response khi không parse được JSON,
-    để dễ debug trên Render logs.
-    """
-    tickers_str = ",".join(batch)
-    last_error = None
-
-    for domain in TCBS_DOMAINS:
-        url = f"{domain}/stock-insight/v1/stock/price"
-        try:
-            r = await client.get(
-                url,
-                params={"tickers": tickers_str},
-                headers=TCBS_HEADERS,
-            )
-            content_type = r.headers.get("content-type", "")
-            if "json" not in content_type:
-                log.warning(
-                    f"TCBS [{domain}] trả về content-type lạ: {content_type} "
-                    f"status={r.status_code} body[:150]={r.text[:150]!r}"
-                )
-                last_error = f"non-json content-type ({content_type}), status {r.status_code}"
-                continue
-
-            data  = r.json()
-            items = data if isinstance(data, list) else data.get("data", [])
-
-            if not items:
-                log.warning(f"TCBS [{domain}] batch trả về rỗng. status={r.status_code} raw[:200]={str(data)[:200]!r}")
-                last_error = "empty items"
-                continue
-
-            out = {}
-            for item in items:
-                ticker = (item.get("ticker") or item.get("symbol") or "").upper()
-                if not ticker:
-                    continue
-                price  = float(item.get("close") or item.get("price") or item.get("lastPrice") or 0)
-                prev   = float(item.get("referencePrice") or item.get("prevClose") or item.get("ref") or 0)
-                change = round((price - prev) / prev * 100, 2) if prev > 0 else 0
-                volume = int(item.get("volume") or item.get("totalVolume") or 0)
-                out[ticker] = {"price": price, "change": change, "volume": volume}
-
-            if out:
-                log.info(f"TCBS [{domain}] OK — {len(out)}/{len(batch)} mã có giá")
-                return out
-            last_error = "parsed items nhưng không có ticker hợp lệ"
-
-        except json.JSONDecodeError as e:
-            log.warning(f"TCBS [{domain}] JSONDecodeError: {e} — status={getattr(r,'status_code','?')} body[:150]={getattr(r,'text','')[:150]!r}")
-            last_error = f"JSONDecodeError: {e}"
-        except Exception as e:
-            log.warning(f"TCBS [{domain}] lỗi request: {e}")
-            last_error = str(e)
-
-    log.error(f"TCBS: TẤT CẢ domain đều fail cho batch {tickers_str[:60]}... — lỗi cuối: {last_error}")
-    return {}
-
-
-async def _fetch_yahoo_hose_batch(symbols: list[str]) -> dict:
-    """
-    Fallback toàn bộ sang Yahoo Finance khi TCBS chết hoàn toàn.
-    Trả về {ticker: {price, change, volume}}.
-    """
-    out = {}
-    async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=10) as client:
-        results = await asyncio.gather(
-            *[_fetch_yahoo_stock(client, f"{s}.VN") for s in symbols],
-            return_exceptions=True,
-        )
-    for sym, res in zip(symbols, results):
-        if isinstance(res, dict) and res.get("price", 0) > 0:
-            out[sym] = {"price": res["price"], "change": res["change"], "volume": res["volume"]}
-    log.info(f"Yahoo HOSE fallback: {len(out)}/{len(symbols)} mã có giá")
-    return out
 
 
 @app.get("/api/vn/hose-top50")
 async def get_hose_top50():
     """
-    Trả về toàn bộ HOSE_TOP200 kèm giá thời gian thực.
-    Thứ tự nguồn: TCBS (apipubaws -> apipublic) theo batch 50 mã.
-    Nếu TCBS hoàn toàn không trả được giá cho TOÀN BỘ danh sách,
-    fallback sang Yahoo Finance cho 50 mã đầu (tránh bảng trống 100%).
+    Trả về toàn bộ HOSE_TOP100 (hardcode) kèm giá thời gian thực từ TCBS,
+    chia batch 50 ticker/request để tránh TCBS bỏ sót mã ở batch lớn.
+    Endpoint name giữ "hose-top50" để tương thích frontend cũ.
     """
     now = time.time()
     cached = _hose_cache.get("top250")
@@ -1176,19 +918,30 @@ async def get_hose_top50():
         async with httpx.AsyncClient(timeout=25) as client:
             for i in range(0, len(symbols), BATCH):
                 batch = symbols[i:i+BATCH]
-                batch_prices = await _fetch_tcbs_batch(client, batch)
-                price_map.update(batch_prices)
+                try:
+                    r = await client.get(
+                        "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/price",
+                        params={"tickers": ",".join(batch)},
+                        headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
+                    )
+                    data = r.json()
+                    items = data if isinstance(data, list) else data.get("data", [])
+                    if not items:
+                        log.warning(f"TCBS batch {i}-{i+BATCH} empty. Raw: {str(data)[:200]}")
+                    for item in items:
+                        ticker = (item.get("ticker") or item.get("symbol") or "").upper()
+                        if not ticker:
+                            continue
+                        price  = float(item.get("close") or item.get("price") or item.get("lastPrice") or 0)
+                        prev   = float(item.get("referencePrice") or item.get("prevClose") or item.get("ref") or 0)
+                        change = round((price - prev) / prev * 100, 2) if prev > 0 else 0
+                        volume = int(item.get("volume") or item.get("totalVolume") or 0)
+                        price_map[ticker] = {"price": price, "change": change, "volume": volume}
+                except Exception as e:
+                    log.warning(f"TCBS batch {i}-{i+BATCH} error: {e}")
+                # nghỉ nhẹ giữa các batch tránh rate-limit
                 if i + BATCH < len(symbols):
                     await asyncio.sleep(0.3)
-
-        # Nếu TCBS chết hoàn toàn (0 mã có giá), fallback Yahoo cho 50 mã đầu
-        if not price_map:
-            log.error("TCBS hoàn toàn không trả được giá — fallback sang Yahoo Finance cho 50 mã đầu")
-            yahoo_prices = await _fetch_yahoo_hose_batch(symbols[:50])
-            price_map.update(yahoo_prices)
-            source_label = "Yahoo"
-        else:
-            source_label = "TCBS"
 
         for i, sym in enumerate(symbols):
             info = HOSE_INFO.get(sym, {"name": sym, "sector": "Khác"})
@@ -1198,11 +951,11 @@ async def get_hose_top50():
                 "name": info["name"], "sector": info["sector"],
                 "price": p.get("price", 0), "change": p.get("change", 0),
                 "volume": p.get("volume", 0),
-                "source": source_label if sym in price_map else "—",
+                "source": "TCBS" if sym in price_map else "—",
             })
 
         _hose_cache["top250"] = {"ts": now, "data": results}
-        log.info(f"HOSE prices: {source_label} — {len(price_map)}/{len(symbols)} mã có giá")
+        log.info(f"HOSE prices: TCBS OK — {len(price_map)}/{len(symbols)} mã có giá")
         return results
 
     except Exception as e:
@@ -1214,23 +967,7 @@ async def get_hose_top50():
 
 # ─────────────────────────────────────────────
 # REST — TCBS HISTORICAL
-# PATCHED: dùng cùng helper domain fallback + headers
 # ─────────────────────────────────────────────
-
-async def _fetch_tcbs_url(client: httpx.AsyncClient, path: str, params: dict):
-    """Thử lần lượt các domain TCBS cho 1 GET request, trả (data, domain_used) hoặc (None, last_error)."""
-    last_error = None
-    for domain in TCBS_DOMAINS:
-        try:
-            r = await client.get(f"{domain}{path}", params=params, headers=TCBS_HEADERS)
-            if "json" not in r.headers.get("content-type", ""):
-                last_error = f"non-json from {domain}, status {r.status_code}"
-                continue
-            return r.json(), domain
-        except Exception as e:
-            last_error = str(e)
-    return None, last_error
-
 
 @app.get("/api/vn/history")
 async def get_vn_history(symbol: str = "VCB", period: str = "1M"):
@@ -1243,15 +980,12 @@ async def get_vn_history(symbol: str = "VCB", period: str = "1M"):
     count, unit = period_map.get(period.upper(), ("1", "month"))
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            data, src = await _fetch_tcbs_url(
-                client,
-                "/stock-insight/v1/stock/bars-long-term",
-                {"ticker": symbol.upper(), "type": unit, "count": count},
+            r = await client.get(
+                "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/bars-long-term",
+                params={"ticker": symbol.upper(), "type": unit, "count": count},
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
             )
-        if data is None:
-            log.error(f"TCBS history fetch failed for {symbol}: {src}")
-            return JSONResponse(status_code=503, content={"error": f"TCBS không phản hồi: {src}"})
-
+        data = r.json()
         bars = data if isinstance(data, list) else data.get("data", [])
         return [{
             "time":   b.get("tradingDate") or b.get("date", ""),
@@ -1270,6 +1004,7 @@ async def get_vn_history(symbol: str = "VCB", period: str = "1M"):
 # ─────────────────────────────────────────────
 
 def _sma(values: list[float], period: int) -> list[float | None]:
+    """Simple moving average, trả None cho các điểm chưa đủ dữ liệu."""
     out = []
     for i in range(len(values)):
         if i + 1 < period:
@@ -1280,6 +1015,10 @@ def _sma(values: list[float], period: int) -> list[float | None]:
 
 
 def _find_pivots(highs: list[float], lows: list[float], window: int = 3):
+    """
+    Tìm swing high/low đơn giản: điểm cao/thấp hơn `window` nến lân cận mỗi bên.
+    Trả về list các giá trị pivot high và pivot low.
+    """
     pivot_highs, pivot_lows = [], []
     n = len(highs)
     for i in range(window, n - window):
@@ -1291,6 +1030,10 @@ def _find_pivots(highs: list[float], lows: list[float], window: int = 3):
 
 
 def _cluster_levels(levels: list[float], tolerance_pct: float = 0.015) -> list[dict]:
+    """
+    Gộp các mức giá gần nhau thành 1 vùng (cluster), trả về
+    [{"price": giá_trung_bình, "strength": số_lần_chạm}], sort theo strength giảm dần.
+    """
     if not levels:
         return []
     levels = sorted(levels)
@@ -1311,32 +1054,45 @@ def _cluster_levels(levels: list[float], tolerance_pct: float = 0.015) -> list[d
 
 @app.get("/api/vn/analysis/{symbol}")
 async def get_vn_analysis(symbol: str):
+    """
+    Phân tích kỹ thuật 1 mã HOSE dựa trên dữ liệu 6 tháng (nến ngày):
+    - MA20, MA50 và vị trí giá hiện tại so với MA
+    - Vùng hỗ trợ / kháng cự từ swing high-low (gộp cluster)
+    - Xu hướng tổng quan (uptrend/downtrend/sideway)
+    - Gợi ý vùng vào tiền (mua) / vùng thoát (chốt lời) / vùng cắt lỗ
+    """
     symbol = symbol.upper()
     try:
         bars = []
-        last_src = ""
-        for params in [
-            {"ticker": symbol, "type": "day",   "count": "120"},
-            {"ticker": symbol, "type": "daily", "count": "120"},
-            {"ticker": symbol, "type": "month", "count": "24"},
-        ]:
-            async with httpx.AsyncClient(timeout=15) as client2:
-                data, src = await _fetch_tcbs_url(
-                    client2,
-                    "/stock-insight/v1/stock/bars-long-term",
-                    params,
-                )
-            last_src = src
-            if data is not None:
-                candidate = data if isinstance(data, list) else data.get("data", [])
-                if candidate and len(candidate) >= 10:
-                    bars = candidate
-                    log.info(f"Analysis {symbol}: {len(bars)} bars via params={params}")
-                    break
+        async with httpx.AsyncClient(timeout=15) as client:
+            # Thử các params khác nhau của TCBS cho nến ngày
+            for params in [
+                {"ticker": symbol, "type": "day",   "count": "120"},
+                {"ticker": symbol, "type": "daily", "count": "120"},
+                {"ticker": symbol, "resolution": "D", "count": "120"},
+            ]:
+                try:
+                    r = await client.get(
+                        "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/bars-long-term",
+                        params=params,
+                        headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
+                    )
+                    data = r.json()
+                    bars = data if isinstance(data, list) else data.get("data", [])
+                    if bars and len(bars) >= 25:
+                        log.info(f"Analysis {symbol}: TCBS OK với params {params}, {len(bars)} bars")
+                        break
+                    else:
+                        log.warning(f"Analysis {symbol}: params {params} trả {len(bars)} bars")
+                except Exception as e:
+                    log.warning(f"Analysis {symbol}: params {params} lỗi: {e}")
 
-        if not bars:
-            return JSONResponse(status_code=503, content={"error": f"TCBS không trả được dữ liệu: {last_src}"})
-          
+        if not bars or len(bars) < 10:
+            return JSONResponse(status_code=503, content={"error": f"Không đủ dữ liệu lịch sử ({len(bars) if bars else 0} bars)"})
+
+        # Nếu ít hơn 25 vẫn cho phân tích nhưng giảm period MA
+        min_bars = len(bars)
+
         closes = [float(b.get("close", 0)) for b in bars if b.get("close")]
         highs  = [float(b.get("high",  0)) for b in bars if b.get("high")]
         lows   = [float(b.get("low",   0)) for b in bars if b.get("low")]
@@ -1354,6 +1110,7 @@ async def get_vn_analysis(symbol: str):
         ma20 = ma20_series[-1]
         ma50 = ma50_series[-1]
 
+        # Xu hướng
         if ma20 is not None and ma50 is not None:
             if current_price > ma20 > ma50:
                 trend = "uptrend"
@@ -1372,6 +1129,7 @@ async def get_vn_analysis(symbol: str):
         else:
             trend, trend_label = "sideway", "Chưa đủ dữ liệu xác định xu hướng"
 
+        # Support / Resistance từ swing pivots
         pivot_highs, pivot_lows = _find_pivots(highs, lows, window=3)
         resistance_clusters = _cluster_levels([p for p in pivot_highs if p > current_price])
         support_clusters    = _cluster_levels([p for p in pivot_lows  if p < current_price])
@@ -1379,6 +1137,7 @@ async def get_vn_analysis(symbol: str):
         nearest_resistance = resistance_clusters[0]["price"] if resistance_clusters else None
         nearest_support    = support_clusters[0]["price"] if support_clusters else None
 
+        # Nếu không tìm được support/resistance từ pivot, fallback dùng min/max gần đây
         recent_high = max(highs[-60:]) if len(highs) >= 60 else max(highs)
         recent_low  = min(lows[-60:])  if len(lows)  >= 60 else min(lows)
         if nearest_resistance is None:
@@ -1386,18 +1145,21 @@ async def get_vn_analysis(symbol: str):
         if nearest_support is None:
             nearest_support = recent_low
 
+        # Vùng giao dịch gợi ý
         buy_zone_low  = nearest_support
-        buy_zone_high = nearest_support * 1.02
+        buy_zone_high = nearest_support * 1.02  # +2% trên hỗ trợ
         sell_zone_low  = nearest_resistance * 0.98
         sell_zone_high = nearest_resistance
-        stop_loss = nearest_support * 0.97
+        stop_loss = nearest_support * 0.97  # -3% dưới hỗ trợ
 
+        # Vị trí giá hiện tại trong biên độ support-resistance
         if nearest_resistance > nearest_support:
             position_pct = round((current_price - nearest_support) / (nearest_resistance - nearest_support) * 100, 1)
         else:
             position_pct = 50.0
         position_pct = max(0, min(100, position_pct))
 
+        # Khuyến nghị hành động dựa trên vị trí + xu hướng
         if position_pct <= 25 and trend != "downtrend":
             action = "buy_zone"
             action_label = "Đang gần vùng hỗ trợ — cân nhắc tích lũy"
@@ -1440,7 +1202,6 @@ async def get_vn_analysis(symbol: str):
 
 # ─────────────────────────────────────────────
 # REST — MULTI-TF STRENGTH
-# PATCHED: log lỗi rõ ràng, đếm success/fail, timeout ngắn hơn
 # ─────────────────────────────────────────────
 
 @app.get("/api/vn/multitf")
@@ -1461,9 +1222,9 @@ async def get_multitf():
     ]
 
     results = {}
-    async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=10) as client:
+    async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=15) as client:
         for tf in timeframes:
-            bullish, total, failed = 0, 0, 0
+            bullish, total = 0, 0
             responses = await asyncio.gather(*[
                 client.get(
                     f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}.VN",
@@ -1472,36 +1233,22 @@ async def get_multitf():
                 for sym in sample
             ], return_exceptions=True)
 
-            for sym, resp in zip(sample, responses):
+            for resp in responses:
                 try:
                     if isinstance(resp, Exception):
-                        log.warning(f"Multi-TF [{tf['key']}] {sym}: request exception {resp}")
-                        failed += 1
-                        continue
-                    if resp.status_code != 200:
-                        log.warning(f"Multi-TF [{tf['key']}] {sym}: HTTP {resp.status_code}")
-                        failed += 1
                         continue
                     closes = resp.json()["chart"]["result"][0]["indicators"]["quote"][0].get("close", [])
                     closes = [c for c in closes if c is not None]
                     if len(closes) < tf["ma"] + 1:
-                        failed += 1
                         continue
                     ma = sum(closes[-tf["ma"]:]) / tf["ma"]
                     if closes[-1] > ma:
                         bullish += 1
                     total += 1
-                except Exception as e:
-                    log.warning(f"Multi-TF [{tf['key']}] {sym}: parse error {e}")
-                    failed += 1
+                except Exception:
                     continue
 
-            if total == 0:
-                log.error(f"Multi-TF [{tf['key']}]: TẤT CẢ {len(sample)} request thất bại (failed={failed}) — Yahoo có thể đang chặn IP server")
-                results[tf["key"]] = (cached["data"].get(tf["key"], 50) if cached else 50)
-            else:
-                results[tf["key"]] = round(bullish / total * 100)
-                log.info(f"Multi-TF [{tf['key']}]: {total} OK / {failed} fail — bullish={bullish}/{total}")
+            results[tf["key"]] = round(bullish / total * 100) if total > 0 else 50
 
     _multitf_cache["multitf"] = {"ts": now, "data": results}
     return results
@@ -1510,8 +1257,74 @@ async def get_multitf():
 # REST — ECONOMIC CALENDAR
 # ─────────────────────────────────────────────
 
+@app.get("/api/global-markets")
+async def get_global_markets():
+    """
+    Lấy chỉ số thị trường toàn cầu từ Yahoo Finance:
+    S&P500, Nasdaq, Dow Jones, Nikkei, KOSPI, DAX, FTSE, CAC40, giá dầu WTI, Brent
+    Cache 5 phút.
+    """
+    SYMBOLS = {
+        "^GSPC":  {"name": "S&P 500",    "region": "🇺🇸 Mỹ"},
+        "^IXIC":  {"name": "Nasdaq",     "region": "🇺🇸 Mỹ"},
+        "^DJI":   {"name": "Dow Jones",  "region": "🇺🇸 Mỹ"},
+        "^N225":  {"name": "Nikkei 225", "region": "🇯🇵 Nhật"},
+        "^KS11":  {"name": "KOSPI",      "region": "🇰🇷 Hàn Quốc"},
+        "^GDAXI": {"name": "DAX",        "region": "🇩🇪 Đức"},
+        "^FTSE":  {"name": "FTSE 100",   "region": "🇬🇧 Anh"},
+        "^FCHI":  {"name": "CAC 40",     "region": "🇫🇷 Pháp"},
+        "CL=F":   {"name": "Dầu WTI",    "region": "🛢️ Năng lượng"},
+        "BZ=F":   {"name": "Dầu Brent",  "region": "🛢️ Năng lượng"},
+    }
+
+    now = time.time()
+    cached = _coingecko_cache.get("global_markets")
+    if cached and (now - cached[0]) < 300:
+        return cached[1]
+
+    results = []
+    async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=12) as client:
+        tasks = [
+            client.get(
+                f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}",
+                params={"interval": "1d", "range": "2d"},
+            )
+            for sym in SYMBOLS
+        ]
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for sym, resp in zip(SYMBOLS, responses):
+        info = SYMBOLS[sym]
+        item = {"symbol": sym, "name": info["name"], "region": info["region"],
+                "price": 0, "change": 0, "change_abs": 0}
+        try:
+            if isinstance(resp, Exception):
+                raise resp
+            data = _safe_json(resp)
+            if data is None:
+                raise ValueError(f"non-JSON, status={resp.status_code}")
+            meta  = data["chart"]["result"][0]["meta"]
+            prev  = meta.get("previousClose") or meta.get("chartPreviousClose") or 1
+            price = meta.get("regularMarketPrice", 0)
+            item.update({
+                "price":      round(price, 2),
+                "change":     round((price - prev) / prev * 100, 2) if prev else 0,
+                "change_abs": round(price - prev, 2),
+            })
+        except Exception as e:
+            log.warning(f"global_markets [{sym}]: {e}")
+        results.append(item)
+
+    _coingecko_cache["global_markets"] = (now, results)
+    return results
+
+
 @app.get("/api/calendar")
 async def get_calendar():
+    """
+    Fallback tĩnh — giữ để tương thích cũ.
+    Frontend nên dùng /api/news-calendar để có dữ liệu thật từ Gemini.
+    """
     now = datetime.now(ICT)
     return [
         {"date": (now + timedelta(days=1)).strftime("%d/%m/%Y"), "time": "19:30", "event": "US CPI MoM",       "impact": "high",   "prev": "0.3%",  "forecast": "0.2%"},
@@ -1522,16 +1335,23 @@ async def get_calendar():
 
 # ─────────────────────────────────────────────
 # NEWS CALENDAR — Gemini + Google Search grounding
+# Tin tức + lịch sự kiện thật: FED, lãi suất, chứng khoán, crypto
 # ─────────────────────────────────────────────
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
 
 _news_cache: dict = {}
-NEWS_TTL = 3600
+NEWS_TTL = 3600  # 1 giờ
 
 @app.get("/api/news-calendar")
 async def get_news_calendar():
+    """
+    Dùng Gemini (Google Search grounding) lấy tin tức + lịch sự kiện
+    liên quan FED, lãi suất, chứng khoán VN/Mỹ, crypto trong tuần.
+    Trả về list các event để render vào bảng "Lịch sự kiện".
+    Cache 1 giờ.
+    """
     now = time.time()
     cached = _news_cache.get("calendar")
     if cached and (now - cached["ts"]) < NEWS_TTL:
@@ -1543,26 +1363,15 @@ async def get_news_calendar():
     today_str = datetime.now(ICT).strftime("%d/%m/%Y")
 
     prompt = (
-        f"Hôm nay là {today_str}. Tìm kiếm và liệt kê các tin tức/sự kiện kinh tế và thị trường "
-        f"QUAN TRỌNG trong 7 ngày qua và 7 ngày tới, chia đều theo 4 nhóm sau "
-        f"(ưu tiên ít nhất 2-3 tin mỗi nhóm nếu có, không để 1 nhóm chiếm hết danh sách):\n\n"
-        f"1. FED/Vĩ mô Mỹ: lãi suất FED, CPI, NFP, các phát biểu của FED.\n"
-        f"2. Chứng khoán Mỹ: S&P500, Nasdaq, các sự kiện lớn ảnh hưởng thị trường Mỹ.\n"
-        f"3. Chứng khoán Việt Nam: VN-Index, dòng tiền khối ngoại, chính sách (room ngoại, "
-        f"thuế, nâng hạng thị trường), VÀ tin tức cụ thể của các doanh nghiệp niêm yết lớn trên HOSE "
-        f"(kết quả kinh doanh quý/năm, chia cổ tức, phát hành thêm, M&A, thay đổi nhân sự cấp cao, "
-        f"biến động giá cổ phiếu đáng chú ý) — ưu tiên các mã vốn hóa lớn như VCB, BID, VIC, VHM, "
-        f"CTG, GAS, VNM, FPT, HPG, MWG, MSN, TCB, VPB, MBB, SSI, VND, GVR, VRE và các mã đang có tin "
-        f"nóng trong tuần.\n"
-        f"4. Crypto: Bitcoin, Ethereum, ETF, quy định pháp lý.\n\n"
+        f"Hôm nay là {today_str}. Tìm kiếm và liệt kê các tin tức/sự kiện kinh tế "
+        f"QUAN TRỌNG trong 7 ngày tới liên quan đến: FED, lãi suất Mỹ, CPI, NFP, "
+        f"thị trường chứng khoán Mỹ (S&P500, Nasdaq), chứng khoán Việt Nam (VN-Index, HOSE), "
+        f"và thị trường crypto (Bitcoin, Ethereum, ETF, regulation).\n\n"
         f"Trả về DUY NHẤT một JSON array, không markdown, không giải thích, theo format:\n"
         f'[{{"date": "DD/MM/YYYY", "time": "HH:MM", "event": "Tên sự kiện ngắn gọn tiếng Việt", '
-        f'"impact": "high|medium|low", "category": "fed|stock|vn_stock|crypto|macro", '
-        f'"summary": "Tóm tắt 1 câu ngắn về sự kiện/dự báo, nêu rõ mã cổ phiếu nếu có"}}]\n\n'
-        f"Dùng category \"vn_stock\" riêng cho tin chứng khoán Việt Nam (cả vĩ mô VN-Index và tin "
-        f"doanh nghiệp cụ thể), KHÔNG dùng \"stock\" cho tin Việt Nam — \"stock\" chỉ dùng cho thị "
-        f"trường Mỹ.\n"
-        f"Tối đa 14 sự kiện, sắp xếp theo ngày gần nhất trước. Chỉ trả JSON, không có markdown code block."
+        f'"impact": "high|medium|low", "category": "fed|stock|crypto|macro", '
+        f'"summary": "Tóm tắt 1 câu ngắn về sự kiện/dự báo"}}]\n\n'
+        f"Tối đa 10 sự kiện, sắp xếp theo ngày gần nhất trước. Chỉ trả JSON, không có markdown code block."
     )
 
     try:
@@ -1572,30 +1381,21 @@ async def get_news_calendar():
                 json={
                     "contents": [{"role": "user", "parts": [{"text": prompt}]}],
                     "tools": [{"google_search": {}}],
-                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096},
+                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 2048},
                 },
             )
-        data = _safe_json(r)
-        if data is None:
-            raise ValueError(f"Gemini trả non-JSON, status={r.status_code}, body[:200]={r.text[:200]!r}")
+        data = r.json()
+        text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
 
-        candidate    = (data.get("candidates") or [{}])[0]
-        finish_reason = candidate.get("finishReason", "")
-        text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
-
+        # Strip markdown fences nếu có
         text = text.strip()
         if text.startswith("```"):
             text = re.sub(r"^```[a-zA-Z]*\n?", "", text)
             text = re.sub(r"```$", "", text).strip()
 
-        if finish_reason == "MAX_TOKENS":
-            log.warning("News calendar: Gemini bị cắt do MAX_TOKENS — sẽ thử khôi phục JSON từ phần đã có")
-
-        events = _parse_json_array_safely(text)
-        if events is None:
-            raise ValueError(f"Không parse được JSON (finish_reason={finish_reason}). raw_text[:300]={text[:300]!r}")
-        if not isinstance(events, list) or not events:
-            raise ValueError(f"Gemini response không phải list hợp lệ hoặc rỗng: {str(events)[:200]}")
+        events = json.loads(text)
+        if not isinstance(events, list):
+            raise ValueError("Gemini response is not a list")
 
         _news_cache["calendar"] = {"ts": now, "data": events}
         log.info(f"News calendar: Gemini OK — {len(events)} events")
@@ -1603,17 +1403,17 @@ async def get_news_calendar():
 
     except Exception as e:
         log.error(f"News calendar error: {e}")
+        # Fallback về calendar tĩnh nếu Gemini lỗi
         if cached:
             return cached["data"]
         now_dt = datetime.now(ICT)
         return [
             {"date": (now_dt + timedelta(days=1)).strftime("%d/%m/%Y"), "time": "19:30", "event": "US CPI MoM", "impact": "high", "category": "macro", "summary": "Chỉ số giá tiêu dùng Mỹ"},
             {"date": (now_dt + timedelta(days=2)).strftime("%d/%m/%Y"), "time": "02:00", "event": "FED Rate Decision", "impact": "high", "category": "fed", "summary": "Quyết định lãi suất FED"},
-            {"date": now_dt.strftime("%d/%m/%Y"), "time": "--:--", "event": "VN-Index biến động", "impact": "medium", "category": "vn_stock", "summary": "Theo dõi diễn biến VN-Index và dòng tiền khối ngoại trong phiên"},
         ]
 
 # ─────────────────────────────────────────────
-# CHATBOT — Gemini proxy
+# CHATBOT — Gemini proxy (tránh CORS từ frontend)
 # ─────────────────────────────────────────────
 
 from pydantic import BaseModel
@@ -1621,7 +1421,7 @@ from fastapi import BackgroundTasks
 import uuid
 
 class ChatMessage(BaseModel):
-    role: str
+    role: str   # "user" hoặc "model"
     text: str
 
 class ChatRequest(BaseModel):
@@ -1642,6 +1442,7 @@ async def chat_with_gemini(req: ChatRequest, background_tasks: BackgroundTasks):
     ]
     contents.append({"role": "user", "parts": [{"text": req.message}]})
 
+    # Log câu hỏi của user (background, không block response)
     background_tasks.add_task(log_chat_message, session_id, "user", req.message)
 
     try:
@@ -1674,6 +1475,7 @@ async def chat_with_gemini(req: ChatRequest, background_tasks: BackgroundTasks):
             log.warning(f"Gemini empty reply: {str(data)[:300]}")
             reply = "Xin lỗi, không nhận được phản hồi từ AI."
 
+        # Log câu trả lời của bot
         background_tasks.add_task(log_chat_message, session_id, "model", reply)
 
         return {"reply": reply, "session_id": session_id}
