@@ -1101,7 +1101,7 @@ async function loadGlobalMarkets() {
   }
 }
 
-
+  async function loadCryptoQuick() {
   const el = document.getElementById("crypto-quick");
   try {
     const data = await apiFetch("/api/crypto/prices?ids=bitcoin,ethereum,solana,binancecoin,ripple");
