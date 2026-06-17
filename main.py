@@ -1300,9 +1300,9 @@ async def get_global_markets():
         try:
             if isinstance(resp, Exception):
                 raise resp
-            data = _safe_json(resp)
-            if data is None:
-                raise ValueError(f"non-JSON, status={resp.status_code}")
+            if resp.status_code != 200:
+                raise ValueError(f"HTTP {resp.status_code}")
+            data = resp.json()
             meta  = data["chart"]["result"][0]["meta"]
             prev  = meta.get("previousClose") or meta.get("chartPreviousClose") or 1
             price = meta.get("regularMarketPrice", 0)
