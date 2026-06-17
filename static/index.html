@@ -235,6 +235,28 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 }
 .gold-unit { font-size: 11px; color: var(--text3); margin-top: 4px; }
 
+/* ── GLOBAL MARKETS ──────────────────────── */
+.global-markets-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+.gm-card {
+  background: var(--bg2);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.gm-region { font-size: 10px; color: var(--text3); }
+.gm-name   { font-size: 12px; font-weight: 600; color: var(--text0); }
+.gm-price  { font-size: 13px; font-family: var(--font-mono); color: var(--text1); }
+.gm-change { font-size: 11px; font-family: var(--font-mono); font-weight: 500; }
+.gm-change.pos { color: var(--green); }
+.gm-change.neg { color: var(--red); }
+.gm-change.neu { color: var(--text3); }
+
 /* ── TOOLBAR ───────────────────────────────── */
 .toolbar {
   display: flex;
@@ -771,6 +793,13 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
             <div class="gold-unit">VND / lượng</div>
           </div>
         </div>
+
+        <!-- GLOBAL MARKETS — full width row -->
+        <div class="card" style="grid-column: 1 / -1;">
+          <div class="card-title"><span class="dot"></span> Thị trường toàn cầu</div>
+          <div id="global-markets-list" class="global-markets-list"></div>
+        </div>
+
       </div>
     </section>
 
@@ -984,20 +1013,21 @@ function initTabs() {
       document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
       btn.classList.add("active");
       document.getElementById(`tab-${tabId}`)?.classList.add("active");
-      if (tabId === "crypto") loadCryptoTop200();
-      if (tabId === "hose")   loadHoseTop50();
-      if (tabId === "forex")  loadForexFull();
+      if (tabId === "crypto")   loadCryptoTop200();
+      if (tabId === "hose")     loadHoseTop50();
+      if (tabId === "forex")    loadForexFull();
       if (tabId === "calendar") loadCalendar();
-      if (tabId === "alerts") loadAlertConfig();
+      if (tabId === "alerts")   loadAlertConfig();
       if (tabId === "chart") {
-  requestAnimationFrame(() => {
-    if (chart) {
-      const container = document.getElementById("chart-container");
-      chart.applyOptions({ width: container.offsetWidth });
-    }
-    switchChart();
-  });
-}
+        // Đợi tab visible rồi mới resize + load
+        requestAnimationFrame(() => {
+          if (chart) {
+            const container = document.getElementById("chart-container");
+            chart.applyOptions({ width: container.offsetWidth });
+          }
+          switchChart();
+        });
+      }
     });
   });
 }
@@ -1051,7 +1081,27 @@ async function loadFearGreed() {
   }
 }
 
-async function loadCryptoQuick() {
+async function loadGlobalMarkets() {
+  const el = document.getElementById("global-markets-list");
+  try {
+    const data = await apiFetch("/api/global-markets");
+    el.innerHTML = data.map(m => {
+      const chg = m.change ?? 0;
+      const cls = chg > 0 ? "pos" : chg < 0 ? "neg" : "neu";
+      const arrow = chg > 0 ? "▲" : chg < 0 ? "▼" : "—";
+      return `<div class="gm-card">
+        <span class="gm-region">${m.region}</span>
+        <span class="gm-name">${m.name}</span>
+        <span class="gm-price">${m.price > 0 ? m.price.toLocaleString("en-US", {maximumFractionDigits: 2}) : "--"}</span>
+        <span class="gm-change ${cls}">${arrow} ${m.price > 0 ? (chg >= 0 ? "+" : "") + chg.toFixed(2) + "%" : "--"}</span>
+      </div>`;
+    }).join("");
+  } catch (e) {
+    el.innerHTML = `<div class="text-gray">Lỗi tải dữ liệu: ${e.message}</div>`;
+  }
+}
+
+
   const el = document.getElementById("crypto-quick");
   try {
     const data = await apiFetch("/api/crypto/prices?ids=bitcoin,ethereum,solana,binancecoin,ripple");
@@ -1109,6 +1159,7 @@ function loadOverview() {
   loadCryptoQuick();
   loadForexQuick();
   loadGold();
+  loadGlobalMarkets();
 }
 
 /* ══════════════════════════════════════════════
@@ -1465,11 +1516,10 @@ async function loadForexFull() {
    ══════════════════════════════════════════════ */
 
 const CATEGORY_LABELS = {
-  fed:      { label: "FED",         color: "#ef4444" },
-  stock:    { label: "CK Mỹ",       color: "#3b82f6" },
-  vn_stock: { label: "CK Việt Nam", color: "#10b981" },
-  crypto:   { label: "Crypto",      color: "#f59e0b" },
-  macro:    { label: "Vĩ mô",       color: "#8b5cf6" },
+  fed:    { label: "FED",     color: "#ef4444" },
+  stock:  { label: "Cổ phiếu",color: "#3b82f6" },
+  crypto: { label: "Crypto",  color: "#f59e0b" },
+  macro:  { label: "Vĩ mô",   color: "#8b5cf6" },
 };
 
 async function loadCalendar(forceRefresh = false) {
@@ -1568,6 +1618,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // Load overview immediately
   loadOverview();
 
+  // Chart chỉ load khi user click vào tab Chart (tránh width=0 race condition)
+  // connectKlineWs/connectOrderbookWs sẽ gọi trong resizeChart()
+
   // Connection check
   checkConnection();
   setInterval(checkConnection, 30000);
@@ -1576,14 +1629,19 @@ document.addEventListener("DOMContentLoaded", () => {
   setInterval(loadOverview, 60000);
 });
 
+// Fix bfcache: reconnect WS khi trang restore từ Back-Forward Cache
 window.addEventListener("pageshow", (e) => {
   if (e.persisted) {
+    // Trang được restore từ bfcache — reconnect WS và reload chart nếu đang ở tab Chart
     const chartTabActive = document.getElementById("tab-chart")?.classList.contains("active");
-    if (chartTabActive) switchChart();
+    if (chartTabActive) {
+      switchChart();
+    }
     checkConnection();
   }
 });
 
+// Fix visibility: reconnect khi user quay lại tab browser
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
     const chartTabActive = document.getElementById("tab-chart")?.classList.contains("active");
@@ -1591,7 +1649,7 @@ document.addEventListener("visibilitychange", () => {
       switchChart();
     }
   }
-});  
+});
 
 // expose to HTML onclick
 window.loadCryptoTop200 = loadCryptoTop200;
