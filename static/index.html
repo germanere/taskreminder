@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+f<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -1424,7 +1424,7 @@ function renderHoseTable() {
     const sColor = SECTOR_COLORS[r.sector] || "#6b7280";
     const srcColor = r.source === "TCBS" ? "var(--green)" : "var(--yellow)";
     const safeName = r.name.replace(/'/g, "\\'");
-    return `<tr onclick="openAnalysisModal('${r.symbol}', '${safeName}')">
+    return `<tr onclick="window.open('/analysis.html?sym=${r.symbol}', '_blank')" style="cursor:pointer">
       <td class="text-gray mono" style="font-size:11px">${r.rank}</td>
       <td>
         <span class="sym-cell">${r.symbol}</span>
