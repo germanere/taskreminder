@@ -4,7 +4,7 @@ Market Research Hub — Backend
 - FastAPI server
 - WebSocket proxy: OKX → client (Bybit/Binance bị geo-block trên Render US IP)
 - REST APIs: OKX klines, CoinGecko, Yahoo Finance, TCBS, SJC, Vietcombank
-- HOSE Top 50 endpoint
+- HOSE Top 250 endpoint
 - Telegram alerts: BTC, ETH, USD/VND, Gold (SJC)
 - Serve static files
 """
