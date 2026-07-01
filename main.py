@@ -131,9 +131,23 @@ HOSE_TOP200 = [
     "TTF","TV2","TVS","UDC","VCF","VDS","VFG","VID","VIP","VIX",
     "VNE","VNG","VPG","VPI","VSC","VTO","YEG","BMP","DXS","NAF",
 ]
-HOSE_TOP100 = HOSE_TOP200  # alias để tương thích code cũ
-HOSE_TOP50  = HOSE_TOP200  # alias để tương thích code cũ
+# 50 mã bổ sung (201-250)
+HOSE_TOP50_EXTRA = [
+    "VJC","HVN","VGC","DHG","DBT",
+    "PPC","NBB","ABT","ACL","BBC",
+    "BTP","C32","CDC","CIG","CLC",
+    "COM","CTI","D2D","DAG","DRH",
+    "DTL","EVG","FIR","GDT","HAP",
+    "HDC","HRC","HTN","ICF","IDI",
+    "ILB","JVC","KHP","LAF","LGC",
+    "LIX","MHC","NNC","PET","PGC",
+    "QNS","RDP","SAV","SC5","SCR",
+    "SFC","SFI","SGR","SKG","STK",
+]
 
+HOSE_TOP200 = HOSE_TOP200 + HOSE_TOP50_EXTRA   # giờ có 250 mã
+HOSE_TOP100 = HOSE_TOP200
+HOSE_TOP50  = HOSE_TOP200
 
 HOSE_INFO = {
     "VCB":  {"name": "Vietcombank",        "sector": "Ngân hàng"},
@@ -340,6 +354,60 @@ HOSE_INFO = {
     "DXS":  {"name": "Đất Xanh Services",  "sector": "Bất động sản"},
     "NAF":  {"name": "Nafoods Group",      "sector": "Tiêu dùng"},
 }
+HOSE_INFO_EXTRA = {
+    "VJC": {"name": "Vietjet Air",              "sector": "Công nghiệp"},
+    "HVN": {"name": "Vietnam Airlines",         "sector": "Công nghiệp"},
+    "VGC": {"name": "Viglacera",                "sector": "Vật liệu"},
+    "DHG": {"name": "Dược Hậu Giang",           "sector": "Y tế"},
+    "DBT": {"name": "Dược phẩm Bến Tre",        "sector": "Y tế"},
+    "PPC": {"name": "Nhiệt điện Phả Lại",       "sector": "Năng lượng"},
+    "NBB": {"name": "Năm Bảy Bảy",              "sector": "Bất động sản"},
+    "ABT": {"name": "XNK Thủy sản Bến Tre",     "sector": "Tiêu dùng"},
+    "ACL": {"name": "XNK Thủy sản Cửu Long An Giang","sector": "Tiêu dùng"},
+    "BBC": {"name": "Bibica",                   "sector": "Tiêu dùng"},
+    "BTP": {"name": "Nhiệt điện Bà Rịa",        "sector": "Năng lượng"},
+    "C32": {"name": "Xây dựng Số 32",           "sector": "Công nghiệp"},
+    "CDC": {"name": "Chương Dương",             "sector": "Bất động sản"},
+    "CIG": {"name": "COMA18",                   "sector": "Bất động sản"},
+    "CLC": {"name": "Cát Lợi",                  "sector": "Vật liệu"},
+    "COM": {"name": "Vật tư Xăng dầu COMECO",   "sector": "Năng lượng"},
+    "CTI": {"name": "Cường Thuận IDICO",        "sector": "Công nghiệp"},
+    "D2D": {"name": "PT Đô thị Công nghiệp Số 2","sector": "Bất động sản"},
+    "DAG": {"name": "Tập đoàn Nhựa Đông Á",     "sector": "Vật liệu"},
+    "DRH": {"name": "DRH Holdings",             "sector": "Bất động sản"},
+    "DTL": {"name": "Đại Thiên Lộc",            "sector": "Vật liệu"},
+    "EVG": {"name": "Everland",                 "sector": "Bất động sản"},
+    "FIR": {"name": "Địa ốc First Real",        "sector": "Bất động sản"},
+    "GDT": {"name": "Chế biến Gỗ Đức Thành",    "sector": "Vật liệu"},
+    "HAP": {"name": "Tập đoàn Hapaco",          "sector": "Vật liệu"},
+    "HDC": {"name": "PT Nhà Bà Rịa - Vũng Tàu", "sector": "Bất động sản"},
+    "HRC": {"name": "Cao su Hòa Bình",          "sector": "Vật liệu"},
+    "HTN": {"name": "Hưng Thịnh Incons",        "sector": "Công nghiệp"},
+    "ICF": {"name": "ĐT Thương mại Thủy sản",   "sector": "Tiêu dùng"},
+    "IDI": {"name": "ĐT & PT Đa Quốc gia IDI",  "sector": "Tiêu dùng"},
+    "ILB": {"name": "Tân Cảng Long Bình",       "sector": "Công nghiệp"},
+    "JVC": {"name": "Thiết bị Y tế Việt Nhật",  "sector": "Y tế"},
+    "KHP": {"name": "Điện lực Khánh Hòa",       "sector": "Năng lượng"},
+    "LAF": {"name": "Chế biến Hàng XK Long An", "sector": "Tiêu dùng"},
+    "LGC": {"name": "Đầu tư Cầu đường CII",     "sector": "Công nghiệp"},
+    "LIX": {"name": "Bột giặt Lix",             "sector": "Tiêu dùng"},
+    "MHC": {"name": "MHC Group",                "sector": "Công nghiệp"},
+    "NNC": {"name": "Đá Núi Nhỏ",               "sector": "Vật liệu"},
+    "PET": {"name": "Dịch vụ Tổng hợp Dầu khí", "sector": "Công nghiệp"},
+    "PGC": {"name": "Gas Petrolimex",           "sector": "Năng lượng"},
+    "QNS": {"name": "Đường Quảng Ngãi",         "sector": "Tiêu dùng"},
+    "RDP": {"name": "Nhựa Rạng Đông",           "sector": "Vật liệu"},
+    "SAV": {"name": "Savimex",                  "sector": "Vật liệu"},
+    "SC5": {"name": "Xây dựng Số 5",            "sector": "Công nghiệp"},
+    "SCR": {"name": "Địa ốc Sài Gòn Thương Tín","sector": "Bất động sản"},
+    "SFC": {"name": "Nhiên liệu Sài Gòn",       "sector": "Năng lượng"},
+    "SFI": {"name": "Đại lý Vận tải SAFI",      "sector": "Công nghiệp"},
+    "SGR": {"name": "Địa ốc Sài Gòn",           "sector": "Bất động sản"},
+    "SKG": {"name": "Superdong Kiên Giang",     "sector": "Công nghiệp"},
+    "STK": {"name": "Sợi Thế Kỷ",               "sector": "Vật liệu"},
+}
+ 
+HOSE_INFO.update(HOSE_INFO_EXTRA)
 
 
 _hose_cache: dict = {}
