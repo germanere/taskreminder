@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phân tích kỹ thuật — Market Hub</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◈</text></svg>">
+<script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg0: #080c10;
+  --bg1: #0d1117;
+  --bg2: #111827;
+  --bg3: #1f2937;
+  --bg4: #374151;
+  --border: #1f2937;
+  --border2: #374151;
+  --text0: #f9fafb;
+  --text1: #e5e7eb;
+  --text2: #9ca3af;
+  --text3: #6b7280;
+  --green:  #10b981;
+  --green2: #064e3b;
+  --red:    #ef4444;
+  --red2:   #450a0a;
+  --yellow: #f59e0b;
+  --blue:   #3b82f6;
+  --blue2:  #1e3a5f;
+  --font: -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+  --radius: 6px;
+  --radius-lg: 10px;
+}
+
+html, body {
+  min-height: 100%;
+  background: var(--bg0);
+  color: var(--text1);
+  font-family: var(--font);
+  font-size: 13px;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg1); }
+::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+
+/* ── HEADER ── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  padding: 0 20px;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.back-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text2);
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background .15s;
+}
+.back-btn:hover { background: var(--bg4); color: var(--text0); }
+
+.header-symbol {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text0);
+  font-family: var(--font-mono);
+}
+.header-name {
+  font-size: 12px;
+  color: var(--text3);
+}
+.header-sector {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  background: var(--bg3);
+  color: var(--text2);
+}
+
+.header-price {
+  margin-left: auto;
+  text-align: right;
+}
+.header-price-val {
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text0);
+}
+.header-price-chg {
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+.header-price-chg.pos { color: var(--green); }
+.header-price-chg.neg { color: var(--red); }
+
+/* ── LAYOUT ── */
+.main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 14px;
+}
+
+/* ── CARD ── */
+.card {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+}
+.card-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text3);
+}
+.dot.green { background: var(--green); }
+.dot.yellow { background: var(--yellow); }
+.dot.red { background: var(--red); }
+.dot.blue { background: var(--blue); }
+
+/* ── SEARCH BAR ── */
+.search-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.sym-input {
+  flex: 1;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text0);
+  padding: 7px 12px;
+  font-size: 14px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-transform: uppercase;
+  outline: none;
+  letter-spacing: .05em;
+}
+.sym-input:focus { border-color: var(--blue); }
+.sym-input::placeholder { font-weight: 400; text-transform: none; color: var(--text3); }
+
+.btn-analyze {
+  background: var(--blue);
+  border: none;
+  border-radius: var(--radius);
+  color: #fff;
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn-analyze:hover { opacity: .85; }
+.btn-analyze:disabled { opacity: .4; cursor: default; }
+
+/* ── CHART ── */
+.chart-wrap {
+  height: 320px;
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+/* ── GAUGE ── */
+.gauge-wrap { margin: 4px 0 10px; }
+.gauge-track {
+  position: relative;
+  height: 12px;
+  background: linear-gradient(90deg, var(--green) 0%, var(--yellow) 50%, var(--red) 100%);
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+.gauge-marker {
+  position: absolute;
+  top: -5px;
+  width: 3px;
+  height: 22px;
+  background: var(--text0);
+  border-radius: 2px;
+  transform: translateX(-1.5px);
+  box-shadow: 0 0 6px rgba(255,255,255,.4);
+}
+.gauge-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+.gauge-center {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text0);
+  margin-bottom: 2px;
+}
+.gauge-sublabel {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text2);
+  margin-bottom: 10px;
+}
+
+/* ── MA ROW ── */
+.ma-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.ma-chip {
+  flex: 1;
+  background: var(--bg2);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  text-align: center;
+}
+.ma-chip-label { font-size: 10px; color: var(--text3); margin-bottom: 2px; }
+.ma-chip-val { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--text1); }
+.ma-chip-val.above { color: var(--green); }
+.ma-chip-val.below { color: var(--red); }
+
+/* ── TREND BADGE ── */
+.trend-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.trend-badge.uptrend   { background: var(--green2); color: var(--green); }
+.trend-badge.downtrend { background: var(--red2);   color: var(--red);   }
+.trend-badge.sideway   { background: var(--bg3);    color: var(--yellow);}
+
+/* ── ZONE GRID ── */
+.zone-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.zone-card {
+  background: var(--bg2);
+  border-radius: var(--radius);
+  padding: 10px;
+  text-align: center;
+}
+.zone-label { font-size: 10px; color: var(--text3); margin-bottom: 5px; }
+.zone-val {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.zone-card.buy  .zone-val { color: var(--green); }
+.zone-card.sell .zone-val { color: var(--red); }
+.zone-card.stop .zone-val { color: var(--yellow); }
+
+/* ── ACTION BOX ── */
+.action-box {
+  background: var(--bg2);
+  border-left: 3px solid var(--blue);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--text1);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+.action-box.buy_zone  { border-left-color: var(--green); }
+.action-box.sell_zone { border-left-color: var(--red); }
+.action-box.wait      { border-left-color: var(--yellow); }
+.action-box.hold      { border-left-color: var(--blue); }
+
+/* ── LEVELS LIST ── */
+.levels-list { display: flex; flex-direction: column; gap: 4px; }
+.level-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  padding: 5px 8px;
+  background: var(--bg2);
+  border-radius: 4px;
+}
+.level-price { font-family: var(--font-mono); font-weight: 600; color: var(--text0); }
+.level-strength {
+  font-size: 10px;
+  color: var(--text3);
+  background: var(--bg3);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+/* ── SIDEBAR ── */
+.sidebar { display: flex; flex-direction: column; gap: 14px; }
+
+/* Quick stats */
+.stats-list { display: flex; flex-direction: column; gap: 6px; }
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-label { font-size: 11px; color: var(--text3); }
+.stat-val { font-family: var(--font-mono); font-size: 12px; color: var(--text0); font-weight: 600; }
+
+/* Popular symbols */
+.sym-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.sym-btn {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text2);
+  padding: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: all .15s;
+}
+.sym-btn:hover { background: var(--bg3); color: var(--text0); border-color: var(--blue); }
+.sym-btn.active { background: var(--blue2); color: var(--blue); border-color: var(--blue); }
+
+/* Disclaimer */
+.disclaimer {
+  font-size: 10px;
+  color: var(--text3);
+  line-height: 1.6;
+  padding: 10px;
+  background: var(--bg2);
+  border-radius: var(--radius);
+  border-left: 2px solid var(--yellow);
+}
+
+/* ── LOADING / ERROR ── */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px;
+  color: var(--text3);
+  gap: 10px;
+}
+.spinner {
+  width: 28px; height: 28px;
+  border: 2px solid var(--bg3);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text3);
+  text-align: center;
+  gap: 8px;
+}
+.empty-icon { font-size: 36px; }
+
+/* ── HISTORY SPARKLINE COLORS ── */
+.spark-up { color: var(--green); }
+.spark-dn { color: var(--red); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .main { grid-template-columns: 1fr; }
+  .sidebar { order: -1; }
+  .zone-grid { grid-template-columns: 1fr 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .main { padding: 10px; }
+  .zone-grid { grid-template-columns: 1fr; }
+  .header { padding: 0 12px; }
+  .header-symbol { font-size: 15px; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <a href="/" class="back-btn">← Về trang chủ</a>
+  <div>
+    <span class="header-symbol" id="hdr-symbol">--</span>
+    <span class="header-name" id="hdr-name"></span>
+    &nbsp;
+    <span class="header-sector" id="hdr-sector" style="display:none"></span>
+  </div>
+  <div class="header-price">
+    <div class="header-price-val" id="hdr-price">--</div>
+    <div class="header-price-chg" id="hdr-chg"></div>
+  </div>
+</header>
+
+<!-- MAIN LAYOUT -->
+<div class="main">
+
+  <!-- LEFT COLUMN -->
+  <div class="left-col">
+
+    <!-- SEARCH -->
+    <div class="search-row">
+      <input type="text" class="sym-input" id="sym-input" placeholder="Nhập mã (VD: VCB, HPG, FPT...)" maxlength="10">
+      <button class="btn-analyze" id="btn-analyze" onclick="runAnalysis()">Phân tích</button>
+    </div>
+
+    <!-- CHART -->
+    <div class="chart-wrap" id="chart-wrap">
+      <div class="empty-state">
+        <div class="empty-icon">📊</div>
+        <div>Nhập mã cổ phiếu để xem biểu đồ</div>
+      </div>
+    </div>
+
+    <!-- MAIN ANALYSIS CARD -->
+    <div id="analysis-card">
+      <div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <div style="font-size:14px;font-weight:600;color:var(--text1);margin-bottom:4px">Chưa có dữ liệu</div>
+        <div>Nhập mã và bấm "Phân tích" để bắt đầu</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT SIDEBAR -->
+  <div class="sidebar">
+
+    <!-- POPULAR SYMBOLS -->
+    <div class="card">
+      <div class="card-title"><span class="dot blue"></span> Mã phổ biến</div>
+      <div class="sym-grid" id="sym-grid">
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <!-- QUICK STATS -->
+    <div class="card" id="stats-card" style="display:none">
+      <div class="card-title"><span class="dot green"></span> Thống kê nhanh</div>
+      <div class="stats-list" id="stats-list"></div>
+    </div>
+
+    <!-- DISCLAIMER -->
+    <div class="disclaimer">
+      ⚠️ Phân tích dựa trên dữ liệu kỹ thuật (MA, swing high/low). Chỉ mang tính tham khảo, không phải lời khuyên đầu tư. Thị trường có thể biến động ngoài dự đoán.
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+const API = "";
+const fmtNum = (n, d=2) => (n == null || isNaN(n)) ? "--" : Number(n).toLocaleString("vi-VN", {minimumFractionDigits:d, maximumFractionDigits:d});
+const fmtPct = (n) => n == null ? "--" : (n>=0?"+":"") + Number(n).toFixed(2) + "%";
+
+// Popular symbols
+const POPULAR = [
+  "VCB","BID","VIC","VHM","CTG",
+  "TCB","MBB","FPT","HPG","VPB",
+  "MWG","SSI","VNM","MSN","GAS",
+  "ACB","STB","HDB","REE","PNJ",
+];
+
+let chart = null;
+let candleSeries = null;
+let currentSymbol = null;
+
+// Init popular symbol grid
+function initSymGrid() {
+  const grid = document.getElementById("sym-grid");
+  grid.innerHTML = POPULAR.map(s =>
+    `<button class="sym-btn" onclick="pickSym('${s}')">${s}</button>`
+  ).join("");
+}
+
+function pickSym(sym) {
+  document.getElementById("sym-input").value = sym;
+  document.querySelectorAll(".sym-btn").forEach(b => {
+    b.classList.toggle("active", b.textContent === sym);
+  });
+  runAnalysis();
+}
+
+// Enter key support
+document.getElementById("sym-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") runAnalysis();
+});
+
+// Init chart
+function ensureChart() {
+  const wrap = document.getElementById("chart-wrap");
+  if (!chart) {
+    wrap.innerHTML = "";
+    chart = LightweightCharts.createChart(wrap, {
+      layout: { background: { color: "#0d1117" }, textColor: "#9ca3af" },
+      grid: { vertLines: { color: "#111827" }, horzLines: { color: "#111827" } },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      rightPriceScale: { borderColor: "#1f2937" },
+      timeScale: { borderColor: "#1f2937", timeVisible: false },
+      width: wrap.offsetWidth,
+      height: 320,
+    });
+    candleSeries = chart.addCandlestickSeries({
+      upColor: "#10b981", downColor: "#ef4444",
+      borderUpColor: "#10b981", borderDownColor: "#ef4444",
+      wickUpColor: "#10b981", wickDownColor: "#ef4444",
+    });
+    window.addEventListener("resize", () => {
+      if (chart) chart.applyOptions({ width: wrap.offsetWidth });
+    });
+  }
+}
+
+async function runAnalysis() {
+  const raw = document.getElementById("sym-input").value.trim().toUpperCase();
+  if (!raw) return;
+
+  const btn = document.getElementById("btn-analyze");
+  btn.disabled = true;
+  btn.textContent = "Đang tải...";
+  currentSymbol = raw;
+
+  // Update active sym button
+  document.querySelectorAll(".sym-btn").forEach(b => {
+    b.classList.toggle("active", b.textContent === raw);
+  });
+
+  // Header
+  document.getElementById("hdr-symbol").textContent = raw;
+  document.getElementById("hdr-name").textContent = "";
+  document.getElementById("hdr-price").textContent = "...";
+  document.getElementById("hdr-chg").textContent = "";
+
+  // Show loading in chart
+  const chartWrap = document.getElementById("chart-wrap");
+  chartWrap.innerHTML = `<div class="loading-state"><div class="spinner"></div><div>Đang tải dữ liệu ${raw}...</div></div>`;
+  chart = null; candleSeries = null;
+
+  // Show loading in analysis
+  document.getElementById("analysis-card").innerHTML =
+    `<div class="loading-state"><div class="spinner"></div><div>Đang phân tích ${raw}...</div></div>`;
+  document.getElementById("stats-card").style.display = "none";
+
+  try {
+    const a = await fetch(`${API}/api/vn/analysis/${raw}`).then(r => r.json());
+
+    if (a.error) {
+      showError(a.error);
+      return;
+    }
+
+    // Update header
+    document.getElementById("hdr-price").textContent = fmtNum(a.current_price, 2);
+    const chgPct = a.ma20 ? ((a.current_price - a.ma20) / a.ma20 * 100) : 0;
+    const chgEl = document.getElementById("hdr-chg");
+    chgEl.textContent = `vs MA20: ${fmtPct(chgPct)}`;
+    chgEl.className = "header-price-chg " + (chgPct >= 0 ? "pos" : "neg");
+
+    // Chart from history
+    if (a.history && a.history.length > 0) {
+      ensureChart();
+      // Build candlestick bars with fake OHLC (line from close prices)
+      const closes = a.history.map(h => h.close).filter(Boolean);
+      // Use close-only bars
+      const bars = a.history
+        .filter(h => h.close > 0)
+        .map((h, i, arr) => {
+          const close = h.close;
+          const prev  = arr[i-1]?.close || close;
+          return {
+            time: Math.floor(new Date(h.time).getTime() / 1000) || (1700000000 + i * 86400),
+            open:  prev,
+            high:  Math.max(close, prev) * 1.002,
+            low:   Math.min(close, prev) * 0.998,
+            close: close,
+          };
+        })
+        .filter(b => b.time > 0)
+        .sort((a, b) => a.time - b.time);
+
+      if (bars.length > 0) {
+        candleSeries.setData(bars);
+        // Add support line
+        const supportLine = chart.addLineSeries({ color: "#10b981", lineWidth: 1, lineStyle: 2 });
+        const resistLine  = chart.addLineSeries({ color: "#ef4444", lineWidth: 1, lineStyle: 2 });
+        supportLine.setData(bars.map(b => ({ time: b.time, value: a.support })));
+        resistLine.setData(bars.map(b => ({ time: b.time, value: a.resistance })));
+
+        if (a.ma20) {
+          const ma20Line = chart.addLineSeries({ color: "#3b82f6", lineWidth: 1 });
+          ma20Line.setData(bars.map(b => ({ time: b.time, value: a.ma20 })));
+        }
+      }
+    }
+
+    // Render analysis card
+    renderAnalysis(a);
+    renderStats(a);
+
+  } catch(e) {
+    showError("Không thể kết nối server: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Phân tích";
+  }
+}
+
+function showError(msg) {
+  document.getElementById("chart-wrap").innerHTML =
+    `<div class="empty-state"><div class="empty-icon">❌</div><div>${msg}</div></div>`;
+  document.getElementById("analysis-card").innerHTML =
+    `<div class="empty-state"><div class="empty-icon">⚠️</div><div style="color:var(--red)">${msg}</div><div style="margin-top:8px;font-size:11px">TCBS có thể đang giới hạn truy cập. Thử lại sau hoặc chọn mã khác.</div></div>`;
+}
+
+function renderAnalysis(a) {
+  const trendIcon = { uptrend: "↑", downtrend: "↓", sideway: "→" };
+
+  // Gauge position
+  const pos = a.position_pct ?? 50;
+
+  // Support / resistance levels HTML
+  const supHtml = (a.support_levels?.length
+    ? a.support_levels.slice(0,3).map(l =>
+        `<div class="level-row">
+          <span class="level-price">${fmtNum(l.price, 2)}</span>
+          <span class="level-strength">${l.strength} lần</span>
+        </div>`)
+    : [`<div class="level-row"><span class="level-price">${fmtNum(a.support,2)}</span><span class="level-strength">vùng thấp</span></div>`]
+  ).join("");
+
+  const resHtml = (a.resistance_levels?.length
+    ? a.resistance_levels.slice(0,3).map(l =>
+        `<div class="level-row">
+          <span class="level-price">${fmtNum(l.price, 2)}</span>
+          <span class="level-strength">${l.strength} lần</span>
+        </div>`)
+    : [`<div class="level-row"><span class="level-price">${fmtNum(a.resistance,2)}</span><span class="level-strength">vùng cao</span></div>`]
+  ).join("");
+
+  const ma20Cls  = a.current_price > (a.ma20 || 0) ? "above" : "below";
+  const ma50Cls  = a.current_price > (a.ma50 || 0) ? "above" : "below";
+
+  document.getElementById("analysis-card").innerHTML = `
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-title"><span class="dot green"></span> Xu hướng &amp; Vị trí</div>
+
+      <span class="trend-badge ${a.trend}">
+        ${trendIcon[a.trend] || "→"} ${a.trend_label}
+      </span>
+
+      <div class="ma-row">
+        <div class="ma-chip">
+          <div class="ma-chip-label">Giá hiện tại</div>
+          <div class="ma-chip-val" style="color:var(--text0)">${fmtNum(a.current_price, 2)}</div>
+        </div>
+        <div class="ma-chip">
+          <div class="ma-chip-label">MA20</div>
+          <div class="ma-chip-val ${ma20Cls}">${a.ma20 ? fmtNum(a.ma20, 2) : "--"}</div>
+        </div>
+        <div class="ma-chip">
+          <div class="ma-chip-label">MA50</div>
+          <div class="ma-chip-val ${ma50Cls}">${a.ma50 ? fmtNum(a.ma50, 2) : "--"}</div>
+        </div>
+      </div>
+
+      <div class="gauge-wrap">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Vị trí trong vùng Hỗ trợ — Kháng cự</div>
+        <div class="gauge-track">
+          <div class="gauge-marker" style="left:${pos}%"></div>
+        </div>
+        <div class="gauge-labels">
+          <span>🟢 Hỗ trợ<br>${fmtNum(a.support, 2)}</span>
+          <span style="text-align:center;color:var(--text0);font-weight:600">${pos}%</span>
+          <span style="text-align:right">Kháng cự 🔴<br>${fmtNum(a.resistance, 2)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="card-title"><span class="dot blue"></span> Vùng giao dịch gợi ý</div>
+
+      <div class="zone-grid">
+        <div class="zone-card buy">
+          <div class="zone-label">🟢 Vùng vào tiền</div>
+          <div class="zone-val">${fmtNum(a.buy_zone?.low, 2)}<br>– ${fmtNum(a.buy_zone?.high, 2)}</div>
+        </div>
+        <div class="zone-card sell">
+          <div class="zone-label">🔴 Vùng chốt lời</div>
+          <div class="zone-val">${fmtNum(a.sell_zone?.low, 2)}<br>– ${fmtNum(a.sell_zone?.high, 2)}</div>
+        </div>
+        <div class="zone-card stop">
+          <div class="zone-label">⚡ Cắt lỗ</div>
+          <div class="zone-val">${fmtNum(a.stop_loss, 2)}</div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <div style="font-size:11px;color:var(--text3);margin-bottom:6px">NHẬN ĐỊNH</div>
+        <div class="action-box ${a.action}">${a.action_label}</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div class="card">
+        <div class="card-title"><span class="dot green"></span> Vùng hỗ trợ</div>
+        <div class="levels-list">${supHtml}</div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="dot red"></span> Vùng kháng cự</div>
+        <div class="levels-list">${resHtml}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderStats(a) {
+  const rr = a.sell_zone && a.buy_zone && a.stop_loss
+    ? ((a.sell_zone.low - a.buy_zone.high) / (a.buy_zone.high - a.stop_loss)).toFixed(1)
+    : "--";
+
+  const upside = a.resistance && a.current_price
+    ? ((a.resistance - a.current_price) / a.current_price * 100).toFixed(1) + "%"
+    : "--";
+  const downside = a.support && a.current_price
+    ? ((a.current_price - a.support) / a.current_price * 100).toFixed(1) + "%"
+    : "--";
+
+  document.getElementById("stats-list").innerHTML = [
+    ["Kháng cự gần nhất", fmtNum(a.resistance, 2)],
+    ["Hỗ trợ gần nhất",   fmtNum(a.support, 2)],
+    ["Upside đến kháng cự", upside],
+    ["Downside đến hỗ trợ", downside],
+    ["Tỷ lệ R:R",          rr + ":1"],
+    ["Cắt lỗ",             fmtNum(a.stop_loss, 2)],
+  ].map(([label, val]) =>
+    `<div class="stat-row">
+      <span class="stat-label">${label}</span>
+      <span class="stat-val">${val}</span>
+    </div>`
+  ).join("");
+
+  document.getElementById("stats-card").style.display = "block";
+}
+
+// Init
+initSymGrid();
+
+// Auto-load from URL param ?sym=VCB
+const urlSym = new URLSearchParams(location.search).get("sym");
+if (urlSym) {
+  document.getElementById("sym-input").value = urlSym.toUpperCase();
+  runAnalysis();
+}
+</script>
+
+</body>
+</html>
