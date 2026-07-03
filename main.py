@@ -1650,3 +1650,5 @@ async def trigger_alert_now():
     return {"status": "ok", "message": "Alert job executed"}
 
 @app.get("/analysis.html")
+def analysis_page():
+    return FileResponse("static/analysis.html")
