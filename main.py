@@ -1652,3 +1652,199 @@ async def trigger_alert_now():
 @app.get("/analysis.html")
 def analysis_page():
     return FileResponse("static/analysis.html")
+
+# ─────────────────────────────────────────────
+# FIX: /api/vn/analysis/{symbol} — thêm Yahoo Finance fallback
+# TCBS bị chặn/không phản hồi từ Render → "Không đủ dữ liệu lịch sử (0 bars)"
+# ─────────────────────────────────────────────
+
+async def _fetch_yahoo_daily_bars(symbol: str, range_: str = "6mo") -> list:
+    """
+    Lấy nến ngày từ Yahoo Finance, format lại giống bars của TCBS
+    để tái sử dụng nguyên logic phân tích (_sma, _find_pivots, ...) bên dưới.
+    """
+    bars = []
+    try:
+        async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=15) as client:
+            r = await client.get(
+                f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}.VN",
+                params={"interval": "1d", "range": range_},
+            )
+        data = r.json()
+        result = data["chart"]["result"][0]
+        timestamps = result.get("timestamp", [])
+        quote = result["indicators"]["quote"][0]
+        opens  = quote.get("open", [])
+        highs  = quote.get("high", [])
+        lows   = quote.get("low", [])
+        closes = quote.get("close", [])
+        vols   = quote.get("volume", [])
+
+        for i, ts in enumerate(timestamps):
+            c = closes[i] if i < len(closes) else None
+            if c is None:
+                continue
+            bars.append({
+                "tradingDate": datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d"),
+                "open":  opens[i]  if i < len(opens)  and opens[i]  is not None else c,
+                "high":  highs[i]  if i < len(highs)  and highs[i]  is not None else c,
+                "low":   lows[i]   if i < len(lows)   and lows[i]   is not None else c,
+                "close": c,
+                "volume": vols[i] if i < len(vols) and vols[i] is not None else 0,
+            })
+    except Exception as e:
+        log.warning(f"Yahoo daily bars error [{symbol}]: {e}")
+    return bars
+
+
+@app.get("/api/vn/analysis/{symbol}")
+async def get_vn_analysis(symbol: str):
+    """
+    Phân tích kỹ thuật 1 mã HOSE dựa trên dữ liệu 6 tháng (nến ngày):
+    - Nguồn chính: TCBS. Nếu TCBS trả về <10 bars (bị chặn/không phản hồi),
+      tự động fallback sang Yahoo Finance.
+    - MA20, MA50 và vị trí giá hiện tại so với MA
+    - Vùng hỗ trợ / kháng cự từ swing high-low (gộp cluster)
+    - Xu hướng tổng quan (uptrend/downtrend/sideway)
+    - Gợi ý vùng vào tiền (mua) / vùng thoát (chốt lời) / vùng cắt lỗ
+    """
+    symbol = symbol.upper()
+    try:
+        bars = []
+        async with httpx.AsyncClient(timeout=15) as client:
+            for params in [
+                {"ticker": symbol, "type": "day",   "count": "120"},
+                {"ticker": symbol, "type": "daily", "count": "120"},
+                {"ticker": symbol, "resolution": "D", "count": "120"},
+            ]:
+                try:
+                    r = await client.get(
+                        "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/bars-long-term",
+                        params=params,
+                        headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
+                    )
+                    data = r.json()
+                    bars = data if isinstance(data, list) else data.get("data", [])
+                    if bars and len(bars) >= 25:
+                        log.info(f"Analysis {symbol}: TCBS OK với params {params}, {len(bars)} bars")
+                        break
+                    else:
+                        log.warning(f"Analysis {symbol}: params {params} trả {len(bars)} bars")
+                except Exception as e:
+                    log.warning(f"Analysis {symbol}: params {params} lỗi: {e}")
+
+        # ── FALLBACK: TCBS không đủ dữ liệu → thử Yahoo Finance ──
+        if not bars or len(bars) < 10:
+            log.info(f"Analysis {symbol}: TCBS thiếu dữ liệu — fallback Yahoo Finance")
+            bars = await _fetch_yahoo_daily_bars(symbol, range_="6mo")
+            if bars:
+                log.info(f"Analysis {symbol}: Yahoo OK, {len(bars)} bars")
+
+        if not bars or len(bars) < 10:
+            return JSONResponse(status_code=503, content={"error": f"Không đủ dữ liệu lịch sử ({len(bars) if bars else 0} bars)"})
+
+        # Nếu ít hơn 25 vẫn cho phân tích nhưng giảm period MA
+        min_bars = len(bars)
+
+        closes = [float(b.get("close", 0)) for b in bars if b.get("close")]
+        highs  = [float(b.get("high",  0)) for b in bars if b.get("high")]
+        lows   = [float(b.get("low",   0)) for b in bars if b.get("low")]
+
+        if not closes:
+            return JSONResponse(status_code=503, content={"error": "Dữ liệu giá không hợp lệ"})
+
+        current_price = closes[-1]
+        n = len(closes)
+        ma20_period = min(20, max(5, n // 4))
+        ma50_period = min(50, max(10, n // 2))
+
+        ma20_series = _sma(closes, ma20_period)
+        ma50_series = _sma(closes, ma50_period)
+        ma20 = ma20_series[-1]
+        ma50 = ma50_series[-1]
+
+        # Xu hướng
+        if ma20 is not None and ma50 is not None:
+            if current_price > ma20 > ma50:
+                trend = "uptrend"
+                trend_label = "Xu hướng tăng"
+            elif current_price < ma20 < ma50:
+                trend = "downtrend"
+                trend_label = "Xu hướng giảm"
+            else:
+                trend = "sideway"
+                trend_label = "Tích lũy / Đi ngang"
+        elif ma20 is not None:
+            if current_price > ma20:
+                trend, trend_label = "uptrend", "Xu hướng tăng (ngắn hạn)"
+            else:
+                trend, trend_label = "downtrend", "Xu hướng giảm (ngắn hạn)"
+        else:
+            trend, trend_label = "sideway", "Chưa đủ dữ liệu xác định xu hướng"
+
+        # Support / Resistance từ swing pivots
+        pivot_highs, pivot_lows = _find_pivots(highs, lows, window=3)
+        resistance_clusters = _cluster_levels([p for p in pivot_highs if p > current_price])
+        support_clusters    = _cluster_levels([p for p in pivot_lows  if p < current_price])
+
+        nearest_resistance = resistance_clusters[0]["price"] if resistance_clusters else None
+        nearest_support    = support_clusters[0]["price"] if support_clusters else None
+
+        recent_high = max(highs[-60:]) if len(highs) >= 60 else max(highs)
+        recent_low  = min(lows[-60:])  if len(lows)  >= 60 else min(lows)
+        if nearest_resistance is None:
+            nearest_resistance = recent_high
+        if nearest_support is None:
+            nearest_support = recent_low
+
+        buy_zone_low  = nearest_support
+        buy_zone_high = nearest_support * 1.02
+        sell_zone_low  = nearest_resistance * 0.98
+        sell_zone_high = nearest_resistance
+        stop_loss = nearest_support * 0.97
+
+        if nearest_resistance > nearest_support:
+            position_pct = round((current_price - nearest_support) / (nearest_resistance - nearest_support) * 100, 1)
+        else:
+            position_pct = 50.0
+        position_pct = max(0, min(100, position_pct))
+
+        if position_pct <= 25 and trend != "downtrend":
+            action = "buy_zone"
+            action_label = "Đang gần vùng hỗ trợ — cân nhắc tích lũy"
+        elif position_pct >= 80:
+            action = "sell_zone"
+            action_label = "Đang gần vùng kháng cự — cân nhắc chốt lời / giảm tỷ trọng"
+        elif trend == "downtrend":
+            action = "wait"
+            action_label = "Xu hướng giảm — chờ tín hiệu đảo chiều rõ ràng"
+        elif trend == "uptrend":
+            action = "hold"
+            action_label = "Xu hướng tăng — có thể nắm giữ, theo dõi sát kháng cự"
+        else:
+            action = "wait"
+            action_label = "Đang tích lũy — chờ phá vùng để xác nhận xu hướng"
+
+        return {
+            "symbol": symbol,
+            "current_price": round(current_price, 2),
+            "ma20": round(ma20, 2) if ma20 else None,
+            "ma50": round(ma50, 2) if ma50 else None,
+            "trend": trend,
+            "trend_label": trend_label,
+            "support": round(nearest_support, 2),
+            "resistance": round(nearest_resistance, 2),
+            "position_pct": position_pct,
+            "buy_zone":  {"low": round(buy_zone_low, 2),  "high": round(buy_zone_high, 2)},
+            "sell_zone": {"low": round(sell_zone_low, 2), "high": round(sell_zone_high, 2)},
+            "stop_loss": round(stop_loss, 2),
+            "action": action,
+            "action_label": action_label,
+            "support_levels":    [{"price": round(c["price"],2), "strength": c["strength"]} for c in support_clusters[:3]],
+            "resistance_levels": [{"price": round(c["price"],2), "strength": c["strength"]} for c in resistance_clusters[:3]],
+            "history": [{"time": b.get("tradingDate") or b.get("date",""), "close": float(b.get("close",0))} for b in bars[-60:]],
+        }
+
+    except Exception as e:
+        log.error(f"Analysis error [{symbol}]: {e}")
+        return JSONResponse(status_code=503, content={"error": str(e)})
