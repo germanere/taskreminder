@@ -1648,3 +1648,5 @@ def alert_config():
 async def trigger_alert_now():
     await job_alert()
     return {"status": "ok", "message": "Alert job executed"}
+
+@app.get("/analysis.html")
