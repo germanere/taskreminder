@@ -4,12 +4,12 @@ Market Research Hub — Backend
 - FastAPI server
 - WebSocket proxy: OKX → client (Bybit/Binance bị geo-block trên Render US IP)
 - REST APIs: OKX klines, CoinGecko, Yahoo Finance, TCBS, SJC, Vietcombank
-- HOSE Top 250 endpoint
+- HOSE Top 250 endpoint (TCBS + Yahoo fallback, retry cho lỗi DNS/geo-block)
 - Telegram alerts: BTC, ETH, USD/VND, Gold (SJC)
 - Serve static files
 """
 
-import os, re, json, logging, asyncio, time
+import os, re, json, logging, asyncio, time, socket
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 import httpx
@@ -105,7 +105,7 @@ def log_chat_message(session_id: str, role: str, message: str):
 
 
 
-# 50 mã HOSE vốn hóa lớn nhất (tháng 6/2025)
+# 250 mã HOSE vốn hóa lớn nhất + bổ sung (tháng 7/2026)
 HOSE_TOP200 = [
     "VCB","BID","VIC","VHM","CTG","GAS","VNM","SAB","MSN","TCB",
     "MBB","FPT","ACB","PLX","HPG","VPB","STB","HDB","GVR","POW",
@@ -130,24 +130,16 @@ HOSE_TOP200 = [
     "TDP","TEG","THG","TLH","TNA","TNI","TNT","TPC","TRA","TSC",
     "TTF","TV2","TVS","UDC","VCF","VDS","VFG","VID","VIP","VIX",
     "VNE","VNG","VPG","VPI","VSC","VTO","YEG","BMP","DXS","NAF",
+    # 50 mã bổ sung (201-250)
+    "VJC","HVN","VGC","DHG","DBT","PPC","NBB","ABT","ACL","BBC",
+    "BTP","C32","CDC","CIG","CLC","COM","CTI","D2D","DAG","DRH",
+    "DTL","EVG","FIR","GDT","HAP","HDC","HRC","HTN","ICF","IDI",
+    "ILB","JVC","KHP","LAF","LGC","LIX","MHC","NNC","PET","PGC",
+    "QNS","RDP","SAV","SC5","SCR","SFC","SFI","SGR","SKG","STK",
 ]
-# 50 mã bổ sung (201-250)
-HOSE_TOP50_EXTRA = [
-    "VJC","HVN","VGC","DHG","DBT",
-    "PPC","NBB","ABT","ACL","BBC",
-    "BTP","C32","CDC","CIG","CLC",
-    "COM","CTI","D2D","DAG","DRH",
-    "DTL","EVG","FIR","GDT","HAP",
-    "HDC","HRC","HTN","ICF","IDI",
-    "ILB","JVC","KHP","LAF","LGC",
-    "LIX","MHC","NNC","PET","PGC",
-    "QNS","RDP","SAV","SC5","SCR",
-    "SFC","SFI","SGR","SKG","STK",
-]
+HOSE_TOP100 = HOSE_TOP200  # alias để tương thích code cũ
+HOSE_TOP50  = HOSE_TOP200  # alias để tương thích code cũ
 
-HOSE_TOP200 = HOSE_TOP200 + HOSE_TOP50_EXTRA   # giờ có 250 mã
-HOSE_TOP100 = HOSE_TOP200
-HOSE_TOP50  = HOSE_TOP200
 
 HOSE_INFO = {
     "VCB":  {"name": "Vietcombank",        "sector": "Ngân hàng"},
@@ -353,61 +345,58 @@ HOSE_INFO = {
     "BMP":  {"name": "Nhựa Bình Minh",     "sector": "Vật liệu"},
     "DXS":  {"name": "Đất Xanh Services",  "sector": "Bất động sản"},
     "NAF":  {"name": "Nafoods Group",      "sector": "Tiêu dùng"},
+    # 201-250
+    "VJC":  {"name": "Vietjet Air",              "sector": "Công nghiệp"},
+    "HVN":  {"name": "Vietnam Airlines",         "sector": "Công nghiệp"},
+    "VGC":  {"name": "Viglacera",                "sector": "Vật liệu"},
+    "DHG":  {"name": "Dược Hậu Giang",           "sector": "Y tế"},
+    "DBT":  {"name": "Dược phẩm Bến Tre",        "sector": "Y tế"},
+    "PPC":  {"name": "Nhiệt điện Phả Lại",       "sector": "Năng lượng"},
+    "NBB":  {"name": "Năm Bảy Bảy",              "sector": "Bất động sản"},
+    "ABT":  {"name": "XNK Thủy sản Bến Tre",     "sector": "Tiêu dùng"},
+    "ACL":  {"name": "XNK Thủy sản Cửu Long An Giang","sector": "Tiêu dùng"},
+    "BBC":  {"name": "Bibica",                   "sector": "Tiêu dùng"},
+    "BTP":  {"name": "Nhiệt điện Bà Rịa",        "sector": "Năng lượng"},
+    "C32":  {"name": "Xây dựng Số 32",           "sector": "Công nghiệp"},
+    "CDC":  {"name": "Chương Dương",             "sector": "Bất động sản"},
+    "CIG":  {"name": "COMA18",                   "sector": "Bất động sản"},
+    "CLC":  {"name": "Cát Lợi",                  "sector": "Vật liệu"},
+    "COM":  {"name": "Vật tư Xăng dầu COMECO",   "sector": "Năng lượng"},
+    "CTI":  {"name": "Cường Thuận IDICO",        "sector": "Công nghiệp"},
+    "D2D":  {"name": "PT Đô thị Công nghiệp Số 2","sector": "Bất động sản"},
+    "DAG":  {"name": "Tập đoàn Nhựa Đông Á",     "sector": "Vật liệu"},
+    "DRH":  {"name": "DRH Holdings",             "sector": "Bất động sản"},
+    "DTL":  {"name": "Đại Thiên Lộc",            "sector": "Vật liệu"},
+    "EVG":  {"name": "Everland",                 "sector": "Bất động sản"},
+    "FIR":  {"name": "Địa ốc First Real",        "sector": "Bất động sản"},
+    "GDT":  {"name": "Chế biến Gỗ Đức Thành",    "sector": "Vật liệu"},
+    "HAP":  {"name": "Tập đoàn Hapaco",          "sector": "Vật liệu"},
+    "HDC":  {"name": "PT Nhà Bà Rịa - Vũng Tàu", "sector": "Bất động sản"},
+    "HRC":  {"name": "Cao su Hòa Bình",          "sector": "Vật liệu"},
+    "HTN":  {"name": "Hưng Thịnh Incons",        "sector": "Công nghiệp"},
+    "ICF":  {"name": "ĐT Thương mại Thủy sản",   "sector": "Tiêu dùng"},
+    "IDI":  {"name": "ĐT & PT Đa Quốc gia IDI",  "sector": "Tiêu dùng"},
+    "ILB":  {"name": "Tân Cảng Long Bình",       "sector": "Công nghiệp"},
+    "JVC":  {"name": "Thiết bị Y tế Việt Nhật",  "sector": "Y tế"},
+    "KHP":  {"name": "Điện lực Khánh Hòa",       "sector": "Năng lượng"},
+    "LAF":  {"name": "Chế biến Hàng XK Long An", "sector": "Tiêu dùng"},
+    "LGC":  {"name": "Đầu tư Cầu đường CII",     "sector": "Công nghiệp"},
+    "LIX":  {"name": "Bột giặt Lix",             "sector": "Tiêu dùng"},
+    "MHC":  {"name": "MHC Group",                "sector": "Công nghiệp"},
+    "NNC":  {"name": "Đá Núi Nhỏ",               "sector": "Vật liệu"},
+    "PET":  {"name": "Dịch vụ Tổng hợp Dầu khí", "sector": "Công nghiệp"},
+    "PGC":  {"name": "Gas Petrolimex",           "sector": "Năng lượng"},
+    "QNS":  {"name": "Đường Quảng Ngãi",         "sector": "Tiêu dùng"},
+    "RDP":  {"name": "Nhựa Rạng Đông",           "sector": "Vật liệu"},
+    "SAV":  {"name": "Savimex",                  "sector": "Vật liệu"},
+    "SC5":  {"name": "Xây dựng Số 5",            "sector": "Công nghiệp"},
+    "SCR":  {"name": "Địa ốc Sài Gòn Thương Tín","sector": "Bất động sản"},
+    "SFC":  {"name": "Nhiên liệu Sài Gòn",       "sector": "Năng lượng"},
+    "SFI":  {"name": "Đại lý Vận tải SAFI",      "sector": "Công nghiệp"},
+    "SGR":  {"name": "Địa ốc Sài Gòn",           "sector": "Bất động sản"},
+    "SKG":  {"name": "Superdong Kiên Giang",     "sector": "Công nghiệp"},
+    "STK":  {"name": "Sợi Thế Kỷ",               "sector": "Vật liệu"},
 }
-HOSE_INFO_EXTRA = {
-    "VJC": {"name": "Vietjet Air",              "sector": "Công nghiệp"},
-    "HVN": {"name": "Vietnam Airlines",         "sector": "Công nghiệp"},
-    "VGC": {"name": "Viglacera",                "sector": "Vật liệu"},
-    "DHG": {"name": "Dược Hậu Giang",           "sector": "Y tế"},
-    "DBT": {"name": "Dược phẩm Bến Tre",        "sector": "Y tế"},
-    "PPC": {"name": "Nhiệt điện Phả Lại",       "sector": "Năng lượng"},
-    "NBB": {"name": "Năm Bảy Bảy",              "sector": "Bất động sản"},
-    "ABT": {"name": "XNK Thủy sản Bến Tre",     "sector": "Tiêu dùng"},
-    "ACL": {"name": "XNK Thủy sản Cửu Long An Giang","sector": "Tiêu dùng"},
-    "BBC": {"name": "Bibica",                   "sector": "Tiêu dùng"},
-    "BTP": {"name": "Nhiệt điện Bà Rịa",        "sector": "Năng lượng"},
-    "C32": {"name": "Xây dựng Số 32",           "sector": "Công nghiệp"},
-    "CDC": {"name": "Chương Dương",             "sector": "Bất động sản"},
-    "CIG": {"name": "COMA18",                   "sector": "Bất động sản"},
-    "CLC": {"name": "Cát Lợi",                  "sector": "Vật liệu"},
-    "COM": {"name": "Vật tư Xăng dầu COMECO",   "sector": "Năng lượng"},
-    "CTI": {"name": "Cường Thuận IDICO",        "sector": "Công nghiệp"},
-    "D2D": {"name": "PT Đô thị Công nghiệp Số 2","sector": "Bất động sản"},
-    "DAG": {"name": "Tập đoàn Nhựa Đông Á",     "sector": "Vật liệu"},
-    "DRH": {"name": "DRH Holdings",             "sector": "Bất động sản"},
-    "DTL": {"name": "Đại Thiên Lộc",            "sector": "Vật liệu"},
-    "EVG": {"name": "Everland",                 "sector": "Bất động sản"},
-    "FIR": {"name": "Địa ốc First Real",        "sector": "Bất động sản"},
-    "GDT": {"name": "Chế biến Gỗ Đức Thành",    "sector": "Vật liệu"},
-    "HAP": {"name": "Tập đoàn Hapaco",          "sector": "Vật liệu"},
-    "HDC": {"name": "PT Nhà Bà Rịa - Vũng Tàu", "sector": "Bất động sản"},
-    "HRC": {"name": "Cao su Hòa Bình",          "sector": "Vật liệu"},
-    "HTN": {"name": "Hưng Thịnh Incons",        "sector": "Công nghiệp"},
-    "ICF": {"name": "ĐT Thương mại Thủy sản",   "sector": "Tiêu dùng"},
-    "IDI": {"name": "ĐT & PT Đa Quốc gia IDI",  "sector": "Tiêu dùng"},
-    "ILB": {"name": "Tân Cảng Long Bình",       "sector": "Công nghiệp"},
-    "JVC": {"name": "Thiết bị Y tế Việt Nhật",  "sector": "Y tế"},
-    "KHP": {"name": "Điện lực Khánh Hòa",       "sector": "Năng lượng"},
-    "LAF": {"name": "Chế biến Hàng XK Long An", "sector": "Tiêu dùng"},
-    "LGC": {"name": "Đầu tư Cầu đường CII",     "sector": "Công nghiệp"},
-    "LIX": {"name": "Bột giặt Lix",             "sector": "Tiêu dùng"},
-    "MHC": {"name": "MHC Group",                "sector": "Công nghiệp"},
-    "NNC": {"name": "Đá Núi Nhỏ",               "sector": "Vật liệu"},
-    "PET": {"name": "Dịch vụ Tổng hợp Dầu khí", "sector": "Công nghiệp"},
-    "PGC": {"name": "Gas Petrolimex",           "sector": "Năng lượng"},
-    "QNS": {"name": "Đường Quảng Ngãi",         "sector": "Tiêu dùng"},
-    "RDP": {"name": "Nhựa Rạng Đông",           "sector": "Vật liệu"},
-    "SAV": {"name": "Savimex",                  "sector": "Vật liệu"},
-    "SC5": {"name": "Xây dựng Số 5",            "sector": "Công nghiệp"},
-    "SCR": {"name": "Địa ốc Sài Gòn Thương Tín","sector": "Bất động sản"},
-    "SFC": {"name": "Nhiên liệu Sài Gòn",       "sector": "Năng lượng"},
-    "SFI": {"name": "Đại lý Vận tải SAFI",      "sector": "Công nghiệp"},
-    "SGR": {"name": "Địa ốc Sài Gòn",           "sector": "Bất động sản"},
-    "SKG": {"name": "Superdong Kiên Giang",     "sector": "Công nghiệp"},
-    "STK": {"name": "Sợi Thế Kỷ",               "sector": "Vật liệu"},
-}
- 
-HOSE_INFO.update(HOSE_INFO_EXTRA)
 
 
 _hose_cache: dict = {}
@@ -961,15 +950,75 @@ async def get_vn_stocks(
     return [r for r in results if isinstance(r, dict)]
 
 # ─────────────────────────────────────────────
-# REST — HOSE TOP 50
+# REST — HOSE TOP 250 (TCBS primary + retry, Yahoo Finance fallback)
 # ─────────────────────────────────────────────
+
+async def _fetch_tcbs_batch(client: httpx.AsyncClient, batch: list[str], max_retries: int = 2) -> list:
+    """Gọi TCBS cho 1 batch mã, retry ngắn khi gặp lỗi DNS/network."""
+    last_err = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            r = await client.get(
+                "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/price",
+                params={"tickers": ",".join(batch)},
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
+            )
+            data = r.json()
+            items = data if isinstance(data, list) else data.get("data", [])
+            if items:
+                return items
+            log.warning(f"TCBS batch {batch[0]}..{batch[-1]} trả rỗng (attempt {attempt})")
+        except (httpx.ConnectError, OSError, socket.gaierror) as e:
+            last_err = e
+            wait = 1.5 * attempt
+            log.warning(f"TCBS batch {batch[0]}..{batch[-1]} lỗi DNS/network (attempt {attempt}/{max_retries}): {e} — retry sau {wait}s")
+            await asyncio.sleep(wait)
+        except Exception as e:
+            last_err = e
+            log.warning(f"TCBS batch {batch[0]}..{batch[-1]} lỗi khác (attempt {attempt}/{max_retries}): {e}")
+            await asyncio.sleep(1)
+
+    if last_err:
+        log.error(f"TCBS batch {batch[0]}..{batch[-1]} thất bại sau {max_retries} lần thử: {last_err}")
+    return []
+
+
+async def _yahoo_fallback_fill(missing_symbols: list[str], price_map: dict):
+    """
+    Với các mã TCBS không trả được giá, thử lấy qua Yahoo Finance
+    (Yahoo không bị geo-block trên Render, đã dùng ổn định ở /api/vn/stocks).
+    """
+    if not missing_symbols:
+        return
+    CHUNK = 30
+    try:
+        async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=15) as client:
+            for i in range(0, len(missing_symbols), CHUNK):
+                chunk = missing_symbols[i:i + CHUNK]
+                yahoo_syms = [f"{s}.VN" for s in chunk]
+                res = await asyncio.gather(
+                    *[_fetch_yahoo_stock(client, s) for s in yahoo_syms],
+                    return_exceptions=True,
+                )
+                for sym, r in zip(chunk, res):
+                    if isinstance(r, dict) and r.get("price", 0) > 0:
+                        price_map[sym] = {
+                            "price": r["price"], "change": r["change"],
+                            "volume": r["volume"], "source": "Yahoo",
+                        }
+                if i + CHUNK < len(missing_symbols):
+                    await asyncio.sleep(0.4)
+    except Exception as e:
+        log.warning(f"Yahoo fallback error: {e}")
 
 
 @app.get("/api/vn/hose-top50")
 async def get_hose_top50():
     """
-    Trả về toàn bộ HOSE_TOP100 (hardcode) kèm giá thời gian thực từ TCBS,
-    chia batch 50 ticker/request để tránh TCBS bỏ sót mã ở batch lớn.
+    Trả về toàn bộ HOSE_TOP200 (250 mã, hardcode) kèm giá thời gian thực.
+    Nguồn chính: TCBS (batch 50 mã/lượt, retry khi lỗi DNS/network).
+    Nguồn dự phòng: Yahoo Finance cho các mã TCBS không trả được giá
+    (phòng trường hợp TCBS bị chặn/không phản hồi từ server hosting).
     Endpoint name giữ "hose-top50" để tương thích frontend cũ.
     """
     now = time.time()
@@ -977,40 +1026,36 @@ async def get_hose_top50():
     if cached and (now - cached["ts"]) < HOSE_TTL:
         return cached["data"]
 
-    symbols = HOSE_TOP100
-    results = []
+    symbols = HOSE_TOP200
     price_map = {}
     BATCH = 50
 
     try:
-        async with httpx.AsyncClient(timeout=25) as client:
+        limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
+        async with httpx.AsyncClient(timeout=25, limits=limits) as client:
             for i in range(0, len(symbols), BATCH):
                 batch = symbols[i:i+BATCH]
-                try:
-                    r = await client.get(
-                        "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/price",
-                        params={"tickers": ",".join(batch)},
-                        headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
-                    )
-                    data = r.json()
-                    items = data if isinstance(data, list) else data.get("data", [])
-                    if not items:
-                        log.warning(f"TCBS batch {i}-{i+BATCH} empty. Raw: {str(data)[:200]}")
-                    for item in items:
-                        ticker = (item.get("ticker") or item.get("symbol") or "").upper()
-                        if not ticker:
-                            continue
-                        price  = float(item.get("close") or item.get("price") or item.get("lastPrice") or 0)
-                        prev   = float(item.get("referencePrice") or item.get("prevClose") or item.get("ref") or 0)
-                        change = round((price - prev) / prev * 100, 2) if prev > 0 else 0
-                        volume = int(item.get("volume") or item.get("totalVolume") or 0)
-                        price_map[ticker] = {"price": price, "change": change, "volume": volume}
-                except Exception as e:
-                    log.warning(f"TCBS batch {i}-{i+BATCH} error: {e}")
-                # nghỉ nhẹ giữa các batch tránh rate-limit
+                items = await _fetch_tcbs_batch(client, batch)
+                for item in items:
+                    ticker = (item.get("ticker") or item.get("symbol") or "").upper()
+                    if not ticker:
+                        continue
+                    price  = float(item.get("close") or item.get("price") or item.get("lastPrice") or 0)
+                    prev   = float(item.get("referencePrice") or item.get("prevClose") or item.get("ref") or 0)
+                    change = round((price - prev) / prev * 100, 2) if prev > 0 else 0
+                    volume = int(item.get("volume") or item.get("totalVolume") or 0)
+                    if price > 0:
+                        price_map[ticker] = {"price": price, "change": change, "volume": volume, "source": "TCBS"}
                 if i + BATCH < len(symbols):
-                    await asyncio.sleep(0.3)
+                    await asyncio.sleep(0.5)
 
+        # Fallback Yahoo cho các mã TCBS chưa có giá
+        missing = [s for s in symbols if s not in price_map]
+        if missing:
+            log.info(f"TCBS thiếu {len(missing)} mã — fallback sang Yahoo Finance")
+            await _yahoo_fallback_fill(missing, price_map)
+
+        results = []
         for i, sym in enumerate(symbols):
             info = HOSE_INFO.get(sym, {"name": sym, "sector": "Khác"})
             p = price_map.get(sym, {})
@@ -1019,11 +1064,11 @@ async def get_hose_top50():
                 "name": info["name"], "sector": info["sector"],
                 "price": p.get("price", 0), "change": p.get("change", 0),
                 "volume": p.get("volume", 0),
-                "source": "TCBS" if sym in price_map else "—",
+                "source": p.get("source", "—"),
             })
 
         _hose_cache["top250"] = {"ts": now, "data": results}
-        log.info(f"HOSE prices: TCBS OK — {len(price_map)}/{len(symbols)} mã có giá")
+        log.info(f"HOSE prices: {len(price_map)}/{len(symbols)} mã có giá (TCBS + Yahoo fallback)")
         return results
 
     except Exception as e:
