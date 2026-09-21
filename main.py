@@ -1451,6 +1451,54 @@ async def trigger_alert_now():
 def analysis_page():
     return FileResponse("static/analysis.html")
 
+def _sma(values: list[float], period: int) -> list[float | None]:
+    """Simple moving average, trả None cho các điểm chưa đủ dữ liệu."""
+    out = []
+    for i in range(len(values)):
+        if i + 1 < period:
+            out.append(None)
+        else:
+            out.append(sum(values[i+1-period:i+1]) / period)
+    return out
+
+
+def _find_pivots(highs: list[float], lows: list[float], window: int = 3):
+    """
+    Tìm swing high/low đơn giản: điểm cao/thấp hơn `window` nến lân cận mỗi bên.
+    Trả về list các giá trị pivot high và pivot low.
+    """
+    pivot_highs, pivot_lows = [], []
+    n = len(highs)
+    for i in range(window, n - window):
+        if highs[i] == max(highs[i-window:i+window+1]):
+            pivot_highs.append(highs[i])
+        if lows[i] == min(lows[i-window:i+window+1]):
+            pivot_lows.append(lows[i])
+    return pivot_highs, pivot_lows
+
+
+def _cluster_levels(levels: list[float], tolerance_pct: float = 0.015) -> list[dict]:
+    """
+    Gộp các mức giá gần nhau thành 1 vùng (cluster), trả về
+    [{"price": giá_trung_bình, "strength": số_lần_chạm}], sort theo strength giảm dần.
+    """
+    if not levels:
+        return []
+    levels = sorted(levels)
+    clusters = []
+    current = [levels[0]]
+    for lv in levels[1:]:
+        if abs(lv - current[-1]) / current[-1] <= tolerance_pct:
+            current.append(lv)
+        else:
+            clusters.append(current)
+            current = [lv]
+    clusters.append(current)
+
+    result = [{"price": sum(c)/len(c), "strength": len(c)} for c in clusters]
+    result.sort(key=lambda x: x["strength"], reverse=True)
+    return result
+
 # ─────────────────────────────────────────────
 # FIX: /api/vn/analysis/{symbol} — thêm Yahoo Finance fallback
 # TCBS bị chặn/không phản hồi từ Render → "Không đủ dữ liệu lịch sử (0 bars)"
