@@ -1,26 +1,20 @@
 """
-credits.py — Quản lý credit user qua Supabase (Postgres REST API)
+credits.py — Quản lý credit + role user qua Supabase (Postgres REST API)
 ====================================================================
 Cần 2 biến môi trường trên Render:
-  SUPABASE_URL         VD: https://xxxxx.supabase.co
+  SUPABASE_URL          VD: https://xxxxx.supabase.co
   SUPABASE_SERVICE_KEY  service_role key (Settings > API trong Supabase dashboard)
-                        KHÔNG dùng anon key — service key mới bypass được RLS
-                        để server tự do đọc/ghi credits.
+                         KHÔNG dùng anon key — service key mới bypass được RLS.
 
 Tuỳ chọn:
-  ADMIN_SECRET          Chuỗi bí mật để gọi endpoint nạp credit thủ công.
+  ADMIN_SECRET           Chuỗi bí mật để gọi endpoint nạp credit / đổi role thủ công.
 
-SQL cần chạy 1 lần trong Supabase SQL Editor để tạo bảng:
-------------------------------------------------------------------
-create table users (
-    id uuid primary key default gen_random_uuid(),
-    api_key text unique not null,
-    credits integer not null default 5,
-    created_at timestamptz not null default now()
-);
-create index on users (api_key);
-------------------------------------------------------------------
-(Mặc định user mới được tặng 5 credit dùng thử — chỉnh trong hàm create_user bên dưới nếu muốn số khác.)
+Schema Supabase (roles + users với trigger set_default_role) — dùng đúng bản
+bạn đã tạo: bảng `roles` (admin/free_tier/premium) và `users.role_id` FK tới `roles.id`.
+
+Quy tắc áp dụng ở module này:
+  - role = 'premium' hoặc 'admin'  → KHÔNG trừ credit (unlimited).
+  - role = 'free_tier'             → trừ credit như bình thường, hết credit thì chặn.
 """
 
 import os
@@ -35,6 +29,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
 ADMIN_SECRET = os.getenv("ADMIN_SECRET", "")
 
 FREE_TRIAL_CREDITS = 5
+UNLIMITED_ROLES = {"premium", "admin"}
 
 
 def _headers() -> dict:
@@ -50,11 +45,25 @@ def _configured() -> bool:
     return bool(SUPABASE_URL and SUPABASE_KEY)
 
 
-async def create_user() -> dict:
-    """Tạo user mới với 1 api_key random + credit dùng thử. Trả về row user."""
+def _require_configured():
     if not _configured():
         raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_KEY chưa được cấu hình trên server")
 
+
+def _role_name(user: dict) -> str:
+    """
+    user['roles'] là object lồng nhau do PostgREST embed trả về, dạng {"name": "free_tier"}.
+    Trả về "free_tier" nếu vì lý do gì đó không lấy được (an toàn — mặc định giới hạn).
+    """
+    roles_obj = user.get("roles")
+    if isinstance(roles_obj, dict):
+        return roles_obj.get("name", "free_tier")
+    return "free_tier"
+
+
+async def create_user() -> dict:
+    """Tạo user mới với 1 api_key random. Role mặc định do trigger DB tự gán = free_tier."""
+    _require_configured()
     api_key = secrets.token_hex(20)  # 40 ký tự hex, đủ khó đoán
     payload = {"api_key": api_key, "credits": FREE_TRIAL_CREDITS}
 
@@ -66,39 +75,42 @@ async def create_user() -> dict:
 
 
 async def get_user_by_key(api_key: str) -> dict | None:
-    """Lấy thông tin user theo api_key. None nếu không tồn tại."""
-    if not _configured():
-        raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_KEY chưa được cấu hình trên server")
-
+    """
+    Lấy user + role (embed join qua FK role_id -> roles.id).
+    Trả về dict có thêm field 'roles': {'name': 'free_tier'|'premium'|'admin'}.
+    """
+    _require_configured()
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get(
             f"{SUPABASE_URL}/rest/v1/users",
             headers=_headers(),
-            params={"api_key": f"eq.{api_key}", "select": "*"},
+            params={"api_key": f"eq.{api_key}", "select": "*,roles(name)"},
         )
         r.raise_for_status()
         rows = r.json()
         return rows[0] if rows else None
 
 
-async def deduct_credit(api_key: str, amount: int = 1, max_retries: int = 3) -> tuple[bool, int]:
+async def deduct_credit(api_key: str, amount: int = 1, max_retries: int = 3) -> tuple[bool, int, str]:
     """
-    Trừ `amount` credit của user nếu đủ số dư.
-    Dùng optimistic concurrency (đọc giá trị hiện tại, ghi kèm điều kiện credits=eq.<giá_trị_cũ>)
-    để giảm rủi ro 2 request cùng lúc trừ trùng credit.
-    Trả về (thành_công, số_dư_còn_lại_sau_khi_trừ_hoặc_hiện_tại_nếu_thất_bại).
+    Trừ `amount` credit nếu user thuộc free_tier và đủ số dư.
+    premium/admin: luôn cho qua, không đụng vào credits trong DB.
+    Trả về (thành_công, số_dư_hiển_thị, role_name).
     """
-    if not _configured():
-        raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_KEY chưa được cấu hình trên server")
+    _require_configured()
+    user = await get_user_by_key(api_key)
+    if user is None:
+        return False, 0, ""
+
+    role = _role_name(user)
+    if role in UNLIMITED_ROLES:
+        return True, user["credits"], role
 
     for attempt in range(max_retries):
-        user = await get_user_by_key(api_key)
-        if user is None:
-            return False, 0
-
+        user = await get_user_by_key(api_key) if attempt > 0 else user
         current = user["credits"]
         if current < amount:
-            return False, current
+            return False, current, role
 
         new_balance = current - amount
         async with httpx.AsyncClient(timeout=10) as client:
@@ -112,18 +124,16 @@ async def deduct_credit(api_key: str, amount: int = 1, max_retries: int = 3) -> 
             rows = r.json()
 
         if rows:  # PATCH khớp đúng 1 row nghĩa là không bị request khác chen ngang
-            return True, new_balance
+            return True, new_balance, role
 
         log.warning(f"deduct_credit race detected cho {api_key[:8]}..., thử lại (attempt {attempt+1})")
 
-    return False, current
+    return False, current, role
 
 
 async def add_credit(api_key: str, amount: int) -> int | None:
-    """Cộng thêm credit (dùng cho topup thủ công/admin). Trả về số dư mới, None nếu user không tồn tại."""
-    if not _configured():
-        raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_KEY chưa được cấu hình trên server")
-
+    """Cộng thêm credit (topup thủ công/admin). Trả về số dư mới, None nếu user không tồn tại."""
+    _require_configured()
     user = await get_user_by_key(api_key)
     if user is None:
         return None
@@ -138,3 +148,33 @@ async def add_credit(api_key: str, amount: int) -> int | None:
         )
         r.raise_for_status()
     return new_balance
+
+
+async def set_role(api_key: str, role_name: str) -> dict | None:
+    """
+    Đổi role user (VD: nâng lên 'premium' sau khi thanh toán).
+    role_name phải là 1 trong 'admin' | 'free_tier' | 'premium' (đúng bảng roles đã seed).
+    Trả về user row mới (kèm role), None nếu api_key hoặc role_name không tồn tại.
+    """
+    _require_configured()
+    async with httpx.AsyncClient(timeout=10) as client:
+        r_role = await client.get(
+            f"{SUPABASE_URL}/rest/v1/roles",
+            headers=_headers(),
+            params={"name": f"eq.{role_name}", "select": "id"},
+        )
+        r_role.raise_for_status()
+        role_rows = r_role.json()
+        if not role_rows:
+            return None
+        role_id = role_rows[0]["id"]
+
+        r = await client.patch(
+            f"{SUPABASE_URL}/rest/v1/users",
+            headers=_headers(),
+            params={"api_key": f"eq.{api_key}", "select": "*,roles(name)"},
+            json={"role_id": role_id},
+        )
+        r.raise_for_status()
+        rows = r.json()
+        return rows[0] if rows else None
