@@ -7,6 +7,7 @@ Market Research Hub — Backend
 - HOSE Top 250 endpoint (TCBS + Yahoo fallback, retry cho lỗi DNS/geo-block)
 - Telegram alerts: BTC, ETH, USD/VND, Gold (SJC)
 - Serve static files
+- Credit system (Supabase): free_tier bị giới hạn lượt, premium/admin unlimited
 """
 
 import os, re, json, logging, asyncio, time, socket
@@ -14,13 +15,14 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 import httpx
 import pytz
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import websockets
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import gspread
+import credits
 from google.oauth2.service_account import Credentials
 
 ICT = pytz.timezone("Asia/Ho_Chi_Minh")
@@ -1447,9 +1449,57 @@ async def trigger_alert_now():
     await job_alert()
     return {"status": "ok", "message": "Alert job executed"}
 
+# ─────────────────────────────────────────────
+# REST — CREDIT SYSTEM (Supabase: roles + credits)
+# ─────────────────────────────────────────────
+
+@app.post("/api/credit/register")
+async def register_credit_user():
+    """Tạo user mới, trả về api_key (giữ bí mật, dùng cho mọi request premium sau này)."""
+    try:
+        user = await credits.create_user()
+        return {"api_key": user["api_key"], "credits": user["credits"]}
+    except Exception as e:
+        return JSONResponse(status_code=503, content={"error": str(e)})
+
+
+@app.get("/api/credit/balance")
+async def get_credit_balance(api_key: str):
+    user = await credits.get_user_by_key(api_key)
+    if user is None:
+        return JSONResponse(status_code=404, content={"error": "api_key không tồn tại"})
+    return {"credits": user["credits"], "role": credits._role_name(user)}
+
+
+@app.post("/api/credit/topup")
+async def topup_credit(api_key: str, amount: int, x_admin_secret: str = Header(None)):
+    """Admin cộng credit thủ công (VD: sau khi xác nhận chuyển khoản)."""
+    if not credits.ADMIN_SECRET or x_admin_secret != credits.ADMIN_SECRET:
+        return JSONResponse(status_code=403, content={"error": "Không có quyền"})
+    new_balance = await credits.add_credit(api_key, amount)
+    if new_balance is None:
+        return JSONResponse(status_code=404, content={"error": "api_key không tồn tại"})
+    return {"credits": new_balance}
+
+
+@app.post("/api/credit/set-role")
+async def set_user_role(api_key: str, role: str, x_admin_secret: str = Header(None)):
+    """Admin nâng/hạ role user: 'free_tier' | 'premium' | 'admin'."""
+    if not credits.ADMIN_SECRET or x_admin_secret != credits.ADMIN_SECRET:
+        return JSONResponse(status_code=403, content={"error": "Không có quyền"})
+    user = await credits.set_role(api_key, role)
+    if user is None:
+        return JSONResponse(status_code=404, content={"error": "api_key hoặc role không hợp lệ"})
+    return {"api_key": user["api_key"], "role": credits._role_name(user), "credits": user["credits"]}
+
+
 @app.get("/analysis.html")
 def analysis_page():
     return FileResponse("static/analysis.html")
+
+@app.get("/volume.html")
+def volume_page():
+    return FileResponse("static/volume.html")
 
 def _sma(values: list[float], period: int) -> list[float | None]:
     """Simple moving average, trả None cho các điểm chưa đủ dữ liệu."""
@@ -1543,10 +1593,94 @@ async def _fetch_yahoo_daily_bars(symbol: str, range_: str = "6mo") -> list:
     return bars
 
 
+async def _fetch_volume_signal(symbol: str) -> dict | None:
+    """
+    Lấy 1 tháng nến ngày (tái dùng _fetch_yahoo_daily_bars), so khối lượng trung bình
+    5 phiên gần nhất (tuần này) với khối lượng trung bình các phiên trước đó (baseline).
+    Trả về None nếu không đủ dữ liệu.
+    """
+    bars = await _fetch_yahoo_daily_bars(symbol, range_="1mo")
+    if not bars or len(bars) < 15:
+        return None
+
+    volumes = [float(b.get("volume", 0)) for b in bars]
+    closes  = [float(b.get("close", 0)) for b in bars]
+
+    recent_vol   = volumes[-5:]
+    baseline_vol = volumes[:-5]
+    if not baseline_vol:
+        return None
+
+    recent_avg   = sum(recent_vol) / len(recent_vol)
+    baseline_avg = sum(baseline_vol) / len(baseline_vol)
+    if baseline_avg == 0:
+        return None
+
+    volume_ratio = recent_avg / baseline_avg
+
+    price_start = closes[-6] if len(closes) >= 6 else closes[0]
+    price_now   = closes[-1]
+    price_change_week = round((price_now - price_start) / price_start * 100, 2) if price_start else 0
+
+    return {
+        "symbol": symbol,
+        "price": round(price_now, 2),
+        "volume_ratio": round(volume_ratio, 2),
+        "avg_volume_week": int(recent_avg),
+        "price_change_week": price_change_week,
+    }
+
+
+_volume_week_cache: dict = {}
+VOLUME_WEEK_TTL = 4 * 3600  # 4 giờ — quét 250 mã khá tốn, không cần realtime
+
+
+@app.get("/api/vn/top-volume-week")
+async def get_top_volume_week(limit: int = 30):
+    """
+    Quét toàn bộ HOSE_TOP200, xếp hạng theo volume_ratio (khối lượng tuần này /
+    khối lượng trung bình các phiên trước). Tỷ lệ cao = dòng tiền đang chú ý bất
+    thường tới mã đó — chỉ là tín hiệu đáng theo dõi, không phải khuyến nghị mua.
+    """
+    now = time.time()
+    cached = _volume_week_cache.get("top")
+    if cached and (now - cached["ts"]) < VOLUME_WEEK_TTL:
+        return cached["data"][:limit]
+
+    symbols = HOSE_TOP200
+    signals = []
+    CHUNK = 25
+
+    for i in range(0, len(symbols), CHUNK):
+        chunk = symbols[i:i + CHUNK]
+        results = await asyncio.gather(
+            *[_fetch_volume_signal(s) for s in chunk],
+            return_exceptions=True,
+        )
+        for r in results:
+            if isinstance(r, dict):
+                signals.append(r)
+        if i + CHUNK < len(symbols):
+            await asyncio.sleep(0.5)
+
+    for s in signals:
+        info = HOSE_INFO.get(s["symbol"], {"name": s["symbol"], "sector": "Khác"})
+        s["name"] = info["name"]
+        s["sector"] = info["sector"]
+
+    signals.sort(key=lambda x: x["volume_ratio"], reverse=True)
+
+    _volume_week_cache["top"] = {"ts": now, "data": signals}
+    log.info(f"Top volume week: quét {len(signals)}/{len(symbols)} mã có dữ liệu")
+    return signals[:limit]
+
+
 @app.get("/api/vn/analysis/{symbol}")
-async def get_vn_analysis(symbol: str):
+async def get_vn_analysis(symbol: str, api_key: str):
     """
     Phân tích kỹ thuật 1 mã HOSE dựa trên dữ liệu 6 tháng (nến ngày):
+    - Yêu cầu api_key (đăng ký qua /api/credit/register). free_tier bị trừ 1 credit/lượt,
+      premium/admin không giới hạn.
     - Nguồn chính: TCBS. Nếu TCBS trả về <10 bars (bị chặn/không phản hồi),
       tự động fallback sang Yahoo Finance.
     - MA20, MA50 và vị trí giá hiện tại so với MA
@@ -1555,6 +1689,15 @@ async def get_vn_analysis(symbol: str):
     - Gợi ý vùng vào tiền (mua) / vùng thoát (chốt lời) / vùng cắt lỗ
     """
     symbol = symbol.upper()
+
+    # ── CREDIT CHECK — trước khi tốn API call ra ngoài ──
+    ok, balance, role = await credits.deduct_credit(api_key, amount=1)
+    if not ok:
+        return JSONResponse(
+            status_code=402,
+            content={"error": "Hết credit hoặc api_key không hợp lệ", "credits": balance},
+        )
+
     try:
         bars = []
         async with httpx.AsyncClient(timeout=15) as client:
@@ -1689,6 +1832,8 @@ async def get_vn_analysis(symbol: str):
             "support_levels":    [{"price": round(c["price"],2), "strength": c["strength"]} for c in support_clusters[:3]],
             "resistance_levels": [{"price": round(c["price"],2), "strength": c["strength"]} for c in resistance_clusters[:3]],
             "history": [{"time": b.get("tradingDate") or b.get("date",""), "close": float(b.get("close",0))} for b in bars[-60:]],
+            "credits_remaining": balance,
+            "role": role,
         }
 
     except Exception as e:
