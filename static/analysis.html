@@ -508,6 +508,23 @@ const API = "";
 const fmtNum = (n, d=2) => (n == null || isNaN(n)) ? "--" : Number(n).toLocaleString("vi-VN", {minimumFractionDigits:d, maximumFractionDigits:d});
 const fmtPct = (n) => n == null ? "--" : (n>=0?"+":"") + Number(n).toFixed(2) + "%";
 
+// ── Credit system: lấy api_key đã lưu, hoặc tự đăng ký user mới ──
+async function ensureApiKey() {
+  let key = localStorage.getItem("mh_api_key");
+  if (key) return key;
+
+  try {
+    const res = await fetch(`${API}/api/credit/register`, { method: "POST" }).then(r => r.json());
+    if (res.api_key) {
+      localStorage.setItem("mh_api_key", res.api_key);
+      return res.api_key;
+    }
+  } catch (e) {
+    console.error("Không thể đăng ký api_key:", e);
+  }
+  return null;
+}
+
 // Popular symbols
 const POPULAR = [
   "VCB","BID","VIC","VHM","CTG",
@@ -597,7 +614,19 @@ async function runAnalysis() {
   document.getElementById("stats-card").style.display = "none";
 
   try {
-    const a = await fetch(`${API}/api/vn/analysis/${raw}`).then(r => r.json());
+    const apiKey = await ensureApiKey();
+    if (!apiKey) {
+      showError("Không thể khởi tạo tài khoản dùng thử. Thử tải lại trang.");
+      return;
+    }
+
+    const res = await fetch(`${API}/api/vn/analysis/${raw}?api_key=${apiKey}`);
+    const a = await res.json();
+
+    if (res.status === 402) {
+      showError(`Hết lượt phân tích miễn phí (còn ${a.credits ?? 0} credit). Liên hệ nâng cấp premium.`);
+      return;
+    }
 
     if (a.error) {
       showError(a.error);
@@ -787,6 +816,7 @@ function renderStats(a) {
     ["Downside đến hỗ trợ", downside],
     ["Tỷ lệ R:R",          rr + ":1"],
     ["Cắt lỗ",             fmtNum(a.stop_loss, 2)],
+    ["Credit còn lại", a.credits_remaining != null ? `${a.credits_remaining} (${a.role})` : "--"],
   ].map(([label, val]) =>
     `<div class="stat-row">
       <span class="stat-label">${label}</span>
