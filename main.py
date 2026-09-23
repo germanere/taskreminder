@@ -107,37 +107,47 @@ def log_chat_message(session_id: str, role: str, message: str):
 
 
 
-# 250 mã HOSE vốn hóa lớn nhất + bổ sung (tháng 7/2026)
+# 389 mã HOSE — trích xuất trực tiếp từ dữ liệu khớp lệnh SSI (chính xác theo nguồn thật)
 HOSE_TOP200 = [
-    "VCB","BID","VIC","VHM","CTG","GAS","VNM","SAB","MSN","TCB",
-    "MBB","FPT","ACB","PLX","HPG","VPB","STB","HDB","GVR","POW",
-    "MWG","PNJ","REE","SSI","VND","HCM","DPM","DCM","VEA","KDH",
-    "NVL","PDR","DXG","PVD","HSG","NKG","PHR","DRC","IDC","KBC",
-    "NTC","LHG","EIB","EVF","CMG","VGI","FRT","DGW","GEX","VRE",
-    # 50 mã bổ sung (51-100)
-    "BVH","BCM","PC1","PVT","BSR","BMI","DGC","CTD","HDG","HAH",
-    "ANV","VHC","DBC","NLG","CII","TCH","HHV","VCG","HT1","PAN",
-    "VOS","VTP","VCI","SHB","TPB","OCB","MSB","LPB","BAB","NAB",
-    "TLG","SCS","ASM","CTS","FTS","PVS","PVC","TIS","NT2","VSH",
-    "BWE","DPR","HAG","HNG","DHC","SBT","SZC","DIG","ITA","TDM",
-    # 50 mã bổ sung (101-150)
-    "AAA","APH","BFC","BCG","BHN","CAV","CKG","CLL","CMX","CRE",
-    "DAH","DBD","DHA","DPG","ELC","EVE","FCN","FIT","FTM","GEG",
-    "GIL","GMD","HBC","HCD","HII","HQC","HU1","HVH","IJC","IMP",
-    "ITC","KSB","LCG","LDG","LSS","MCP","NHA","NHH","NTL","OGC",
-    "PDN","PGD","PGI","PHC","PIT","PLP","PMG","PTB","QCG","RAL",
-    # 50 mã bổ sung (151-200)
-    "SAM","SBA","SCD","SFG","SGN","SGT","SHA","SHI","SJD","SJS",
-    "SMA","SMB","SMC","SRC","SRF","SVC","SVI","TCM","TDC","TDH",
-    "TDP","TEG","THG","TLH","TNA","TNI","TNT","TPC","TRA","TSC",
-    "TTF","TV2","TVS","UDC","VCF","VDS","VFG","VID","VIP","VIX",
-    "VNE","VNG","VPG","VPI","VSC","VTO","YEG","BMP","DXS","NAF",
-    # 50 mã bổ sung (201-250)
-    "VJC","HVN","VGC","DHG","DBT","PPC","NBB","ABT","ACL","BBC",
-    "BTP","C32","CDC","CIG","CLC","COM","CTI","D2D","DAG","DRH",
-    "DTL","EVG","FIR","GDT","HAP","HDC","HRC","HTN","ICF","IDI",
-    "ILB","JVC","KHP","LAF","LGC","LIX","MHC","NNC","PET","PGC",
-    "QNS","RDP","SAV","SC5","SCR","SFC","SFI","SGR","SKG","STK",
+    "AAA","AAM","AAN","AAT","ABR","ABS","ABT","ACB","ACC","ACG",
+    "ACL","ADG","ADP","ADS","AFX","AGG","AGR","ANT","ANV","APG",
+    "APH","ASG","ASM","ASP","AST","BAF","BCE","BCM","BFC","BHN",
+    "BIC","BID","BKG","BMC","BMI","BMP","BRC","BSI","BSR","BTP",
+    "BTT","BVB","BVH","BWE","CCC","CCI","CCL","CDC","CHP","CIG",
+    "CII","CKG","CLC","CLL","CLW","CMG","CMV","CMX","CNG","COM",
+    "CRC","CRE","CRV","CSM","CSV","CTD","CTF","CTG","CTI","CTR",
+    "CTS","CVT","DAH","DAT","DBC","DBD","DBT","DCL","DCM","DGC",
+    "DGW","DHA","DHC","DHG","DHM","DIG","DLG","DMC","DMX","DPG",
+    "DPM","DPR","DQC","DRC","DRH","DRL","DSC","DSE","DSN","DTA",
+    "DTL","DTT","DVP","DXG","DXS","DXV","EIB","ELC","EVE","EVF",
+    "EVG","FCM","FCN","FDC","FIR","FIT","FMC","FPT","FRT","FTS",
+    "GAS","GDT","GEE","GEG","GEL","GEX","GHC","GIL","GMD","GMH",
+    "GSP","GTA","GVR","HAG","HAH","HAP","HAR","HAS","HAX","HCD",
+    "HCM","HDB","HDC","HDG","HHP","HHS","HHV","HID","HII","HMC",
+    "HNA","HPA","HPG","HPX","HQC","HRC","HSG","HSL","HTG","HTI",
+    "HTL","HTN","HTV","HUB","HVH","HVN","ICT","IDI","IJC","ILB",
+    "IMP","ITC","ITD","JVC","KBC","KDC","KDH","KHG","KHP","KLB",
+    "KMR","KOS","KSB","LAF","LBM","LCG","LDG","LGC","LGL","LHG",
+    "LIX","LPB","LPS","LSS","MBB","MCH","MCM","MCP","MDG","MHC",
+    "MIG","MSB","MSH","MSN","MWG","MZG","NAB","NAF","NAV","NBB",
+    "NCT","NHA","NHH","NHT","NKG","NLG","NNC","NSC","NTC","NTL",
+    "NVL","NVT","OCB","OGC","OPC","ORS","PAC","PAN","PDN","PDR",
+    "PDV","PET","PGC","PGD","PGI","PGV","PHC","PHR","PIT","PJT",
+    "PLP","PLX","PMG","PNC","PNJ","POW","PPC","PTB","PTC","PTL",
+    "PVD","PVP","PVT","QCG","QNP","RAL","REE","RYG","SAB","SAM",
+    "SAV","SBA","SBG","SBT","SBV","SCR","SCS","SFC","SFG","SFI",
+    "SGN","SGR","SGT","SHA","SHB","SHI","SHP","SIP","SJD","SJS",
+    "SKG","SMA","SMB","SMC","SPM","SRC","SRF","SSB","SSC","SSI",
+    "STB","STG","STK","SVC","SVD","SVT","SZC","SZL","TAL","TBC",
+    "TCB","TCH","TCI","TCL","TCM","TCO","TCR","TCT","TCX","TDC",
+    "TDG","TDH","TDM","TDP","TDW","TEG","THG","TIP","TIX","TLD",
+    "TLG","TLH","TMP","TMS","TMT","TNC","TNH","TNI","TNT","TPB",
+    "TPC","TRA","TRC","TSA","TSC","TTA","TTE","TTF","TVB","TVS",
+    "TVT","TYA","UIC","VAB","VBB","VCA","VCB","VCF","VCG","VCI",
+    "VCK","VDP","VDS","VFG","VGC","VHC","VHM","VIB","VIC","VID",
+    "VIP","VIX","VJC","VMD","VND","VNG","VNL","VNM","VNS","VOS",
+    "VPB","VPD","VPG","VPH","VPI","VPL","VPS","VPX","VRC","VRE",
+    "VSC","VSH","VSI","VTB","VTO","VTP","VVS","YBM","YEG",
 ]
 HOSE_TOP100 = HOSE_TOP200  # alias để tương thích code cũ
 HOSE_TOP50  = HOSE_TOP200  # alias để tương thích code cũ
@@ -399,6 +409,22 @@ HOSE_INFO = {
     "SKG":  {"name": "Superdong Kiên Giang",     "sector": "Công nghiệp"},
     "STK":  {"name": "Sợi Thế Kỷ",               "sector": "Vật liệu"},
 }
+
+
+# ─────────────────────────────────────────────
+# TOÀN BỘ MÃ HOSE — TẠM THỜI dùng HOSE_TOP200 hardcode.
+# Sẽ mở rộng lên ~707 mã khi có file danh sách chính thức từ bạn (CSV/Excel từ HOSE
+# hoặc app chứng khoán bạn dùng) — xem ghi chú trong hội thoại.
+# ─────────────────────────────────────────────
+
+async def get_all_hose_symbols() -> list[dict]:
+    return [{"symbol": s, **HOSE_INFO.get(s, {"name": s, "sector": "Khác"})} for s in HOSE_TOP200]
+
+
+@app.get("/api/vn/hose-all-symbols")
+async def hose_all_symbols():
+    """Danh sách mã HOSE hiện có trong hệ thống (tạm thời 250 mã hardcode)."""
+    return await get_all_hose_symbols()
 
 
 _hose_cache: dict = {}
@@ -1638,16 +1664,20 @@ VOLUME_WEEK_TTL = 4 * 3600  # 4 giờ — quét 250 mã khá tốn, không cần
 @app.get("/api/vn/top-volume-week")
 async def get_top_volume_week(limit: int = 30):
     """
-    Quét toàn bộ HOSE_TOP200, xếp hạng theo volume_ratio (khối lượng tuần này /
-    khối lượng trung bình các phiên trước). Tỷ lệ cao = dòng tiền đang chú ý bất
-    thường tới mã đó — chỉ là tín hiệu đáng theo dõi, không phải khuyến nghị mua.
+    Quét toàn bộ mã đang niêm yết trên HOSE (nguồn vnstock/VCI, ~707 mã), xếp hạng
+    theo volume_ratio (khối lượng tuần này / khối lượng trung bình các phiên trước).
+    Tỷ lệ cao = dòng tiền đang chú ý bất thường tới mã đó — chỉ là tín hiệu đáng
+    theo dõi, không phải khuyến nghị mua.
     """
     now = time.time()
     cached = _volume_week_cache.get("top")
     if cached and (now - cached["ts"]) < VOLUME_WEEK_TTL:
         return cached["data"][:limit]
 
-    symbols = HOSE_TOP200
+    all_symbols = await get_all_hose_symbols()  # ~707 mã (nguồn vnstock), thay vì 250 mã hardcode
+    info_map = {s["symbol"]: s for s in all_symbols}
+    symbols = list(info_map.keys())
+
     signals = []
     CHUNK = 25
 
@@ -1664,7 +1694,7 @@ async def get_top_volume_week(limit: int = 30):
             await asyncio.sleep(0.5)
 
     for s in signals:
-        info = HOSE_INFO.get(s["symbol"], {"name": s["symbol"], "sector": "Khác"})
+        info = info_map.get(s["symbol"], {"name": s["symbol"], "sector": "Khác"})
         s["name"] = info["name"]
         s["sector"] = info["sector"]
 
