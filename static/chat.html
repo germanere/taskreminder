@@ -10,20 +10,21 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:        #0d0f14;
-    --surface:   #13161e;
-    --border:    #1e2330;
-    --border2:   #252b3b;
-    --text:      #e2e8f0;
+    --bg:        #f4f6f9;
+    --surface:   #ffffff;
+    --border:    #e3e8ef;
+    --border2:   #d6dce5;
+    --text:      #1e293b;
     --muted:     #64748b;
-    --accent:    #3b82f6;
-    --accent2:   #1d4ed8;
-    --green:     #22c55e;
-    --red:       #ef4444;
-    --user-bg:   #1e2a45;
-    --bot-bg:    #13161e;
+    --accent:    #111111;
+    --accent2:   #d93025;
+    --green:     #0f9d58;
+    --red:       #d93025;
+    --user-bg:   #f0f0f0;
+    --bot-bg:    #ffffff;
     --mono:      'JetBrains Mono', monospace;
     --sans:      'Inter', sans-serif;
+    --shadow-sm: 0 1px 2px rgba(15,23,42,.04);
   }
 
   html, body { height: 100%; }
@@ -47,6 +48,7 @@
     height: 52px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
     flex-shrink: 0;
     gap: 12px;
   }
@@ -70,7 +72,7 @@
     border: 1px solid var(--border);
     transition: all .15s;
   }
-  .back-btn:hover { color: var(--text); border-color: var(--border2); }
+  .back-btn:hover { color: var(--text); border-color: var(--border2); background: var(--bg); }
 
   .logo {
     display: flex;
@@ -82,8 +84,8 @@
   .logo-dot {
     width: 8px; height: 8px;
     border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 8px var(--accent);
+    background: var(--red);
+    box-shadow: 0 0 8px rgba(217,48,37,.5);
     animation: pulse 2s infinite;
   }
   @keyframes pulse {
@@ -171,7 +173,7 @@
     margin-top: 2px;
   }
   .avatar.bot  { background: var(--accent2); color: #fff; }
-  .avatar.user { background: #1e3a5f; color: var(--accent); }
+  .avatar.user { background: #e5e5e5; color: #111111; }
 
   .bubble {
     max-width: 75%;
@@ -182,32 +184,33 @@
     word-break: break-word;
   }
   .bubble.bot  {
-    background: var(--surface);
+    background: var(--bot-bg);
     border: 1px solid var(--border);
     border-top-left-radius: 2px;
     color: var(--text);
+    box-shadow: var(--shadow-sm);
   }
   .bubble.user {
     background: var(--user-bg);
-    border: 1px solid #2a3f6b;
+    border: 1px solid #d4d4d4;
     border-top-right-radius: 2px;
     color: var(--text);
   }
 
   /* Markdown-ish styling inside bubbles */
-  .bubble strong { color: #93c5fd; font-weight: 600; }
-  .bubble em     { color: #a5b4fc; }
+  .bubble strong { color: var(--red); font-weight: 600; }
+  .bubble em     { color: #52525b; }
   .bubble code   {
     font-family: var(--mono);
     font-size: 12px;
-    background: #0d1220;
+    background: #f1f4f8;
     border: 1px solid var(--border2);
     padding: 1px 5px;
     border-radius: 3px;
-    color: #86efac;
+    color: #0f9d58;
   }
   .bubble pre {
-    background: #0a0d16;
+    background: #f8fafc;
     border: 1px solid var(--border2);
     border-radius: 6px;
     padding: 10px 12px;
@@ -226,12 +229,12 @@
   }
   .bubble li { margin: 3px 0; }
   .bubble p  { margin: 4px 0; }
-  .bubble h3 { font-size: 14px; font-weight: 600; margin: 8px 0 4px; color: #93c5fd; }
+  .bubble h3 { font-size: 14px; font-weight: 600; margin: 8px 0 4px; color: var(--red); }
 
   /* number/price highlight */
   .num-up   { color: var(--green); font-family: var(--mono); font-size: 13px; }
   .num-down { color: var(--red);   font-family: var(--mono); font-size: 13px; }
-  .num      { color: #f0abfc;      font-family: var(--mono); font-size: 13px; }
+  .num      { color: var(--red);       font-family: var(--mono); font-size: 13px; }
 
   /* Typing indicator */
   .typing-dots {
@@ -266,13 +269,13 @@
   }
   .welcome-icon {
     width: 56px; height: 56px;
-    background: linear-gradient(135deg, #1d4ed8, #7c3aed);
+    background: linear-gradient(135deg, #111111, #d93025);
     border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 26px;
-    box-shadow: 0 0 30px #1d4ed840;
+    box-shadow: 0 6px 20px rgba(217,48,37,.22);
   }
   .welcome h2  { font-size: 20px; font-weight: 600; }
   .welcome p   { color: var(--muted); font-size: 14px; max-width: 360px; line-height: 1.6; }
