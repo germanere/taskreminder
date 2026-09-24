@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 import httpx
 import pytz
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +24,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import gspread
 import credits
 from google.oauth2.service_account import Credentials
+from config.security import setup_cors, SecurityHeadersMiddleware, RateLimiter
 
 ICT = pytz.timezone("Asia/Ho_Chi_Minh")
 logging.basicConfig(level=logging.INFO)
@@ -421,12 +422,6 @@ async def get_all_hose_symbols() -> list[dict]:
     return [{"symbol": s, **HOSE_INFO.get(s, {"name": s, "sector": "Khác"})} for s in HOSE_TOP200]
 
 
-@app.get("/api/vn/hose-all-symbols")
-async def hose_all_symbols():
-    """Danh sách mã HOSE hiện có trong hệ thống (tạm thời 250 mã hardcode)."""
-    return await get_all_hose_symbols()
-
-
 _hose_cache: dict = {}
 HOSE_TTL = 60
 
@@ -652,8 +647,16 @@ async def lifespan(app: FastAPI):
 # ─────────────────────────────────────────────
 
 app = FastAPI(title="Market Research Hub", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+setup_cors(app)
+app.add_middleware(SecurityHeadersMiddleware)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+register_limiter = RateLimiter(max_requests=5, window_seconds=3600)  # 5 lần đăng ký/IP/giờ
+
+@app.get("/api/vn/hose-all-symbols")
+async def hose_all_symbols():
+    """Danh sách mã HOSE hiện có trong hệ thống (tạm thời 250 mã hardcode)."""
+    return await get_all_hose_symbols()
 
 @app.get("/")
 def index():
@@ -1479,7 +1482,7 @@ async def trigger_alert_now():
 # REST — CREDIT SYSTEM (Supabase: roles + credits)
 # ─────────────────────────────────────────────
 
-@app.post("/api/credit/register")
+@app.post("/api/credit/register", dependencies=[Depends(register_limiter)])
 async def register_credit_user():
     """Tạo user mới, trả về api_key (giữ bí mật, dùng cho mọi request premium sau này)."""
     try:
