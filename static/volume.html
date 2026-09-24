@@ -10,7 +10,360 @@
 
 :root {
   --bg0: #080c10;
-  --bg1: #0d1117;
+  --bg1: #0d1117;<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Top khối lượng tuần — Market Hub</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◈</text></svg>">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg0: #f4f6f9;
+  --bg1: #ffffff;
+  --bg2: #f1f4f8;
+  --bg3: #e7ebf1;
+  --bg4: #d3dae3;
+  --border: #e3e8ef;
+  --border2: #d6dce5;
+  --text0: #0f172a;
+  --text1: #33415c;
+  --text2: #64748b;
+  --text3: #94a3b8;
+  --green:  #0f9d58;
+  --green2: #e3f6ea;
+  --red:    #d93025;
+  --red2:   #fbe8e6;
+  --yellow: #b7791f;
+  --blue:   #111111;
+  --blue2:  #e5e5e5;
+  --font: -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --shadow-sm: 0 1px 2px rgba(15,23,42,.04);
+  --shadow-md: 0 2px 10px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+}
+
+html, body {
+  min-height: 100%;
+  background: var(--bg0);
+  color: var(--text1);
+  font-family: var(--font);
+  font-size: 13px;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg1); }
+::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  padding: 0 20px;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.back-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text2);
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background .15s;
+}
+.back-btn:hover { background: var(--bg4); color: var(--text0); }
+.header-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text0);
+}
+.header-sub {
+  font-size: 11px;
+  color: var(--text3);
+}
+.header-refresh {
+  margin-left: auto;
+  background: var(--blue);
+  border: none;
+  border-radius: var(--radius);
+  color: #fff;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.header-refresh:hover { opacity: .85; }
+.header-refresh:disabled { opacity: .4; cursor: default; }
+
+.main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.intro {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.6;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  border-left: 3px solid var(--blue);
+}
+
+.table-wrap {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+table { width: 100%; border-collapse: collapse; }
+
+thead th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 10px 14px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+thead th.num { text-align: right; }
+
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .1s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--bg2); }
+
+tbody td { padding: 10px 14px; font-size: 12px; vertical-align: middle; }
+tbody td.num { text-align: right; font-family: var(--font-mono); }
+
+.rank {
+  font-family: var(--font-mono);
+  color: var(--text3);
+  width: 28px;
+}
+
+.sym-cell { display: flex; flex-direction: column; gap: 1px; }
+.sym-code { font-family: var(--font-mono); font-weight: 700; color: var(--text0); font-size: 13px; }
+.sym-name { font-size: 10px; color: var(--text3); }
+
+.sector-tag {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--text2);
+  background: var(--bg3);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.ratio-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+.ratio-badge.hot   { background: var(--red2);   color: var(--red); }
+.ratio-badge.warm  { background: #fdf1dc;       color: var(--yellow); }
+.ratio-badge.mild  { background: var(--bg3);    color: var(--text2); }
+
+.pct-pos { color: var(--green); }
+.pct-neg { color: var(--red); }
+
+.loading-state, .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text3);
+  text-align: center;
+  gap: 10px;
+}
+.spinner {
+  width: 28px; height: 28px;
+  border: 2px solid var(--bg3);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty-icon { font-size: 32px; }
+
+.disclaimer {
+  font-size: 10px;
+  color: var(--text3);
+  line-height: 1.6;
+  padding: 10px;
+  margin-top: 14px;
+  background: var(--bg1);
+  border-radius: var(--radius);
+  border-left: 2px solid var(--yellow);
+}
+
+@media (max-width: 640px) {
+  .main { padding: 12px; }
+  thead th:nth-child(3), tbody td:nth-child(3) { display: none; } /* ẩn cột ngành trên mobile */
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="/" class="back-btn">← Về trang chủ</a>
+  <div>
+    <div class="header-title">🔥 Top khối lượng tuần</div>
+    <div class="header-sub" id="hdr-sub">Đang tải...</div>
+  </div>
+  <button class="header-refresh" id="btn-refresh" onclick="loadData()">Làm mới</button>
+</header>
+
+<div class="main">
+
+  <div class="intro">
+    Xếp hạng theo <b>tỷ lệ khối lượng khớp lệnh</b>: khối lượng trung bình 5 phiên gần nhất
+    so với khối lượng trung bình các phiên trước đó. Tỷ lệ càng cao — dòng tiền đang chú ý
+    tới mã đó bất thường so với bình thường. Đây là tín hiệu đáng theo dõi, không phải
+    khuyến nghị mua/bán.
+  </div>
+
+  <div class="table-wrap" id="table-wrap">
+    <div class="loading-state">
+      <div class="spinner"></div>
+      <div>Đang quét khối lượng 250 mã HOSE...</div>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    ⚠️ Dữ liệu khối lượng có độ trễ, chỉ mang tính tham khảo kỹ thuật. Không phải lời khuyên
+    đầu tư. Thị trường có thể biến động ngoài dự đoán.
+  </div>
+
+</div>
+
+<script>
+const API = "";
+const fmtNum = (n, d=2) => (n == null || isNaN(n)) ? "--" : Number(n).toLocaleString("vi-VN", {minimumFractionDigits:d, maximumFractionDigits:d});
+const fmtPct = (n) => n == null ? "--" : (n>=0?"+":"") + Number(n).toFixed(2) + "%";
+const fmtVol = (n) => n == null ? "--" : Number(n).toLocaleString("vi-VN");
+
+function ratioClass(ratio) {
+  if (ratio >= 3) return "hot";
+  if (ratio >= 1.8) return "warm";
+  return "mild";
+}
+
+function renderTable(rows) {
+  const wrap = document.getElementById("table-wrap");
+
+  if (!rows || rows.length === 0) {
+    wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div>Chưa có dữ liệu — thử làm mới lại.</div></div>`;
+    return;
+  }
+
+  const body = rows.map((r, i) => `
+    <tr onclick="location.href='/analysis.html?sym=${r.symbol}'">
+      <td class="rank">${i + 1}</td>
+      <td>
+        <div class="sym-cell">
+          <span class="sym-code">${r.symbol}</span>
+          <span class="sym-name">${r.name || ""}</span>
+        </div>
+      </td>
+      <td><span class="sector-tag">${r.sector || "Khác"}</span></td>
+      <td class="num">${fmtNum(r.price, 2)}</td>
+      <td class="num ${r.price_change_week >= 0 ? "pct-pos" : "pct-neg"}">${fmtPct(r.price_change_week)}</td>
+      <td class="num">${fmtVol(r.avg_volume_week)}</td>
+      <td class="num"><span class="ratio-badge ${ratioClass(r.volume_ratio)}">${r.volume_ratio}x</span></td>
+    </tr>
+  `).join("");
+
+  wrap.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th>Mã</th>
+          <th>Ngành</th>
+          <th class="num">Giá</th>
+          <th class="num">Tuần</th>
+          <th class="num">KL TB/phiên</th>
+          <th class="num">Đột biến KL</th>
+        </tr>
+      </thead>
+      <tbody>${body}</tbody>
+    </table>
+  `;
+}
+
+async function loadData() {
+  const btn = document.getElementById("btn-refresh");
+  const sub = document.getElementById("hdr-sub");
+  btn.disabled = true;
+  btn.textContent = "Đang quét...";
+  sub.textContent = "Đang quét khối lượng 250 mã HOSE (có thể mất khoảng nửa phút lần đầu)...";
+
+  document.getElementById("table-wrap").innerHTML =
+    `<div class="loading-state"><div class="spinner"></div><div>Đang quét khối lượng 250 mã HOSE...</div></div>`;
+
+  try {
+    const res = await fetch(`${API}/api/vn/top-volume-week?limit=30`);
+    const data = await res.json();
+
+    if (data.error) {
+      document.getElementById("table-wrap").innerHTML =
+        `<div class="empty-state"><div class="empty-icon">❌</div><div>${data.error}</div></div>`;
+      sub.textContent = "Lỗi tải dữ liệu";
+      return;
+    }
+
+    renderTable(data);
+    sub.textContent = `${data.length} mã có tín hiệu khối lượng — cập nhật mỗi 4 giờ`;
+  } catch (e) {
+    document.getElementById("table-wrap").innerHTML =
+      `<div class="empty-state"><div class="empty-icon">⚠️</div><div>Không thể kết nối server: ${e.message}</div></div>`;
+    sub.textContent = "Lỗi kết nối";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Làm mới";
+  }
+}
+
+loadData();
+</script>
+
+</body>
+</html>
   --bg2: #111827;
   --bg3: #1f2937;
   --bg4: #374151;
