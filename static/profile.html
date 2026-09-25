@@ -1,30 +1,15 @@
 <!-- ============================================================
-     HEADER PROFILE MENU — dán vào <header> của các trang khác
-     (trang chủ, trang phân tích...) để hiện góc phải khi đã login.
-     Dùng chung hệ thống auth với profile.html: localStorage token
-     + gọi /api/auth/me
+     HEADER USER INFO — chỉ hiện avatar + email khi đã đăng nhập.
+     Không dropdown, không logout (logout đã có sẵn ở /profile.html).
+     Dán vào <header> của trang chủ / trang phân tích...
      ============================================================ -->
 
-<!-- 1. CSS: dán vào <style> của trang, dùng chung biến --bg1, --border... đã có sẵn -->
+<!-- 1. CSS -->
 <style>
-.header-profile { position: relative; margin-left: auto; display: none; }
-.header-profile.show { display: block; }
+.header-user { display: none; align-items: center; gap: 8px; margin-left: auto; }
+.header-user.show { display: flex; }
 
-.hp-btn {
-  display: flex; align-items: center; gap: 8px;
-  padding: 5px 10px 5px 5px;
-  border: 1px solid var(--border2);
-  border-radius: 20px;
-  background: var(--bg1);
-  cursor: pointer;
-  font-family: var(--font);
-  font-size: 12.5px;
-  color: var(--text1);
-  transition: background .15s;
-}
-.hp-btn:hover { background: var(--bg2); }
-
-.hp-avatar {
+.hu-avatar {
   width: 26px; height: 26px;
   border-radius: 50%;
   background: var(--black);
@@ -33,137 +18,62 @@
   font-size: 12px; font-weight: 700;
   flex-shrink: 0;
 }
-.hp-email {
-  max-width: 140px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.hp-arrow { font-size: 9px; color: var(--text3); }
-
-.hp-dropdown {
-  display: none;
-  position: absolute; right: 0; top: 40px;
-  background: var(--bg1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  min-width: 210px;
-  overflow: hidden;
-  z-index: 1000;
-}
-.hp-dropdown.open { display: block; }
-
-.hp-dropdown-head {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-}
-.hp-dropdown-email {
-  font-size: 12.5px; font-weight: 600; color: var(--text0);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.hp-dropdown-credits {
-  font-size: 11.5px; color: var(--text3); margin-top: 3px;
-  font-family: var(--font-mono);
-}
-
-.hp-link {
-  display: block;
-  padding: 9px 14px;
+.hu-email {
   font-size: 12.5px;
   color: var(--text1);
-  text-decoration: none;
-  border: none; background: none;
-  width: 100%; text-align: left;
-  cursor: pointer;
+  max-width: 160px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.hp-link:hover { background: var(--bg2); }
-.hp-link.danger { color: var(--red); }
-.hp-link.danger:hover { background: var(--red2); }
+.hu-logout {
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  background: var(--bg1);
+  color: var(--red);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+.hu-logout:hover { background: var(--red2); }
 </style>
 
 <!-- 2. HTML: đặt trong <header class="header">, sau các phần tử khác -->
-<div class="header-profile" id="header-profile">
-  <button class="hp-btn" id="hp-btn">
-    <span class="hp-avatar" id="hp-avatar">?</span>
-    <span class="hp-email" id="hp-email">--</span>
-    <span class="hp-arrow">▼</span>
-  </button>
-
-  <div class="hp-dropdown" id="hp-dropdown">
-    <div class="hp-dropdown-head">
-      <div class="hp-dropdown-email" id="hp-dd-email">--</div>
-      <div class="hp-dropdown-credits" id="hp-dd-credits">--</div>
-    </div>
-    <a href="/profile.html" class="hp-link">Hồ sơ của bạn</a>
-    <button class="hp-link danger" id="hp-logout">Đăng xuất</button>
-  </div>
+<div class="header-user" id="header-user">
+  <span class="hu-avatar" id="hu-avatar">?</span>
+  <span class="hu-email" id="hu-email">--</span>
+  <button class="hu-logout" id="hu-logout">Đăng xuất</button>
 </div>
 
 <script>
 /* ============================================================
-   3. JS: gọi initHeaderProfile() sau khi DOM load xong.
-   Dùng chung /api/auth/me và localStorage token như profile.html
+   3. JS: tự chạy khi DOM load xong, lấy thông tin từ /api/auth/me
    ============================================================ */
-
-const ROLE_LABELS_HP = { free_tier: "Miễn phí", premium: "Premium", admin: "Admin" };
-
-function hpLogout() {
-  localStorage.removeItem("mh_access_token");
-  localStorage.removeItem("mh_refresh_token");
-  localStorage.removeItem("mh_user_email");
-  location.href = "/login.html";
-}
-
-async function initHeaderProfile() {
+document.addEventListener("DOMContentLoaded", async () => {
   const token = localStorage.getItem("mh_access_token");
-  const wrap = document.getElementById("header-profile");
-
-  if (!token) {
-    wrap.classList.remove("show");
-    return;
-  }
+  const wrap = document.getElementById("header-user");
+  if (!wrap || !token) return;
 
   try {
     const res = await fetch("/api/auth/me", {
       headers: { "Authorization": `Bearer ${token}` },
     });
-
-    if (res.status === 401) {
-      hpLogout();
-      return;
-    }
-    if (!res.ok) {
-      wrap.classList.remove("show");
-      return;
-    }
+    if (!res.ok) return;
 
     const data = await res.json();
-    const letter = (data.email || "?")[0].toUpperCase();
-    const creditsText = data.role === "free_tier" ? `${data.credits} credit còn lại` : `${ROLE_LABELS_HP[data.role] || data.role} — không giới hạn`;
-
-    document.getElementById("hp-avatar").textContent = letter;
-    document.getElementById("hp-email").textContent = data.email.split("@")[0];
-    document.getElementById("hp-dd-email").textContent = data.email;
-    document.getElementById("hp-dd-credits").textContent = creditsText;
-
+    document.getElementById("hu-avatar").textContent = (data.email || "?")[0].toUpperCase();
+    document.getElementById("hu-email").textContent = data.email;
     wrap.classList.add("show");
   } catch (e) {
-    console.warn("Không tải được profile header:", e);
-    wrap.classList.remove("show");
+    console.warn("Không tải được thông tin user:", e);
   }
-}
 
-document.addEventListener("DOMContentLoaded", () => {
-  initHeaderProfile();
-
-  document.getElementById("hp-btn").addEventListener("click", (e) => {
-    e.stopPropagation();
-    document.getElementById("hp-dropdown").classList.toggle("open");
+  document.getElementById("hu-logout").addEventListener("click", () => {
+    localStorage.removeItem("mh_access_token");
+    localStorage.removeItem("mh_refresh_token");
+    localStorage.removeItem("mh_user_email");
+    location.href = "/login.html";
   });
-
-  document.addEventListener("click", () => {
-    document.getElementById("hp-dropdown").classList.remove("open");
-  });
-
-  document.getElementById("hp-logout").addEventListener("click", hpLogout);
 });
 </script>
