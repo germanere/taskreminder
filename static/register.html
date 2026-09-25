@@ -185,7 +185,7 @@ form.addEventListener("submit", async (e) => {
     const data = await res.json();
 
     if (!res.ok) {
-      showMsg(data.error || "Đăng ký thất bại. Thử lại sau.", "error");
+      showMsg(data.error || data.detail || "Đăng ký thất bại. Thử lại sau.", "error");
       return;
     }
 
