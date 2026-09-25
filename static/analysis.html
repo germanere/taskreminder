@@ -513,21 +513,15 @@ const API = "";
 const fmtNum = (n, d=2) => (n == null || isNaN(n)) ? "--" : Number(n).toLocaleString("vi-VN", {minimumFractionDigits:d, maximumFractionDigits:d});
 const fmtPct = (n) => n == null ? "--" : (n>=0?"+":"") + Number(n).toFixed(2) + "%";
 
-// ── Credit system: lấy api_key đã lưu, hoặc tự đăng ký user mới ──
-async function ensureApiKey() {
-  let key = localStorage.getItem("mh_api_key");
-  if (key) return key;
-
-  try {
-    const res = await fetch(`${API}/api/credit/register`, { method: "POST" }).then(r => r.json());
-    if (res.api_key) {
-      localStorage.setItem("mh_api_key", res.api_key);
-      return res.api_key;
-    }
-  } catch (e) {
-    console.error("Không thể đăng ký api_key:", e);
+// ── Auth: bắt buộc đăng nhập, không còn tự cấp api_key ẩn như trước ──
+function getAccessToken() {
+  const token = localStorage.getItem("mh_access_token");
+  if (!token) {
+    sessionStorage.setItem("mh_redirect_after_login", location.pathname + location.search);
+    location.href = "/login.html";
+    return null;
   }
-  return null;
+  return token;
 }
 
 // Popular symbols
@@ -619,17 +613,23 @@ async function runAnalysis() {
   document.getElementById("stats-card").style.display = "none";
 
   try {
-    const apiKey = await ensureApiKey();
-    if (!apiKey) {
-      showError("Không thể khởi tạo tài khoản dùng thử. Thử tải lại trang.");
+    const token = getAccessToken();
+    if (!token) return; // đã redirect sang /login.html
+
+    const res = await fetch(`${API}/api/vn/analysis/${raw}`, {
+      headers: { "Authorization": `Bearer ${token}` },
+    });
+    const a = await res.json();
+
+    if (res.status === 401) {
+      localStorage.removeItem("mh_access_token");
+      sessionStorage.setItem("mh_redirect_after_login", location.pathname + location.search);
+      location.href = "/login.html";
       return;
     }
 
-    const res = await fetch(`${API}/api/vn/analysis/${raw}?api_key=${apiKey}`);
-    const a = await res.json();
-
     if (res.status === 402) {
-      showError(`Hết lượt phân tích miễn phí (còn ${a.credits ?? 0} credit). Liên hệ nâng cấp premium.`);
+      showError(`Hết lượt phân tích miễn phí (còn ${a.credits ?? 0} credit). <a href="/profile.html">Xem hồ sơ / nâng cấp</a>.`);
       return;
     }
 
