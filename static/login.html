@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Đăng nhập — Market Research Hub</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◈</text></svg>">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg0: #f4f6f9;
+  --bg1: #ffffff;
+  --bg2: #f1f4f8;
+  --border: #e3e8ef;
+  --border2: #d6dce5;
+  --text0: #0f172a;
+  --text1: #33415c;
+  --text2: #64748b;
+  --text3: #94a3b8;
+  --red:    #d93025;
+  --red2:   #fbe8e6;
+  --black:  #111111;
+  --font: -apple-system, 'Segoe UI', sans-serif;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --shadow-md: 0 2px 10px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+}
+
+html, body {
+  min-height: 100%;
+  background: var(--bg0);
+  color: var(--text1);
+  font-family: var(--font);
+  font-size: 14px;
+}
+
+.wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 32px 28px;
+}
+
+.brand {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.brand-icon { font-size: 26px; margin-bottom: 6px; }
+.brand-title { font-size: 17px; font-weight: 700; color: var(--text0); }
+.brand-sub   { font-size: 12px; color: var(--text3); margin-top: 4px; }
+
+label {
+  display: block;
+  font-size: 12px;
+  color: var(--text2);
+  margin-bottom: 5px;
+  margin-top: 14px;
+}
+label:first-of-type { margin-top: 0; }
+
+input {
+  width: 100%;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  color: var(--text0);
+  padding: 9px 12px;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
+}
+input:focus { border-color: var(--black); }
+
+.btn-submit {
+  width: 100%;
+  background: var(--black);
+  border: none;
+  border-radius: var(--radius);
+  color: #fff;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 20px;
+  transition: opacity .15s;
+}
+.btn-submit:hover:not(:disabled) { opacity: .85; }
+.btn-submit:disabled { opacity: .5; cursor: default; }
+
+.msg {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  line-height: 1.5;
+  display: none;
+}
+.msg.show { display: block; }
+.msg.error { background: var(--red2); color: var(--red); border-left: 3px solid var(--red); }
+
+.foot {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 12.5px;
+  color: var(--text3);
+}
+.foot a { color: var(--black); font-weight: 600; text-decoration: none; }
+.foot a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="card">
+    <div class="brand">
+      <div class="brand-icon">◈</div>
+      <div class="brand-title">Đăng nhập</div>
+      <div class="brand-sub">Market Research Hub</div>
+    </div>
+
+    <form id="login-form">
+      <label for="email">Email</label>
+      <input type="email" id="email" placeholder="ban@vidu.com" required autocomplete="email">
+
+      <label for="password">Mật khẩu</label>
+      <input type="password" id="password" required autocomplete="current-password">
+
+      <button type="submit" class="btn-submit" id="btn-submit">Đăng nhập</button>
+    </form>
+
+    <div class="msg" id="msg"></div>
+
+    <div class="foot">
+      Chưa có tài khoản? <a href="/register.html">Đăng ký</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "";
+const form = document.getElementById("login-form");
+const btn  = document.getElementById("btn-submit");
+const msg  = document.getElementById("msg");
+
+function showMsg(text) {
+  msg.textContent = text;
+  msg.className = "msg show error";
+}
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
+
+  btn.disabled = true;
+  btn.textContent = "Đang đăng nhập...";
+  msg.className = "msg";
+
+  try {
+    const res = await fetch(`${API}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      showMsg(data.error || "Đăng nhập thất bại.");
+      return;
+    }
+
+    localStorage.setItem("mh_access_token", data.access_token);
+    localStorage.setItem("mh_refresh_token", data.refresh_token);
+    localStorage.setItem("mh_user_email", data.user.email);
+
+    // Nếu có trang đích lưu sẵn (redirect từ trang khác vì chưa đăng nhập) thì quay lại đó
+    const redirectTo = sessionStorage.getItem("mh_redirect_after_login") || "/profile.html";
+    sessionStorage.removeItem("mh_redirect_after_login");
+    location.href = redirectTo;
+  } catch (err) {
+    showMsg("Không thể kết nối server: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Đăng nhập";
+  }
+});
+</script>
+
+</body>
+</html>
