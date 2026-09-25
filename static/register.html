@@ -186,14 +186,22 @@ form.addEventListener("submit", async (e) => {
 
     if (!res.ok) {
       showMsg(data.error || data.detail || "Đăng ký thất bại. Thử lại sau.", "error");
+      btn.disabled = false;
+      btn.textContent = "Đăng ký";
       return;
     }
 
+    // Đăng ký thành công: hiện thông báo xanh, đợi 1.8s rồi tự chuyển sang login
     showMsg(data.message || "Đăng ký thành công — kiểm tra email để xác minh tài khoản.", "success");
     form.reset();
+    btn.textContent = "Đang chuyển trang...";
+    setTimeout(() => {
+      location.href = "/login.html";
+    }, 1800);
+    // không bật lại nút "Đăng ký" ở đây vì trang sắp chuyển đi
+
   } catch (err) {
     showMsg("Không thể kết nối server: " + err.message, "error");
-  } finally {
     btn.disabled = false;
     btn.textContent = "Đăng ký";
   }
