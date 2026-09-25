@@ -1767,7 +1767,12 @@ async def get_vn_analysis(symbol: str, user: dict = Depends(auth.require_auth)):
     symbol = symbol.upper()
 
     # ── CREDIT CHECK — trước khi tốn API call ra ngoài ──
-    ok, balance, role = await credits.deduct_credit(user["id"], amount=1)
+    try:
+        ok, balance, role = await credits.deduct_credit(user["id"], amount=1)
+    except Exception as e:
+        log.error(f"deduct_credit crash cho user {user.get('id')}: {e}")
+        return JSONResponse(status_code=503, content={"error": f"Lỗi hệ thống credit: {e}"})
+
     if not ok:
         return JSONResponse(
             status_code=402,
