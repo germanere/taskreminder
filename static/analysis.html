@@ -48,7 +48,6 @@ html, body {
 ::-webkit-scrollbar-track { background: var(--bg1); }
 ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
 
-/* ── HEADER ── */
 .header {
   display: flex;
   align-items: center;
@@ -115,7 +114,38 @@ html, body {
 .header-price-chg.pos { color: var(--green); }
 .header-price-chg.neg { color: var(--red); }
 
-/* ── LAYOUT ── */
+/* ── HEADER USER INFO ──────────────────────── */
+.header-user { display: none; align-items: center; gap: 8px; margin-left: 14px; }
+.header-user.show { display: flex; }
+.hu-avatar {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  flex-shrink: 0;
+}
+.hu-email {
+  font-size: 12px;
+  color: var(--text1);
+  max-width: 140px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hu-logout {
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  background: var(--bg2);
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+.hu-logout:hover { background: var(--red2); }
+
 .main {
   max-width: 1100px;
   margin: 0 auto;
@@ -125,7 +155,6 @@ html, body {
   gap: 14px;
 }
 
-/* ── CARD ── */
 .card {
   background: var(--bg1);
   border: 1px solid var(--border);
@@ -154,7 +183,6 @@ html, body {
 .dot.red { background: var(--red); }
 .dot.blue { background: var(--blue); }
 
-/* ── SEARCH BAR ── */
 .search-row {
   display: flex;
   gap: 8px;
@@ -191,7 +219,6 @@ html, body {
 .btn-analyze:hover { opacity: .85; }
 .btn-analyze:disabled { opacity: .4; cursor: default; }
 
-/* ── CHART ── */
 .chart-wrap {
   height: 320px;
   background: var(--bg1);
@@ -202,7 +229,61 @@ html, body {
   box-shadow: var(--shadow-sm);
 }
 
-/* ── GAUGE ── */
+/* ── VOLUME CHART ── */
+.volume-wrap {
+  height: 110px;
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.volume-summary {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.vol-chip {
+  flex: 1;
+  background: var(--bg2);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  text-align: center;
+}
+.vol-chip-label { font-size: 10px; color: var(--text3); margin-bottom: 2px; }
+.vol-chip-val { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--text1); }
+.vol-chip-val.hot  { color: var(--red); }
+.vol-chip-val.warm { color: var(--yellow); }
+.vol-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+.vol-badge.hot  { background: var(--red2);  color: var(--red); }
+.vol-badge.warm { background: #fdf1dc;      color: var(--yellow); }
+.vol-badge.mild { background: var(--bg3);   color: var(--text2); }
+
+.vol-locked {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  background: var(--bg2);
+  border-radius: var(--radius);
+  font-size: 12px;
+  color: var(--text2);
+}
+.vol-locked-icon { font-size: 20px; }
+.vol-locked a {
+  color: var(--blue);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 .gauge-wrap { margin: 4px 0 10px; }
 .gauge-track {
   position: relative;
@@ -243,7 +324,6 @@ html, body {
   margin-bottom: 10px;
 }
 
-/* ── MA ROW ── */
 .ma-row {
   display: flex;
   gap: 8px;
@@ -261,7 +341,6 @@ html, body {
 .ma-chip-val.above { color: var(--green); }
 .ma-chip-val.below { color: var(--red); }
 
-/* ── TREND BADGE ── */
 .trend-badge {
   display: inline-flex;
   align-items: center;
@@ -276,7 +355,6 @@ html, body {
 .trend-badge.downtrend { background: var(--red2);   color: var(--red);   }
 .trend-badge.sideway   { background: var(--bg3);    color: var(--yellow);}
 
-/* ── ZONE GRID ── */
 .zone-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
@@ -300,7 +378,6 @@ html, body {
 .zone-card.sell .zone-val { color: var(--red); }
 .zone-card.stop .zone-val { color: var(--yellow); }
 
-/* ── ACTION BOX ── */
 .action-box {
   background: var(--bg2);
   border-left: 3px solid var(--blue);
@@ -316,7 +393,6 @@ html, body {
 .action-box.wait      { border-left-color: var(--yellow); }
 .action-box.hold      { border-left-color: var(--blue); }
 
-/* ── LEVELS LIST ── */
 .levels-list { display: flex; flex-direction: column; gap: 4px; }
 .level-row {
   display: flex;
@@ -336,10 +412,8 @@ html, body {
   border-radius: 3px;
 }
 
-/* ── SIDEBAR ── */
 .sidebar { display: flex; flex-direction: column; gap: 14px; }
 
-/* Quick stats */
 .stats-list { display: flex; flex-direction: column; gap: 6px; }
 .stat-row {
   display: flex;
@@ -352,7 +426,6 @@ html, body {
 .stat-label { font-size: 11px; color: var(--text3); }
 .stat-val { font-family: var(--font-mono); font-size: 12px; color: var(--text0); font-weight: 600; }
 
-/* Popular symbols */
 .sym-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -374,7 +447,6 @@ html, body {
 .sym-btn:hover { background: var(--bg3); color: var(--text0); border-color: var(--blue); }
 .sym-btn.active { background: var(--blue2); color: var(--blue); border-color: var(--blue); }
 
-/* Disclaimer */
 .disclaimer {
   font-size: 10px;
   color: var(--text3);
@@ -385,7 +457,6 @@ html, body {
   border-left: 2px solid var(--yellow);
 }
 
-/* ── LOADING / ERROR ── */
 .loading-state {
   display: flex;
   flex-direction: column;
@@ -416,11 +487,9 @@ html, body {
 }
 .empty-icon { font-size: 36px; }
 
-/* ── HISTORY SPARKLINE COLORS ── */
 .spark-up { color: var(--green); }
 .spark-dn { color: var(--red); }
 
-/* ── RESPONSIVE ── */
 @media (max-width: 900px) {
   .main { grid-template-columns: 1fr; }
   .sidebar { order: -1; }
@@ -431,12 +500,12 @@ html, body {
   .zone-grid { grid-template-columns: 1fr; }
   .header { padding: 0 12px; }
   .header-symbol { font-size: 15px; }
+  .hu-email { max-width: 80px; }
 }
 </style>
 </head>
 <body>
 
-<!-- HEADER -->
 <header class="header">
   <a href="/" class="back-btn">← Về trang chủ</a>
   <div>
@@ -449,21 +518,22 @@ html, body {
     <div class="header-price-val" id="hdr-price">--</div>
     <div class="header-price-chg" id="hdr-chg"></div>
   </div>
+  <div class="header-user" id="header-user">
+    <span class="hu-avatar" id="hu-avatar">?</span>
+    <span class="hu-email" id="hu-email">--</span>
+    <button class="hu-logout" id="hu-logout">Đăng xuất</button>
+  </div>
 </header>
 
-<!-- MAIN LAYOUT -->
 <div class="main">
 
-  <!-- LEFT COLUMN -->
   <div class="left-col">
 
-    <!-- SEARCH -->
     <div class="search-row">
       <input type="text" class="sym-input" id="sym-input" placeholder="Nhập mã (VD: VCB, HPG, FPT...)" maxlength="10">
       <button class="btn-analyze" id="btn-analyze" onclick="runAnalysis()">Phân tích</button>
     </div>
 
-    <!-- CHART -->
     <div class="chart-wrap" id="chart-wrap">
       <div class="empty-state">
         <div class="empty-icon">📊</div>
@@ -471,7 +541,8 @@ html, body {
       </div>
     </div>
 
-    <!-- MAIN ANALYSIS CARD -->
+    <div class="volume-wrap" id="volume-wrap" style="display:none"></div>
+
     <div id="analysis-card">
       <div class="empty-state">
         <div class="empty-icon">🔍</div>
@@ -482,24 +553,18 @@ html, body {
 
   </div>
 
-  <!-- RIGHT SIDEBAR -->
   <div class="sidebar">
 
-    <!-- POPULAR SYMBOLS -->
     <div class="card">
       <div class="card-title"><span class="dot blue"></span> Mã phổ biến</div>
-      <div class="sym-grid" id="sym-grid">
-        <!-- populated by JS -->
-      </div>
+      <div class="sym-grid" id="sym-grid"></div>
     </div>
 
-    <!-- QUICK STATS -->
     <div class="card" id="stats-card" style="display:none">
       <div class="card-title"><span class="dot green"></span> Thống kê nhanh</div>
       <div class="stats-list" id="stats-list"></div>
     </div>
 
-    <!-- DISCLAIMER -->
     <div class="disclaimer">
       ⚠️ Phân tích dựa trên dữ liệu kỹ thuật (MA, swing high/low). Chỉ mang tính tham khảo, không phải lời khuyên đầu tư. Thị trường có thể biến động ngoài dự đoán.
     </div>
@@ -512,8 +577,8 @@ html, body {
 const API = "";
 const fmtNum = (n, d=2) => (n == null || isNaN(n)) ? "--" : Number(n).toLocaleString("vi-VN", {minimumFractionDigits:d, maximumFractionDigits:d});
 const fmtPct = (n) => n == null ? "--" : (n>=0?"+":"") + Number(n).toFixed(2) + "%";
+const fmtVolShort = (n) => n == null || isNaN(n) ? "--" : n >= 1e9 ? (n/1e9).toFixed(2)+"B" : n >= 1e6 ? (n/1e6).toFixed(2)+"M" : n >= 1e3 ? (n/1e3).toFixed(0)+"K" : String(n);
 
-// ── Auth: bắt buộc đăng nhập, không còn tự cấp api_key ẩn như trước ──
 function getAccessToken() {
   const token = localStorage.getItem("mh_access_token");
   if (!token) {
@@ -524,7 +589,6 @@ function getAccessToken() {
   return token;
 }
 
-// Popular symbols
 const POPULAR = [
   "VCB","BID","VIC","VHM","CTG",
   "TCB","MBB","FPT","HPG","VPB",
@@ -534,9 +598,10 @@ const POPULAR = [
 
 let chart = null;
 let candleSeries = null;
+let volumeChart = null;
+let volumeSeries = null;
 let currentSymbol = null;
 
-// Init popular symbol grid
 function initSymGrid() {
   const grid = document.getElementById("sym-grid");
   grid.innerHTML = POPULAR.map(s =>
@@ -552,12 +617,10 @@ function pickSym(sym) {
   runAnalysis();
 }
 
-// Enter key support
 document.getElementById("sym-input").addEventListener("keydown", e => {
   if (e.key === "Enter") runAnalysis();
 });
 
-// Init chart
 function ensureChart() {
   const wrap = document.getElementById("chart-wrap");
   if (!chart) {
@@ -578,8 +641,40 @@ function ensureChart() {
     });
     window.addEventListener("resize", () => {
       if (chart) chart.applyOptions({ width: wrap.offsetWidth });
+      if (volumeChart) volumeChart.applyOptions({ width: document.getElementById("volume-wrap").offsetWidth });
     });
   }
+}
+
+function ensureVolumeChart() {
+  const wrap = document.getElementById("volume-wrap");
+  wrap.style.display = "block";
+  wrap.innerHTML = "";
+  volumeChart = LightweightCharts.createChart(wrap, {
+    layout: { background: { color: "#ffffff" }, textColor: "#64748b" },
+    grid: { vertLines: { color: "#eef1f5" }, horzLines: { color: "#eef1f5" } },
+    rightPriceScale: { borderColor: "#e3e8ef" },
+    timeScale: { borderColor: "#e3e8ef", timeVisible: false, visible: false },
+    width: wrap.offsetWidth,
+    height: 110,
+  });
+  volumeSeries = volumeChart.addHistogramSeries({
+    priceFormat: { type: "volume" },
+    priceScaleId: "",
+  });
+}
+
+function showVolumeLocked() {
+  const wrap = document.getElementById("volume-wrap");
+  wrap.style.display = "flex";
+  wrap.style.alignItems = "center";
+  wrap.style.height = "auto";
+  wrap.innerHTML = `
+    <div class="vol-locked" style="width:100%">
+      <span class="vol-locked-icon">🔒</span>
+      <span>Biểu đồ khối lượng chỉ dành cho gói <b>Premium</b>. <a href="/profile.html">Nâng cấp ngay</a> để mở khóa.</span>
+    </div>
+  `;
 }
 
 async function runAnalysis() {
@@ -591,30 +686,28 @@ async function runAnalysis() {
   btn.textContent = "Đang tải...";
   currentSymbol = raw;
 
-  // Update active sym button
   document.querySelectorAll(".sym-btn").forEach(b => {
     b.classList.toggle("active", b.textContent === raw);
   });
 
-  // Header
   document.getElementById("hdr-symbol").textContent = raw;
   document.getElementById("hdr-name").textContent = "";
   document.getElementById("hdr-price").textContent = "...";
   document.getElementById("hdr-chg").textContent = "";
 
-  // Show loading in chart
   const chartWrap = document.getElementById("chart-wrap");
   chartWrap.innerHTML = `<div class="loading-state"><div class="spinner"></div><div>Đang tải dữ liệu ${raw}...</div></div>`;
   chart = null; candleSeries = null;
+  document.getElementById("volume-wrap").style.display = "none";
+  volumeChart = null; volumeSeries = null;
 
-  // Show loading in analysis
   document.getElementById("analysis-card").innerHTML =
     `<div class="loading-state"><div class="spinner"></div><div>Đang phân tích ${raw}...</div></div>`;
   document.getElementById("stats-card").style.display = "none";
 
   try {
     const token = getAccessToken();
-    if (!token) return; // đã redirect sang /login.html
+    if (!token) return;
 
     const res = await fetch(`${API}/api/vn/analysis/${raw}`, {
       headers: { "Authorization": `Bearer ${token}` },
@@ -638,19 +731,14 @@ async function runAnalysis() {
       return;
     }
 
-    // Update header
     document.getElementById("hdr-price").textContent = fmtNum(a.current_price, 2);
     const chgPct = a.ma20 ? ((a.current_price - a.ma20) / a.ma20 * 100) : 0;
     const chgEl = document.getElementById("hdr-chg");
     chgEl.textContent = `vs MA20: ${fmtPct(chgPct)}`;
     chgEl.className = "header-price-chg " + (chgPct >= 0 ? "pos" : "neg");
 
-    // Chart from history
     if (a.history && a.history.length > 0) {
       ensureChart();
-      // Build candlestick bars with fake OHLC (line from close prices)
-      const closes = a.history.map(h => h.close).filter(Boolean);
-      // Use close-only bars
       const bars = a.history
         .filter(h => h.close > 0)
         .map((h, i, arr) => {
@@ -662,6 +750,7 @@ async function runAnalysis() {
             high:  Math.max(close, prev) * 1.002,
             low:   Math.min(close, prev) * 0.998,
             close: close,
+            volume: h.volume ?? null,
           };
         })
         .filter(b => b.time > 0)
@@ -669,7 +758,6 @@ async function runAnalysis() {
 
       if (bars.length > 0) {
         candleSeries.setData(bars);
-        // Add support line
         const supportLine = chart.addLineSeries({ color: "#0f9d58", lineWidth: 1, lineStyle: 2 });
         const resistLine  = chart.addLineSeries({ color: "#d93025", lineWidth: 1, lineStyle: 2 });
         supportLine.setData(bars.map(b => ({ time: b.time, value: a.support })));
@@ -679,11 +767,29 @@ async function runAnalysis() {
           const ma20Line = chart.addLineSeries({ color: "#111111", lineWidth: 1 });
           ma20Line.setData(bars.map(b => ({ time: b.time, value: a.ma20 })));
         }
+
+        // Vẽ biểu đồ khối lượng: chỉ dành cho premium/admin, và cần history có field volume
+        const hasVolume = bars.some(b => b.volume != null && b.volume > 0);
+        const canSeeVolume = a.role === "premium" || a.role === "admin";
+        if (hasVolume && canSeeVolume) {
+          ensureVolumeChart();
+          const volBars = bars.map((b, i) => ({
+            time: b.time,
+            value: b.volume || 0,
+            color: b.close >= (bars[i-1]?.close ?? b.close) ? "#0f9d5866" : "#d9302566",
+          }));
+          volumeSeries.setData(volBars);
+          chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+            if (range && volumeChart) volumeChart.timeScale().setVisibleLogicalRange(range);
+          });
+        } else if (hasVolume && !canSeeVolume) {
+          showVolumeLocked();
+        }
       }
     }
 
-    // Render analysis card
     renderAnalysis(a);
+    renderVolumeSummary(a);
     renderStats(a);
 
   } catch(e) {
@@ -697,17 +803,15 @@ async function runAnalysis() {
 function showError(msg) {
   document.getElementById("chart-wrap").innerHTML =
     `<div class="empty-state"><div class="empty-icon">❌</div><div>${msg}</div></div>`;
+  document.getElementById("volume-wrap").style.display = "none";
   document.getElementById("analysis-card").innerHTML =
     `<div class="empty-state"><div class="empty-icon">⚠️</div><div style="color:var(--red)">${msg}</div><div style="margin-top:8px;font-size:11px">TCBS có thể đang giới hạn truy cập. Thử lại sau hoặc chọn mã khác.</div></div>`;
 }
 
 function renderAnalysis(a) {
   const trendIcon = { uptrend: "↑", downtrend: "↓", sideway: "→" };
-
-  // Gauge position
   const pos = a.position_pct ?? 50;
 
-  // Support / resistance levels HTML
   const supHtml = (a.support_levels?.length
     ? a.support_levels.slice(0,3).map(l =>
         `<div class="level-row">
@@ -802,6 +906,56 @@ function renderAnalysis(a) {
   `;
 }
 
+function renderVolumeSummary(a) {
+  const vol = a.volume ?? a.current_volume ?? a.last_volume ?? null;
+  const avgVol = a.avg_volume ?? a.avg_volume_week ?? a.avg_volume_5d ?? null;
+  const ratio = a.volume_ratio ?? (vol && avgVol ? +(vol / avgVol).toFixed(2) : null);
+  const canSeeVolume = a.role === "premium" || a.role === "admin";
+
+  // Nếu backend chưa trả field khối lượng nào, không chèn khối tóm tắt
+  if (vol == null && avgVol == null && ratio == null) return;
+
+  let html;
+  if (!canSeeVolume) {
+    html = `
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title"><span class="dot yellow"></span> Khối lượng giao dịch</div>
+        <div class="vol-locked">
+          <span class="vol-locked-icon">🔒</span>
+          <span>Chỉ dành cho gói <b>Premium</b>. <a href="/profile.html">Nâng cấp ngay</a> để xem khối lượng giao dịch chi tiết.</span>
+        </div>
+      </div>
+    `;
+  } else {
+    const ratioCls = ratio >= 3 ? "hot" : ratio >= 1.8 ? "warm" : "mild";
+    const ratioBadge = ratio != null
+      ? `<span class="vol-badge ${ratioCls}">${ratio}x</span>`
+      : "--";
+
+    html = `
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title"><span class="dot yellow"></span> Khối lượng giao dịch</div>
+        <div class="volume-summary">
+          <div class="vol-chip">
+            <div class="vol-chip-label">KL phiên gần nhất</div>
+            <div class="vol-chip-val">${fmtVolShort(vol)}</div>
+          </div>
+          <div class="vol-chip">
+            <div class="vol-chip-label">KL trung bình</div>
+            <div class="vol-chip-val">${fmtVolShort(avgVol)}</div>
+          </div>
+          <div class="vol-chip">
+            <div class="vol-chip-label">Đột biến KL</div>
+            <div class="vol-chip-val">${ratioBadge}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  document.getElementById("analysis-card").insertAdjacentHTML("afterbegin", html);
+}
+
 function renderStats(a) {
   const rr = a.sell_zone && a.buy_zone && a.stop_loss
     ? ((a.sell_zone.low - a.buy_zone.high) / (a.buy_zone.high - a.stop_loss)).toFixed(1)
@@ -814,6 +968,12 @@ function renderStats(a) {
     ? ((a.current_price - a.support) / a.current_price * 100).toFixed(1) + "%"
     : "--";
 
+  const canSeeVolume = a.role === "premium" || a.role === "admin";
+  const vol = a.volume ?? a.current_volume ?? a.last_volume ?? null;
+  const avgVol = a.avg_volume ?? a.avg_volume_week ?? a.avg_volume_5d ?? null;
+  const volDisplay = canSeeVolume ? fmtVolShort(vol) : "🔒 Premium";
+  const avgVolDisplay = canSeeVolume ? fmtVolShort(avgVol) : "🔒 Premium";
+
   document.getElementById("stats-list").innerHTML = [
     ["Kháng cự gần nhất", fmtNum(a.resistance, 2)],
     ["Hỗ trợ gần nhất",   fmtNum(a.support, 2)],
@@ -821,6 +981,8 @@ function renderStats(a) {
     ["Downside đến hỗ trợ", downside],
     ["Tỷ lệ R:R",          rr + ":1"],
     ["Cắt lỗ",             fmtNum(a.stop_loss, 2)],
+    ["KL phiên gần nhất",  volDisplay],
+    ["KL trung bình",      avgVolDisplay],
     ["Credit còn lại", a.credits_remaining != null ? `${a.credits_remaining} (${a.role})` : "--"],
   ].map(([label, val]) =>
     `<div class="stat-row">
@@ -832,10 +994,36 @@ function renderStats(a) {
   document.getElementById("stats-card").style.display = "block";
 }
 
-// Init
-initSymGrid();
+async function initHeaderUser() {
+  const token = localStorage.getItem("mh_access_token");
+  const wrap  = document.getElementById("header-user");
+  if (!token) return;
 
-// Auto-load from URL param ?sym=VCB
+  try {
+    const res = await fetch("/api/auth/me", {
+      headers: { "Authorization": "Bearer " + token },
+    });
+    if (!res.ok) return;
+
+    const data = await res.json();
+    document.getElementById("hu-avatar").textContent = (data.email || "?")[0].toUpperCase();
+    document.getElementById("hu-email").textContent = data.email;
+    wrap.classList.add("show");
+  } catch (e) {
+    console.warn("Không tải được thông tin user:", e);
+  }
+}
+
+document.getElementById("hu-logout").addEventListener("click", () => {
+  localStorage.removeItem("mh_access_token");
+  localStorage.removeItem("mh_refresh_token");
+  localStorage.removeItem("mh_user_email");
+  location.href = "/login.html";
+});
+
+initSymGrid();
+initHeaderUser();
+
 const urlSym = new URLSearchParams(location.search).get("sym");
 if (urlSym) {
   document.getElementById("sym-input").value = urlSym.toUpperCase();
