@@ -8,7 +8,6 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◈</text></svg>">
 <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
 <style>
-/* ── RESET & BASE ─────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -42,12 +41,10 @@
 
 html, body { height: 100%; background: var(--bg0); color: var(--text1); font-family: var(--font); font-size: 13px; }
 
-/* ── SCROLLBAR ─────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg1); }
 ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
 
-/* ── HEADER ────────────────────────────────── */
 .header {
   display: flex;
   align-items: center;
@@ -109,13 +106,43 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 .conn-badge.ok    { color: var(--green); }
 .conn-badge.error { color: var(--red); }
 
-/* ── MAIN ──────────────────────────────────── */
+/* ── HEADER USER INFO ──────────────────────── */
+.header-user { display: none; align-items: center; gap: 8px; }
+.header-user.show { display: flex; }
+.hu-avatar {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  flex-shrink: 0;
+}
+.hu-email {
+  font-size: 12px;
+  color: var(--text1);
+  max-width: 150px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.hu-logout {
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  background: var(--bg2);
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 9px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+.hu-logout:hover { background: var(--red2); }
+
 .main { padding: 12px 16px; max-width: 1400px; margin: 0 auto; }
 
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
-/* ── CARDS ─────────────────────────────────── */
 .card {
   background: var(--bg1);
   border: 1px solid var(--border);
@@ -147,7 +174,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 .dot.yellow { background: var(--yellow); }
 .dot.red    { background: var(--red); }
 
-/* ── OVERVIEW GRID ─────────────────────────── */
 .overview-grid {
   display: grid;
   grid-template-columns: 200px 160px 1fr 200px 180px;
@@ -155,7 +181,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   align-items: start;
 }
 
-/* ── MULTI-TF ──────────────────────────────── */
 .multitf-list { display: flex; flex-direction: column; gap: 8px; }
 
 .tf-row {
@@ -188,7 +213,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   text-align: right;
 }
 
-/* ── FEAR & GREED ──────────────────────────── */
 .fg-widget { text-align: center; }
 .fg-svg { width: 100%; max-width: 180px; }
 .fg-arc { transition: stroke-dashoffset .8s ease; }
@@ -201,7 +225,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 }
 .fg-label { font-size: 11px; color: var(--text2); margin-top: 2px; }
 
-/* ── CRYPTO QUICK PRICES ───────────────────── */
 .price-list { display: flex; flex-direction: column; gap: 6px; }
 
 .price-row {
@@ -216,7 +239,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 .price-val { font-family: var(--font-mono); font-size: 12px; color: var(--text1); }
 .price-chg { font-family: var(--font-mono); font-size: 11px; min-width: 52px; text-align: right; }
 
-/* ── FOREX QUICK ───────────────────────────── */
 .forex-list { display: flex; flex-direction: column; gap: 6px; }
 .forex-row {
   display: flex;
@@ -230,7 +252,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 .forex-sell { font-family: var(--font-mono); font-size: 11px; color: var(--red); }
 .forex-buy  { font-family: var(--font-mono); font-size: 11px; color: var(--green); }
 
-/* ── GOLD ──────────────────────────────────── */
 .gold-widget { text-align: center; padding: 8px 0; }
 .gold-price {
   font-size: 22px;
@@ -240,7 +261,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 }
 .gold-unit { font-size: 11px; color: var(--text3); margin-top: 4px; }
 
-/* ── GLOBAL MARKETS ──────────────────────── */
 .global-markets-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -262,7 +282,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 .gm-change.neg { color: var(--red); }
 .gm-change.neu { color: var(--text3); }
 
-/* ── TOOLBAR ───────────────────────────────── */
 .toolbar {
   display: flex;
   gap: 8px;
@@ -320,7 +339,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 
 .update-time { font-size: 11px; color: var(--text3); }
 
-/* ── DATA TABLE ────────────────────────────── */
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -351,11 +369,9 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 }
 .data-table tbody td.num { text-align: right; font-family: var(--font-mono); }
 
-/* Sym cell */
 .sym-cell { font-weight: 600; color: var(--text0); font-size: 12px; }
 .name-cell { font-size: 11px; color: var(--text3); margin-top: 1px; }
 
-/* Sector badge */
 .sector-badge {
   display: inline-flex;
   align-items: center;
@@ -370,7 +386,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   flex-shrink: 0;
 }
 
-/* Change badge */
 .badge {
   display: inline-block;
   padding: 2px 6px;
@@ -383,7 +398,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 .badge.neg { background: var(--red2);   color: var(--red);   }
 .badge.neu { background: var(--bg3);    color: var(--text3); }
 
-/* ── PAGER ─────────────────────────────────── */
 .pager {
   display: flex;
   align-items: center;
@@ -404,7 +418,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 }
 .pager button:hover { background: var(--bg3); color: var(--text0); }
 
-/* ── CHART ─────────────────────────────────── */
 .chart-toolbar {
   display: flex;
   align-items: center;
@@ -443,7 +456,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   box-shadow: var(--shadow-sm);
 }
 
-/* Order Book */
 .orderbook-row { margin-top: 10px; }
 .ob-card { max-width: 600px; }
 .ob-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -470,7 +482,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 .ob-asks .ob-row:hover { background: var(--red2); }
 .ob-bids .ob-row:hover { background: var(--green2); }
 
-/* ── HOSE MULTI-TF BAR ─────────────────────── */
 .hose-multitf-bar {
   display: flex;
   gap: 8px;
@@ -507,7 +518,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   text-align: right;
 }
 
-/* ── FOREX FULL GRID ───────────────────────── */
 .forex-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -533,7 +543,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 .forex-rate-val-buy  { font-family: var(--font-mono); color: var(--green); }
 .forex-rate-val-sell { font-family: var(--font-mono); color: var(--red); }
 
-/* ── CALENDAR ──────────────────────────────── */
 .impact-badge {
   display: inline-block;
   padding: 2px 6px;
@@ -545,7 +554,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 .impact-medium { background: #fdf1dc; color: #b7791f; }
 .impact-low    { background: #e3f6ea; color: #0f9d58; }
 
-/* ── ALERTS ────────────────────────────────── */
 .alerts-grid {
   display: grid;
   grid-template-columns: 1fr 300px;
@@ -563,7 +571,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 .alert-config-key   { font-weight: 600; color: var(--text0); font-size: 12px; }
 .alert-config-range { font-family: var(--font-mono); font-size: 11px; color: var(--text2); }
 
-/* ── UTILITIES ─────────────────────────────── */
 .text-green  { color: var(--green); }
 .text-red    { color: var(--red); }
 .text-yellow { color: var(--yellow); }
@@ -577,9 +584,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   font-size: 13px;
 }
 
-/* ── RESPONSIVE ────────────────────────────── */
-
-/* TABLET (≤1100px) */
 @media (max-width: 1100px) {
   .overview-grid {
     grid-template-columns: 1fr 1fr;
@@ -589,13 +593,11 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   .ob-card { max-width: 100%; }
 }
 
-/* MOBILE / SMALL TABLET (≤768px) */
 @media (max-width: 768px) {
   html, body { font-size: 12px; }
 
   .main { padding: 8px 10px; }
 
-  /* Header: cho phép wrap, ẩn time nếu chật */
   .header {
     height: auto;
     min-height: 44px;
@@ -617,8 +619,8 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   .header-right { gap: 6px !important; }
   #chat-toggle-btn { padding: 4px 8px !important; font-size: 11px !important; }
   .conn-badge { font-size: 10px; }
+  .hu-email { max-width: 90px; }
 
-  /* Overview: 1 column */
   .overview-grid {
     grid-template-columns: 1fr;
     gap: 8px;
@@ -627,7 +629,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
 
   .card { padding: 10px; }
 
-  /* Toolbars wrap nicely */
   .toolbar {
     gap: 6px;
   }
@@ -636,7 +637,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   .btn-refresh { flex: 0 0 auto; }
   .update-time { width: 100%; order: 10; }
 
-  /* Tables: allow horizontal scroll */
   .data-table-wrap,
   .tab-content table.data-table {
     display: block;
@@ -651,7 +651,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   }
   .name-cell { font-size: 10px; }
 
-  /* Chart */
   .chart-toolbar {
     flex-wrap: wrap;
     gap: 6px;
@@ -667,12 +666,10 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   .ob-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
   .ob-row { font-size: 10px; }
 
-  /* HOSE multi-tf bar wraps */
   .hose-multitf-bar { gap: 6px; }
   .tf-mini { padding: 4px 8px; }
   .tf-mini-bar { width: 50px; }
 
-  /* Forex / Alerts grids */
   .forex-grid {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
@@ -680,10 +677,8 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
     grid-template-columns: 1fr;
   }
 
-  /* Pager */
   .pager { flex-wrap: wrap; }
 
-  /* Analysis modal: full width on mobile */
   #analysis-modal {
     max-height: 92vh;
     padding: 14px;
@@ -693,7 +688,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   .an-zone-card .an-zone-label { margin-bottom: 0; }
   .an-price { font-size: 20px; }
 
-  /* Chatbot panel: full width on mobile */
   #chat-panel {
     right: 0 !important;
     left: 0 !important;
@@ -711,7 +705,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   }
 }
 
-/* VERY SMALL PHONES (≤400px) */
 @media (max-width: 400px) {
   .logo { font-size: 13px; }
   .tab { padding: 5px 8px; font-size: 10px; }
@@ -720,7 +713,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   .price-row, .forex-row { padding: 4px 6px; }
 }
 
-/* LANDSCAPE PHONES — keep chart usable */
 @media (max-width: 900px) and (orientation: landscape) {
   .chart-container { height: 240px; }
   #chat-panel { height: 85vh !important; }
@@ -746,12 +738,16 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
     <div class="header-right" style="display:flex;align-items:center;gap:10px;">
       <button id="chat-toggle-btn" onclick="toggleChat()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text1);padding:4px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">💬 Chat</button>
       <span class="conn-badge" id="conn-status">⬤ Đang kết nối...</span>
+      <div class="header-user" id="header-user">
+        <span class="hu-avatar" id="hu-avatar">?</span>
+        <span class="hu-email" id="hu-email">--</span>
+        <button class="hu-logout" id="hu-logout">Đăng xuất</button>
+      </div>
     </div>
   </header>
 
   <main class="main">
 
-    <!-- OVERVIEW -->
     <section class="tab-content active" id="tab-overview">
       <div class="overview-grid">
         <div class="card card-multitf">
@@ -801,7 +797,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
           </div>
         </div>
 
-        <!-- GLOBAL MARKETS — full width row -->
         <div class="card" style="grid-column: 1 / -1;">
           <div class="card-title"><span class="dot"></span> Thị trường toàn cầu</div>
           <div id="global-markets-list" class="global-markets-list"></div>
@@ -810,7 +805,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
       </div>
     </section>
 
-    <!-- CRYPTO -->
     <section class="tab-content" id="tab-crypto">
       <div class="toolbar">
         <input type="text" id="crypto-search" placeholder="Tìm coin..." class="search-input">
@@ -838,7 +832,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
       </div>
     </section>
 
-    <!-- CHART -->
     <section class="tab-content" id="tab-chart">
       <div class="chart-toolbar">
         <select id="chart-symbol" class="select-input">
@@ -878,7 +871,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
       </div>
     </section>
 
-    <!-- HOSE TOP 200 -->
     <section class="tab-content" id="tab-hose">
       <div class="toolbar">
         <input type="text" id="hose-search" placeholder="Tìm mã hoặc tên..." class="search-input">
@@ -926,12 +918,10 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
       </div>
     </section>
 
-    <!-- FOREX -->
     <section class="tab-content" id="tab-forex">
       <div class="forex-grid" id="forex-full"></div>
     </section>
 
-    <!-- CALENDAR -->
     <section class="tab-content" id="tab-calendar">
       <div class="toolbar">
         <span class="update-time" id="calendar-updated"></span>
@@ -948,7 +938,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
       </table>
     </section>
 
-    <!-- ALERTS -->
     <section class="tab-content" id="tab-alerts">
       <div class="alerts-grid">
         <div class="card">
@@ -966,13 +955,8 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
   </main>
 </div>
 <script>
-/* ═══════════════════════════════════════════
-   Market Research Hub — Frontend App
-   ═══════════════════════════════════════════ */
+const API = "";
 
-const API = "";  // same origin; change if deploying separately e.g. "https://your-backend.onrender.com"
-
-/* ── SECTOR COLORS ─────────────────────────── */
 const SECTOR_COLORS = {
   "Ngân hàng":     "#2f5fd6",
   "Bất động sản":  "#b7791f",
@@ -985,7 +969,6 @@ const SECTOR_COLORS = {
   "Hóa chất":      "#5c8a1e",
 };
 
-/* ── HELPERS ───────────────────────────────── */
 const fmtNum  = (n, d=2)    => (n == null || isNaN(n)) ? "--" : Number(n).toLocaleString("vi-VN", { minimumFractionDigits: d, maximumFractionDigits: d });
 const fmtPct  = (n)         => n == null ? "--" : (n >= 0 ? "+" : "") + Number(n).toFixed(2) + "%";
 const fmtVol  = (n)         => n >= 1e9 ? (n/1e9).toFixed(2)+"B" : n >= 1e6 ? (n/1e6).toFixed(2)+"M" : n >= 1e3 ? (n/1e3).toFixed(0)+"K" : String(n);
@@ -997,7 +980,6 @@ async function apiFetch(path) {
   return r.json();
 }
 
-/* ── CLOCK ─────────────────────────────────── */
 function startClock() {
   const el = document.getElementById("header-time");
   const tick = () => {
@@ -1011,7 +993,6 @@ function startClock() {
   setInterval(tick, 1000);
 }
 
-/* ── TABS ──────────────────────────────────── */
 function initTabs() {
   document.querySelectorAll(".tab").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -1026,7 +1007,6 @@ function initTabs() {
       if (tabId === "calendar") loadCalendar();
       if (tabId === "alerts")   loadAlertConfig();
       if (tabId === "chart") {
-        // Đợi tab visible rồi mới resize + load
         requestAnimationFrame(() => {
           if (chart) {
             const container = document.getElementById("chart-container");
@@ -1038,10 +1018,6 @@ function initTabs() {
     });
   });
 }
-
-/* ══════════════════════════════════════════════
-   OVERVIEW
-   ══════════════════════════════════════════════ */
 
 async function loadMultiTF() {
   const el = document.getElementById("multitf-list");
@@ -1073,11 +1049,9 @@ async function loadFearGreed() {
     document.getElementById("fg-value").textContent = val;
     document.getElementById("fg-label").textContent = label;
 
-    // Arc: 0→283 dashoffset maps to 0→100 value
     const offset = 283 - (val / 100) * 283;
     document.getElementById("fg-arc").style.strokeDashoffset = offset;
 
-    // Needle: -90deg = 0, +90deg = 100
     const deg = -90 + (val / 100) * 180;
     document.getElementById("fg-needle").setAttribute("transform", `rotate(${deg}, 100, 100)`);
 
@@ -1108,7 +1082,7 @@ async function loadGlobalMarkets() {
   }
 }
 
-  async function loadCryptoQuick() {
+async function loadCryptoQuick() {
   const el = document.getElementById("crypto-quick");
   try {
     const data = await apiFetch("/api/crypto/prices?ids=bitcoin,ethereum,solana,binancecoin,ripple");
@@ -1168,10 +1142,6 @@ function loadOverview() {
   loadGold();
   loadGlobalMarkets();
 }
-
-/* ══════════════════════════════════════════════
-   CRYPTO TOP 200
-   ══════════════════════════════════════════════ */
 
 let cryptoData  = [];
 let cryptoPage  = 0;
@@ -1238,10 +1208,6 @@ document.getElementById("crypto-next").addEventListener("click",   () => {
   const pages = Math.max(1, Math.ceil(filtered.length / cryptoPer));
   if (cryptoPage < pages - 1) { cryptoPage++; renderCryptoTable(); }
 });
-
-/* ══════════════════════════════════════════════
-   CHART (TradingView Lightweight Charts + Bybit WS)
-   ══════════════════════════════════════════════ */
 
 let chart, candleSeries, volSeries;
 let chartSymbol   = "BTCUSDT";
@@ -1352,14 +1318,12 @@ function connectOrderbookWs() {
 }
 
 async function switchChart() {
-  // Đóng WS cũ trước để tránh update() đến giữa lúc đang load data mới
   if (chartWs) { chartWs.close(); chartWs = null; }
   if (obWs)    { obWs.close();    obWs    = null; }
 
-  // Clear series trước khi load data mới — tránh lỗi "data must be asc ordered"
   if (candleSeries) candleSeries.setData([]);
 
-  await loadKlines();      // đợi setData(bars) xong hẳn
+  await loadKlines();
   connectKlineWs();
   connectOrderbookWs();
 }
@@ -1377,10 +1341,6 @@ document.querySelectorAll(".interval-btn").forEach(btn => {
     switchChart();
   });
 });
-
-/* ══════════════════════════════════════════════
-   HOSE TOP 200
-   ══════════════════════════════════════════════ */
 
 let hoseData  = [];
 let hosePage  = 0;
@@ -1483,10 +1443,6 @@ document.getElementById("hose-next").addEventListener("click",    () => {
   if (hosePage < pages - 1) { hosePage++; renderHoseTable(); }
 });
 
-/* ══════════════════════════════════════════════
-   FOREX FULL
-   ══════════════════════════════════════════════ */
-
 const CURRENCY_NAMES = {
   USD: "Đô la Mỹ", EUR: "Euro", JPY: "Yên Nhật",
   CNY: "Nhân dân tệ", GBP: "Bảng Anh",
@@ -1517,10 +1473,6 @@ async function loadForexFull() {
     el.innerHTML = `<div class="loading">Lỗi: ${e.message}</div>`;
   }
 }
-
-/* ══════════════════════════════════════════════
-   CALENDAR
-   ══════════════════════════════════════════════ */
 
 const CATEGORY_LABELS = {
   fed:    { label: "FED",     color: "#d93025" },
@@ -1557,11 +1509,6 @@ async function loadCalendar(forceRefresh = false) {
   }
 }
 
-
-/* ══════════════════════════════════════════════
-   ALERTS
-   ══════════════════════════════════════════════ */
-
 async function loadAlertConfig() {
   try {
     const cfg = await apiFetch("/api/alert/config");
@@ -1597,10 +1544,6 @@ async function testAlert() {
   }
 }
 
-/* ══════════════════════════════════════════════
-   CONNECTION STATUS
-   ══════════════════════════════════════════════ */
-
 async function checkConnection() {
   const el = document.getElementById("conn-status");
   try {
@@ -1613,33 +1556,50 @@ async function checkConnection() {
   }
 }
 
-/* ══════════════════════════════════════════════
-   INIT
-   ══════════════════════════════════════════════ */
+async function initHeaderUser() {
+  const token = localStorage.getItem("mh_access_token");
+  const wrap  = document.getElementById("header-user");
+  if (!token) return;
+
+  try {
+    const res = await fetch("/api/auth/me", {
+      headers: { "Authorization": "Bearer " + token },
+    });
+    if (!res.ok) return;
+
+    const data = await res.json();
+    document.getElementById("hu-avatar").textContent = (data.email || "?")[0].toUpperCase();
+    document.getElementById("hu-email").textContent = data.email;
+    wrap.classList.add("show");
+  } catch (e) {
+    console.warn("Không tải được thông tin user:", e);
+  }
+}
+
+document.getElementById("hu-logout").addEventListener("click", () => {
+  localStorage.removeItem("mh_access_token");
+  localStorage.removeItem("mh_refresh_token");
+  localStorage.removeItem("mh_user_email");
+  location.href = "/login.html";
+});
 
 document.addEventListener("DOMContentLoaded", () => {
   startClock();
   initTabs();
   initChart();
 
-  // Load overview immediately
   loadOverview();
 
-  // Chart chỉ load khi user click vào tab Chart (tránh width=0 race condition)
-  // connectKlineWs/connectOrderbookWs sẽ gọi trong resizeChart()
-
-  // Connection check
   checkConnection();
   setInterval(checkConnection, 30000);
 
-  // Auto-refresh overview every 60s
   setInterval(loadOverview, 60000);
+
+  initHeaderUser();
 });
 
-// Fix bfcache: reconnect WS khi trang restore từ Back-Forward Cache
 window.addEventListener("pageshow", (e) => {
   if (e.persisted) {
-    // Trang được restore từ bfcache — reconnect WS và reload chart nếu đang ở tab Chart
     const chartTabActive = document.getElementById("tab-chart")?.classList.contains("active");
     if (chartTabActive) {
       switchChart();
@@ -1648,7 +1608,6 @@ window.addEventListener("pageshow", (e) => {
   }
 });
 
-// Fix visibility: reconnect khi user quay lại tab browser
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
     const chartTabActive = document.getElementById("tab-chart")?.classList.contains("active");
@@ -1658,14 +1617,9 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
-// expose to HTML onclick
 window.loadCryptoTop200 = loadCryptoTop200;
 window.loadHoseTop50    = loadHoseTop50;
 window.testAlert        = testAlert;
-
-/* ══════════════════════════════════════════════
-   CHATBOT (via backend proxy /api/chat)
-   ══════════════════════════════════════════════ */
 
 let chatHistory = [];
 let chatOpen = false;
@@ -1697,7 +1651,6 @@ async function sendChat() {
   input.value = "";
   appendMsg("user", msg);
 
-  // Typing indicator
   const box = document.getElementById("chat-messages");
   const typing = document.createElement("div");
   typing.className = "chat-msg bot typing";
@@ -1731,7 +1684,6 @@ async function sendChat() {
     const reply = data.reply || "Xin lỗi, không lấy được phản hồi.";
     chatHistory.push({ role: "user",  text: msg });
     chatHistory.push({ role: "model", text: reply });
-    // Giữ history không quá dài
     if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
     appendMsg("bot", reply);
   } catch (e) {
@@ -1750,7 +1702,6 @@ window.toggleChat = toggleChat;
 window.sendChat   = sendChat;
 </script>
 
-<!-- CHATBOT PANEL -->
 <div id="chat-panel" style="display:none;position:fixed;bottom:0;right:24px;width:360px;height:480px;
   background:#ffffff;border:1px solid #e3e8ef;border-bottom:none;border-radius:10px 10px 0 0;
   flex-direction:column;z-index:9999;box-shadow:0 -4px 24px rgba(15,23,42,.14);">
@@ -1797,7 +1748,6 @@ window.sendChat   = sendChat;
 #chat-messages::-webkit-scrollbar { width: 3px; }
 #chat-messages::-webkit-scrollbar-thumb { background: #d6dce5; border-radius: 2px; }
 
-/* ── ANALYSIS MODAL ─────────────────────────── */
 #analysis-overlay {
   display: none;
   position: fixed;
@@ -1914,7 +1864,6 @@ window.sendChat   = sendChat;
 }
 </style>
 
-<!-- ANALYSIS MODAL -->
 <div id="analysis-overlay" onclick="closeAnalysisModal(event)">
   <div id="analysis-modal" onclick="event.stopPropagation()">
     <div class="an-header">
