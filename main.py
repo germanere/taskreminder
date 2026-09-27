@@ -60,6 +60,10 @@ _gsheet_client = None
 _chat_log_worksheet = None
 
 def _get_chat_log_worksheet():
+    """
+    Lazy-init gspread client + worksheet.
+    Trả về None nếu chưa cấu hình credentials hoặc lỗi kết nối.
+    """
     global _gsheet_client, _chat_log_worksheet
     if _chat_log_worksheet is not None:
         return _chat_log_worksheet
@@ -90,6 +94,10 @@ def _get_chat_log_worksheet():
 
 
 def log_chat_message(session_id: str, role: str, message: str):
+    """
+    Ghi 1 dòng log vào Google Sheets. Chạy non-blocking trong background task.
+    Lỗi không được làm crash chat response.
+    """
     try:
         ws = _get_chat_log_worksheet()
         if ws is None:
@@ -101,6 +109,7 @@ def log_chat_message(session_id: str, role: str, message: str):
 
 
 
+# 389 mã HOSE — trích xuất trực tiếp từ dữ liệu khớp lệnh SSI (chính xác theo nguồn thật)
 HOSE_TOP200 = [
     "AAA","AAM","AAN","AAT","ABR","ABS","ABT","ACB","ACC","ACG",
     "ACL","ADG","ADP","ADS","AFX","AGG","AGR","ANT","ANV","APG",
@@ -142,8 +151,8 @@ HOSE_TOP200 = [
     "VPB","VPD","VPG","VPH","VPI","VPL","VPS","VPX","VRC","VRE",
     "VSC","VSH","VSI","VTB","VTO","VTP","VVS","YBM","YEG",
 ]
-HOSE_TOP100 = HOSE_TOP200
-HOSE_TOP50  = HOSE_TOP200
+HOSE_TOP100 = HOSE_TOP200  # alias để tương thích code cũ
+HOSE_TOP50  = HOSE_TOP200  # alias để tương thích code cũ
 
 
 HOSE_INFO = {
@@ -197,6 +206,7 @@ HOSE_INFO = {
     "DGW":  {"name": "Digiworld",          "sector": "Tiêu dùng"},
     "GEX":  {"name": "Gelex Group",        "sector": "Công nghiệp"},
     "VRE":  {"name": "Vincom Retail",      "sector": "Bất động sản"},
+    # 50 mã bổ sung
     "BVH":  {"name": "Bảo Việt",           "sector": "Bảo hiểm"},
     "BCM":  {"name": "Becamex IDC",        "sector": "Bất động sản"},
     "PC1":  {"name": "PC1 Group",          "sector": "Công nghiệp"},
@@ -247,6 +257,7 @@ HOSE_INFO = {
     "DIG":  {"name": "DIC Corp",           "sector": "Bất động sản"},
     "ITA":  {"name": "Tân Tạo Group",      "sector": "Bất động sản"},
     "TDM":  {"name": "Thủ Dầu Một Water",  "sector": "Công nghiệp"},
+    # 101-150
     "AAA":  {"name": "An Phát Holdings",   "sector": "Vật liệu"},
     "APH":  {"name": "An Phát Plastic",    "sector": "Vật liệu"},
     "BFC":  {"name": "Phân bón Bình Điền", "sector": "Hóa chất"},
@@ -297,6 +308,7 @@ HOSE_INFO = {
     "PTB":  {"name": "Phú Tài",            "sector": "Vật liệu"},
     "QCG":  {"name": "Quốc Cường Gia Lai", "sector": "Bất động sản"},
     "RAL":  {"name": "Rạng Đông",          "sector": "Công nghiệp"},
+    # 151-200
     "SAM":  {"name": "SAM Holdings",       "sector": "Công nghiệp"},
     "SBA":  {"name": "Sông Ba Hydropower", "sector": "Năng lượng"},
     "SCD":  {"name": "Nước giải khát Chương Dương","sector": "Tiêu dùng"},
@@ -347,6 +359,7 @@ HOSE_INFO = {
     "BMP":  {"name": "Nhựa Bình Minh",     "sector": "Vật liệu"},
     "DXS":  {"name": "Đất Xanh Services",  "sector": "Bất động sản"},
     "NAF":  {"name": "Nafoods Group",      "sector": "Tiêu dùng"},
+    # 201-250
     "VJC":  {"name": "Vietjet Air",              "sector": "Công nghiệp"},
     "HVN":  {"name": "Vietnam Airlines",         "sector": "Công nghiệp"},
     "VGC":  {"name": "Viglacera",                "sector": "Vật liệu"},
@@ -400,6 +413,12 @@ HOSE_INFO = {
 }
 
 
+# ─────────────────────────────────────────────
+# TOÀN BỘ MÃ HOSE — TẠM THỜI dùng HOSE_TOP200 hardcode.
+# Sẽ mở rộng lên ~707 mã khi có file danh sách chính thức từ bạn (CSV/Excel từ HOSE
+# hoặc app chứng khoán bạn dùng) — xem ghi chú trong hội thoại.
+# ─────────────────────────────────────────────
+
 async def get_all_hose_symbols() -> list[dict]:
     return [{"symbol": s, **HOSE_INFO.get(s, {"name": s, "sector": "Khác"})} for s in HOSE_TOP200]
 
@@ -409,6 +428,10 @@ HOSE_TTL = 60
 
 _multitf_cache: dict = {}
 MULTITF_TTL = 300
+
+# ─────────────────────────────────────────────
+# ALERT STATE
+# ─────────────────────────────────────────────
 
 _prev: dict    = {}
 _alerted: dict = {}
@@ -424,6 +447,10 @@ def _mark_alerted(key: str):
 def _clear_alert(key: str):
     _alerted.pop(key, None)
 
+# ─────────────────────────────────────────────
+# TELEGRAM
+# ─────────────────────────────────────────────
+
 async def send_telegram_async(text: str):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         log.warning("Telegram credentials not set — skipping")
@@ -437,6 +464,10 @@ async def send_telegram_async(text: str):
         log.info(f"Telegram sent: {text[:60]}...")
     except Exception as e:
         log.error(f"Telegram error: {e}")
+
+# ─────────────────────────────────────────────
+# ALERT LOGIC
+# ─────────────────────────────────────────────
 
 def _fmt(value: float, unit: str) -> str:
     if unit.startswith("$"):
@@ -479,7 +510,14 @@ def check_alert(key, value, min_val, max_val, label, unit=""):
     _prev[key] = value
     return alerts
 
+# ─────────────────────────────────────────────
+# PRICE FETCH HELPERS (OKX primary, Binance fallback)
+# ─────────────────────────────────────────────
+
 async def fetch_price(symbol_okx: str, symbol_binance: str) -> float:
+    """
+    symbol_okx ví dụ: 'BTC-USDT'
+    """
     try:
         async with httpx.AsyncClient(timeout=8) as client:
             r = await client.get(
@@ -508,6 +546,10 @@ async def fetch_price(symbol_okx: str, symbol_binance: str) -> float:
         log.warning(f"Binance fallback price error ({symbol_binance}): {e}")
 
     raise ValueError(f"Cannot fetch price for {symbol_okx}/{symbol_binance}")
+
+# ─────────────────────────────────────────────
+# GOLD PRICE
+# ─────────────────────────────────────────────
 
 async def fetch_gold_price() -> float | None:
     LUONG_PER_OZ = 37.5 / 31.1035
@@ -538,6 +580,10 @@ async def fetch_gold_price() -> float | None:
     except Exception as e:
         log.error(f"fetch_gold_price error: {e}")
     return None
+
+# ─────────────────────────────────────────────
+# SCHEDULER JOB
+# ─────────────────────────────────────────────
 
 async def job_alert():
     all_alerts = []
@@ -583,6 +629,10 @@ async def job_alert():
 
     log.info(f"Alert check done — {len(all_alerts)} alert(s) sent")
 
+# ─────────────────────────────────────────────
+# LIFESPAN
+# ─────────────────────────────────────────────
+
 alert_scheduler = AsyncIOScheduler(timezone=ICT)
 alert_scheduler.add_job(job_alert, "interval", minutes=5, id="alert_job")
 
@@ -593,15 +643,20 @@ async def lifespan(app: FastAPI):
     yield
     alert_scheduler.shutdown(wait=False)
 
+# ─────────────────────────────────────────────
+# APP
+# ─────────────────────────────────────────────
+
 app = FastAPI(title="Market Research Hub", lifespan=lifespan)
 setup_cors(app)
 app.add_middleware(SecurityHeadersMiddleware)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-register_limiter = RateLimiter(max_requests=5, window_seconds=3600)
+register_limiter = RateLimiter(max_requests=5, window_seconds=3600)  # 5 lần đăng ký/IP/giờ
 
 @app.get("/api/vn/hose-all-symbols")
 async def hose_all_symbols():
+    """Danh sách mã HOSE hiện có trong hệ thống (tạm thời 250 mã hardcode)."""
     return await get_all_hose_symbols()
 
 @app.get("/")
@@ -612,7 +667,14 @@ def index():
 def chat_page():
     return FileResponse("static/chat.html")
 
+# ─────────────────────────────────────────────
+# OKX SYMBOL / INTERVAL HELPERS
+# ─────────────────────────────────────────────
+
 def to_okx_symbol(symbol: str) -> str:
+    """
+    Chuyển 'BTCUSDT' -> 'BTC-USDT'
+    """
     s = symbol.upper()
     if "-" in s:
         return s
@@ -626,6 +688,10 @@ OKX_INTERVAL_MAP = {
     "1h": "1H",  "2h": "2H",  "4h": "4H",  "6h": "6H",   "12h": "12H",
     "1d": "1D",  "1w": "1W",  "1M": "1M",
 }
+
+# ─────────────────────────────────────────────
+# WEBSOCKET — OKX KLINE
+# ─────────────────────────────────────────────
 
 @app.websocket("/ws/kline")
 async def ws_kline(ws: WebSocket, symbol: str = "btcusdt", interval: str = "1h"):
@@ -686,6 +752,10 @@ async def ws_kline(ws: WebSocket, symbol: str = "btcusdt", interval: str = "1h")
         await asyncio.sleep(RECONNECT_DELAY)
         RECONNECT_DELAY = min(RECONNECT_DELAY * 2, 60)
 
+# ─────────────────────────────────────────────
+# WEBSOCKET — OKX ORDERBOOK
+# ─────────────────────────────────────────────
+
 @app.websocket("/ws/orderbook")
 async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
     await ws.accept()
@@ -740,6 +810,10 @@ async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
         await asyncio.sleep(RECONNECT_DELAY)
         RECONNECT_DELAY = min(RECONNECT_DELAY * 2, 60)
 
+# ─────────────────────────────────────────────
+# REST — HISTORICAL KLINES (OKX primary, Binance fallback)
+# ─────────────────────────────────────────────
+
 @app.get("/api/klines")
 async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 200):
     okx_symbol = to_okx_symbol(symbol)
@@ -784,6 +858,10 @@ async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
     except Exception as e:
         return JSONResponse(status_code=503, content={"error": str(e)})
 
+# ─────────────────────────────────────────────
+# REST — CRYPTO PRICES (CoinGecko)
+# ─────────────────────────────────────────────
+
 _coingecko_cache: dict = {}
 COINGECKO_TTL = 60
 
@@ -812,11 +890,19 @@ async def get_top200(page: int = 1):
            f"&sparkline=false&price_change_percentage=24h,7d")
     return await _coingecko_get(url, ttl=300)
 
+# ─────────────────────────────────────────────
+# REST — FEAR & GREED
+# ─────────────────────────────────────────────
+
 @app.get("/api/fear-greed")
 async def get_fear_greed():
     async with httpx.AsyncClient(timeout=10) as client:
         r = await client.get("https://api.alternative.me/fng/?limit=1")
         return r.json()
+
+# ─────────────────────────────────────────────
+# REST — TỶ GIÁ (Vietcombank)
+# ─────────────────────────────────────────────
 
 @app.get("/api/forex/vnd")
 async def get_forex_vnd():
@@ -839,6 +925,10 @@ async def get_forex_vnd():
     except Exception as e:
         return {"error": str(e)}
 
+# ─────────────────────────────────────────────
+# REST — GIÁ VÀNG
+# ─────────────────────────────────────────────
+
 @app.get("/api/gold")
 async def get_gold():
     try:
@@ -848,6 +938,10 @@ async def get_gold():
         return JSONResponse(status_code=503, content={"error": "Không lấy được giá vàng"})
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+# ─────────────────────────────────────────────
+# REST — VN STOCKS (Yahoo Finance) — generic endpoint
+# ─────────────────────────────────────────────
 
 YAHOO_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
@@ -887,7 +981,12 @@ async def get_vn_stocks(
         results = await asyncio.gather(*[_fetch_yahoo_stock(client, s) for s in sym_list], return_exceptions=True)
     return [r for r in results if isinstance(r, dict)]
 
+# ─────────────────────────────────────────────
+# REST — HOSE TOP 250 (TCBS primary + retry, Yahoo Finance fallback)
+# ─────────────────────────────────────────────
+
 async def _fetch_tcbs_batch(client: httpx.AsyncClient, batch: list[str], max_retries: int = 2) -> list:
+    """Gọi TCBS cho 1 batch mã, retry ngắn khi gặp lỗi DNS/network."""
     last_err = None
     for attempt in range(1, max_retries + 1):
         try:
@@ -917,6 +1016,10 @@ async def _fetch_tcbs_batch(client: httpx.AsyncClient, batch: list[str], max_ret
 
 
 async def _yahoo_fallback_fill(missing_symbols: list[str], price_map: dict):
+    """
+    Với các mã TCBS không trả được giá, thử lấy qua Yahoo Finance
+    (Yahoo không bị geo-block trên Render, đã dùng ổn định ở /api/vn/stocks).
+    """
     if not missing_symbols:
         return
     CHUNK = 30
@@ -943,6 +1046,13 @@ async def _yahoo_fallback_fill(missing_symbols: list[str], price_map: dict):
 
 @app.get("/api/vn/hose-top50")
 async def get_hose_top50():
+    """
+    Trả về toàn bộ HOSE_TOP200 (250 mã, hardcode) kèm giá thời gian thực.
+    Nguồn chính: TCBS (batch 50 mã/lượt, retry khi lỗi DNS/network).
+    Nguồn dự phòng: Yahoo Finance cho các mã TCBS không trả được giá
+    (phòng trường hợp TCBS bị chặn/không phản hồi từ server hosting).
+    Endpoint name giữ "hose-top50" để tương thích frontend cũ.
+    """
     now = time.time()
     cached = _hose_cache.get("top250")
     if cached and (now - cached["ts"]) < HOSE_TTL:
@@ -971,6 +1081,7 @@ async def get_hose_top50():
                 if i + BATCH < len(symbols):
                     await asyncio.sleep(0.5)
 
+        # Fallback Yahoo cho các mã TCBS chưa có giá
         missing = [s for s in symbols if s not in price_map]
         if missing:
             log.info(f"TCBS thiếu {len(missing)} mã — fallback sang Yahoo Finance")
@@ -998,6 +1109,10 @@ async def get_hose_top50():
             return cached["data"]
         return JSONResponse(status_code=503, content={"error": str(e)})
 
+
+# ─────────────────────────────────────────────
+# REST — TCBS HISTORICAL
+# ─────────────────────────────────────────────
 
 @app.get("/api/vn/history")
 async def get_vn_history(symbol: str = "VCB", period: str = "1M"):
@@ -1027,6 +1142,10 @@ async def get_vn_history(symbol: str = "VCB", period: str = "1M"):
         } for b in bars]
     except Exception as e:
         return JSONResponse(status_code=503, content={"error": str(e)})
+
+# ─────────────────────────────────────────────
+# REST — MULTI-TF STRENGTH
+# ─────────────────────────────────────────────
 
 @app.get("/api/vn/multitf")
 async def get_multitf():
@@ -1077,8 +1196,17 @@ async def get_multitf():
     _multitf_cache["multitf"] = {"ts": now, "data": results}
     return results
 
+# ─────────────────────────────────────────────
+# REST — ECONOMIC CALENDAR
+# ─────────────────────────────────────────────
+
 @app.get("/api/global-markets")
 async def get_global_markets():
+    """
+    Lấy chỉ số thị trường toàn cầu từ Yahoo Finance:
+    S&P500, Nasdaq, Dow Jones, Nikkei, KOSPI, DAX, FTSE, CAC40, giá dầu WTI, Brent
+    Cache 5 phút.
+    """
     SYMBOLS = {
         "^GSPC":  {"name": "S&P 500",    "region": "🇺🇸 Mỹ"},
         "^IXIC":  {"name": "Nasdaq",     "region": "🇺🇸 Mỹ"},
@@ -1136,6 +1264,10 @@ async def get_global_markets():
 
 @app.get("/api/calendar")
 async def get_calendar():
+    """
+    Fallback tĩnh — giữ để tương thích cũ.
+    Frontend nên dùng /api/news-calendar để có dữ liệu thật từ Gemini.
+    """
     now = datetime.now(ICT)
     return [
         {"date": (now + timedelta(days=1)).strftime("%d/%m/%Y"), "time": "19:30", "event": "US CPI MoM",       "impact": "high",   "prev": "0.3%",  "forecast": "0.2%"},
@@ -1144,14 +1276,25 @@ async def get_calendar():
         {"date": (now + timedelta(days=5)).strftime("%d/%m/%Y"), "time": "21:30", "event": "US NFP",            "impact": "high",   "prev": "175K",  "forecast": "180K"},
     ]
 
+# ─────────────────────────────────────────────
+# NEWS CALENDAR — Gemini + Google Search grounding
+# Tin tức + lịch sự kiện thật: FED, lãi suất, chứng khoán, crypto
+# ─────────────────────────────────────────────
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
 
 _news_cache: dict = {}
-NEWS_TTL = 3600
+NEWS_TTL = 3600  # 1 giờ
 
 @app.get("/api/news-calendar")
 async def get_news_calendar():
+    """
+    Dùng Gemini (Google Search grounding) lấy tin tức + lịch sự kiện
+    liên quan FED, lãi suất, chứng khoán VN/Mỹ, crypto trong tuần.
+    Trả về list các event để render vào bảng "Lịch sự kiện".
+    Cache 1 giờ.
+    """
     now = time.time()
     cached = _news_cache.get("calendar")
     if cached and (now - cached["ts"]) < NEWS_TTL:
@@ -1187,6 +1330,7 @@ async def get_news_calendar():
         data = r.json()
         text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
 
+        # Strip markdown fences nếu có
         text = text.strip()
         if text.startswith("```"):
             text = re.sub(r"^```[a-zA-Z]*\n?", "", text)
@@ -1202,6 +1346,7 @@ async def get_news_calendar():
 
     except Exception as e:
         log.error(f"News calendar error: {e}")
+        # Fallback về calendar tĩnh nếu Gemini lỗi
         if cached:
             return cached["data"]
         now_dt = datetime.now(ICT)
@@ -1210,12 +1355,16 @@ async def get_news_calendar():
             {"date": (now_dt + timedelta(days=2)).strftime("%d/%m/%Y"), "time": "02:00", "event": "FED Rate Decision", "impact": "high", "category": "fed", "summary": "Quyết định lãi suất FED"},
         ]
 
+# ─────────────────────────────────────────────
+# CHATBOT — Gemini proxy (tránh CORS từ frontend)
+# ─────────────────────────────────────────────
+
 from pydantic import BaseModel
 from fastapi import BackgroundTasks
 import uuid
 
 class ChatMessage(BaseModel):
-    role: str
+    role: str   # "user" hoặc "model"
     text: str
 
 class ChatRequest(BaseModel):
@@ -1236,6 +1385,7 @@ async def chat_with_gemini(req: ChatRequest, background_tasks: BackgroundTasks):
     ]
     contents.append({"role": "user", "parts": [{"text": req.message}]})
 
+    # Log câu hỏi của user (background, không block response)
     background_tasks.add_task(log_chat_message, session_id, "user", req.message)
 
     try:
@@ -1268,6 +1418,7 @@ async def chat_with_gemini(req: ChatRequest, background_tasks: BackgroundTasks):
             log.warning(f"Gemini empty reply: {str(data)[:300]}")
             reply = "Xin lỗi, không nhận được phản hồi từ AI."
 
+        # Log câu trả lời của bot
         background_tasks.add_task(log_chat_message, session_id, "model", reply)
 
         return {"reply": reply, "session_id": session_id}
@@ -1276,6 +1427,10 @@ async def chat_with_gemini(req: ChatRequest, background_tasks: BackgroundTasks):
         log.error(f"Chat proxy error: {e}")
         background_tasks.add_task(log_chat_message, session_id, "error", str(e))
         return JSONResponse(status_code=500, content={"error": str(e), "session_id": session_id})
+
+# ─────────────────────────────────────────────
+# REST — LIQUIDATION DATA
+# ─────────────────────────────────────────────
 
 @app.get("/api/liquidations")
 async def get_liquidations(symbol: str = "BTC"):
@@ -1288,6 +1443,10 @@ async def get_liquidations(symbol: str = "BTC"):
         return r.json()
     except Exception:
         return {"data": []}
+
+# ─────────────────────────────────────────────
+# REST — HEALTH & ALERT MANAGEMENT
+# ─────────────────────────────────────────────
 
 @app.get("/health")
 def health():
@@ -1319,6 +1478,10 @@ def alert_config():
 async def trigger_alert_now():
     await job_alert()
     return {"status": "ok", "message": "Alert job executed"}
+
+# ─────────────────────────────────────────────
+# REST — AUTH (Supabase Auth: đăng ký / đăng nhập / profile)
+# ─────────────────────────────────────────────
 
 @app.post("/api/auth/register", dependencies=[Depends(register_limiter)])
 async def auth_register(payload: dict):
@@ -1356,6 +1519,7 @@ async def auth_login(payload: dict):
 
 @app.get("/api/auth/me")
 async def auth_me(user: dict = Depends(auth.require_auth)):
+    """Thông tin user đang đăng nhập: email, credits, role — dùng cho trang profile."""
     profile = await credits.get_profile(user["id"])
     if profile is None:
         return JSONResponse(status_code=404, content={"error": "Chưa có hồ sơ — thử đăng xuất rồi đăng nhập lại"})
@@ -1369,6 +1533,7 @@ async def auth_me(user: dict = Depends(auth.require_auth)):
 
 @app.post("/api/credit/topup")
 async def topup_credit(user_id: str, amount: int, x_admin_secret: str = Header(None)):
+    """Admin cộng credit thủ công (VD: sau khi xác nhận chuyển khoản). user_id lấy từ Supabase Auth."""
     if not credits.ADMIN_SECRET or x_admin_secret != credits.ADMIN_SECRET:
         return JSONResponse(status_code=403, content={"error": "Không có quyền"})
     new_balance = await credits.add_credit(user_id, amount)
@@ -1379,6 +1544,7 @@ async def topup_credit(user_id: str, amount: int, x_admin_secret: str = Header(N
 
 @app.post("/api/credit/set-role")
 async def set_user_role(user_id: str, role: str, x_admin_secret: str = Header(None)):
+    """Admin nâng/hạ role user: 'free_tier' | 'premium' | 'admin'."""
     if not credits.ADMIN_SECRET or x_admin_secret != credits.ADMIN_SECRET:
         return JSONResponse(status_code=403, content={"error": "Không có quyền"})
     profile = await credits.set_role(user_id, role)
@@ -1408,6 +1574,7 @@ def profile_page():
     return FileResponse("static/profile.html")
 
 def _sma(values: list[float], period: int) -> list[float | None]:
+    """Simple moving average, trả None cho các điểm chưa đủ dữ liệu."""
     out = []
     for i in range(len(values)):
         if i + 1 < period:
@@ -1418,6 +1585,10 @@ def _sma(values: list[float], period: int) -> list[float | None]:
 
 
 def _find_pivots(highs: list[float], lows: list[float], window: int = 3):
+    """
+    Tìm swing high/low đơn giản: điểm cao/thấp hơn `window` nến lân cận mỗi bên.
+    Trả về list các giá trị pivot high và pivot low.
+    """
     pivot_highs, pivot_lows = [], []
     n = len(highs)
     for i in range(window, n - window):
@@ -1429,6 +1600,10 @@ def _find_pivots(highs: list[float], lows: list[float], window: int = 3):
 
 
 def _cluster_levels(levels: list[float], tolerance_pct: float = 0.015) -> list[dict]:
+    """
+    Gộp các mức giá gần nhau thành 1 vùng (cluster), trả về
+    [{"price": giá_trung_bình, "strength": số_lần_chạm}], sort theo strength giảm dần.
+    """
     if not levels:
         return []
     levels = sorted(levels)
@@ -1446,7 +1621,16 @@ def _cluster_levels(levels: list[float], tolerance_pct: float = 0.015) -> list[d
     result.sort(key=lambda x: x["strength"], reverse=True)
     return result
 
+# ─────────────────────────────────────────────
+# FIX: /api/vn/analysis/{symbol} — thêm Yahoo Finance fallback
+# TCBS bị chặn/không phản hồi từ Render → "Không đủ dữ liệu lịch sử (0 bars)"
+# ─────────────────────────────────────────────
+
 async def _fetch_yahoo_daily_bars(symbol: str, range_: str = "6mo") -> list:
+    """
+    Lấy nến ngày từ Yahoo Finance, format lại giống bars của TCBS
+    để tái sử dụng nguyên logic phân tích (_sma, _find_pivots, ...) bên dưới.
+    """
     bars = []
     try:
         async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=15) as client:
@@ -1482,6 +1666,11 @@ async def _fetch_yahoo_daily_bars(symbol: str, range_: str = "6mo") -> list:
 
 
 async def _fetch_volume_signal(symbol: str) -> dict | None:
+    """
+    Lấy 1 tháng nến ngày (tái dùng _fetch_yahoo_daily_bars), so khối lượng trung bình
+    5 phiên gần nhất (tuần này) với khối lượng trung bình các phiên trước đó (baseline).
+    Trả về None nếu không đủ dữ liệu.
+    """
     bars = await _fetch_yahoo_daily_bars(symbol, range_="1mo")
     if not bars or len(bars) < 15:
         return None
@@ -1515,17 +1704,23 @@ async def _fetch_volume_signal(symbol: str) -> dict | None:
 
 
 _volume_week_cache: dict = {}
-VOLUME_WEEK_TTL = 4 * 3600
+VOLUME_WEEK_TTL = 4 * 3600  # 4 giờ — quét 250 mã khá tốn, không cần realtime
 
 
 @app.get("/api/vn/top-volume-week")
 async def get_top_volume_week(limit: int = 30):
+    """
+    Quét toàn bộ mã đang niêm yết trên HOSE (nguồn vnstock/VCI, ~707 mã), xếp hạng
+    theo volume_ratio (khối lượng tuần này / khối lượng trung bình các phiên trước).
+    Tỷ lệ cao = dòng tiền đang chú ý bất thường tới mã đó — chỉ là tín hiệu đáng
+    theo dõi, không phải khuyến nghị mua.
+    """
     now = time.time()
     cached = _volume_week_cache.get("top")
     if cached and (now - cached["ts"]) < VOLUME_WEEK_TTL:
         return cached["data"][:limit]
 
-    all_symbols = await get_all_hose_symbols()
+    all_symbols = await get_all_hose_symbols()  # ~707 mã (nguồn vnstock), thay vì 250 mã hardcode
     info_map = {s["symbol"]: s for s in all_symbols}
     symbols = list(info_map.keys())
 
@@ -1559,13 +1754,19 @@ async def get_top_volume_week(limit: int = 30):
 @app.get("/api/vn/analysis/{symbol}")
 async def get_vn_analysis(symbol: str, user: dict = Depends(auth.require_auth)):
     """
-    Phân tích kỹ thuật 1 mã HOSE dựa trên dữ liệu 6 tháng (nến ngày).
-    Trả kèm khối lượng giao dịch (volume, avg_volume, volume_ratio) — nhưng CHỈ
-    trả số liệu thật cho role premium/admin. free_tier vẫn nhận field volume=None
-    để frontend biết mà hiện khóa/nâng cấp, không rò rỉ dữ liệu thật.
+    Phân tích kỹ thuật 1 mã HOSE dựa trên dữ liệu 6 tháng (nến ngày):
+    - Yêu cầu đăng nhập (Bearer token từ /api/auth/login). free_tier bị trừ 1 credit/lượt,
+      premium/admin không giới hạn.
+    - Nguồn chính: TCBS. Nếu TCBS trả về <10 bars (bị chặn/không phản hồi),
+      tự động fallback sang Yahoo Finance.
+    - MA20, MA50 và vị trí giá hiện tại so với MA
+    - Vùng hỗ trợ / kháng cự từ swing high-low (gộp cluster)
+    - Xu hướng tổng quan (uptrend/downtrend/sideway)
+    - Gợi ý vùng vào tiền (mua) / vùng thoát (chốt lời) / vùng cắt lỗ
     """
     symbol = symbol.upper()
 
+    # ── CREDIT CHECK — trước khi tốn API call ra ngoài ──
     try:
         ok, balance, role = await credits.deduct_credit(user["id"], amount=1)
     except Exception as e:
@@ -1602,6 +1803,7 @@ async def get_vn_analysis(symbol: str, user: dict = Depends(auth.require_auth)):
                 except Exception as e:
                     log.warning(f"Analysis {symbol}: params {params} lỗi: {e}")
 
+        # ── FALLBACK: TCBS không đủ dữ liệu → thử Yahoo Finance ──
         if not bars or len(bars) < 10:
             log.info(f"Analysis {symbol}: TCBS thiếu dữ liệu — fallback Yahoo Finance")
             bars = await _fetch_yahoo_daily_bars(symbol, range_="6mo")
@@ -1611,12 +1813,12 @@ async def get_vn_analysis(symbol: str, user: dict = Depends(auth.require_auth)):
         if not bars or len(bars) < 10:
             return JSONResponse(status_code=503, content={"error": f"Không đủ dữ liệu lịch sử ({len(bars) if bars else 0} bars)"})
 
+        # Nếu ít hơn 25 vẫn cho phân tích nhưng giảm period MA
         min_bars = len(bars)
 
-        closes  = [float(b.get("close", 0)) for b in bars if b.get("close")]
-        highs   = [float(b.get("high",  0)) for b in bars if b.get("high")]
-        lows    = [float(b.get("low",   0)) for b in bars if b.get("low")]
-        volumes = [float(b.get("volume", 0)) for b in bars]
+        closes = [float(b.get("close", 0)) for b in bars if b.get("close")]
+        highs  = [float(b.get("high",  0)) for b in bars if b.get("high")]
+        lows   = [float(b.get("low",   0)) for b in bars if b.get("low")]
 
         if not closes:
             return JSONResponse(status_code=503, content={"error": "Dữ liệu giá không hợp lệ"})
@@ -1631,6 +1833,7 @@ async def get_vn_analysis(symbol: str, user: dict = Depends(auth.require_auth)):
         ma20 = ma20_series[-1]
         ma50 = ma50_series[-1]
 
+        # Xu hướng
         if ma20 is not None and ma50 is not None:
             if current_price > ma20 > ma50:
                 trend = "uptrend"
@@ -1649,6 +1852,7 @@ async def get_vn_analysis(symbol: str, user: dict = Depends(auth.require_auth)):
         else:
             trend, trend_label = "sideway", "Chưa đủ dữ liệu xác định xu hướng"
 
+        # Support / Resistance từ swing pivots
         pivot_highs, pivot_lows = _find_pivots(highs, lows, window=3)
         resistance_clusters = _cluster_levels([p for p in pivot_highs if p > current_price])
         support_clusters    = _cluster_levels([p for p in pivot_lows  if p < current_price])
@@ -1691,30 +1895,6 @@ async def get_vn_analysis(symbol: str, user: dict = Depends(auth.require_auth)):
             action = "wait"
             action_label = "Đang tích lũy — chờ phá vùng để xác nhận xu hướng"
 
-        # ── KHỐI LƯỢNG GIAO DỊCH ──
-        # Chỉ tính & trả số liệu thật cho premium/admin. free_tier nhận None
-        # (không rò rỉ dữ liệu qua network response dù UI có bị can thiệp).
-        volume = None
-        avg_volume = None
-        volume_ratio = None
-        if role in ("premium", "admin"):
-            valid_volumes = [v for v in volumes if v > 0]
-            if valid_volumes:
-                volume = valid_volumes[-1]
-                baseline = valid_volumes[-21:-1] if len(valid_volumes) >= 21 else valid_volumes[:-1]
-                if baseline:
-                    avg_volume = sum(baseline) / len(baseline)
-                    if avg_volume > 0:
-                        volume_ratio = round(volume / avg_volume, 2)
-
-        history = []
-        for b in bars[-60:]:
-            entry = {"time": b.get("tradingDate") or b.get("date", ""), "close": float(b.get("close", 0))}
-            # Chỉ đính kèm volume vào history (để vẽ biểu đồ cột) nếu premium/admin
-            if role in ("premium", "admin"):
-                entry["volume"] = float(b.get("volume", 0))
-            history.append(entry)
-
         return {
             "symbol": symbol,
             "current_price": round(current_price, 2),
@@ -1732,12 +1912,9 @@ async def get_vn_analysis(symbol: str, user: dict = Depends(auth.require_auth)):
             "action_label": action_label,
             "support_levels":    [{"price": round(c["price"],2), "strength": c["strength"]} for c in support_clusters[:3]],
             "resistance_levels": [{"price": round(c["price"],2), "strength": c["strength"]} for c in resistance_clusters[:3]],
-            "history": history,
+            "history": [{"time": b.get("tradingDate") or b.get("date",""), "close": float(b.get("close",0))} for b in bars[-60:]],
             "credits_remaining": balance,
             "role": role,
-            "volume": round(volume) if volume is not None else None,
-            "avg_volume": round(avg_volume) if avg_volume is not None else None,
-            "volume_ratio": volume_ratio,
         }
 
     except Exception as e:
