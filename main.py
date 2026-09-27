@@ -1,1979 +1,1745 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-<script src="/static/auth-guard.js"></script>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Market Research Hub</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◈</text></svg>">
-<script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
-<style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg0: #f4f6f9;
-  --bg1: #ffffff;
-  --bg2: #f1f4f8;
-  --bg3: #e7ebf1;
-  --bg4: #d3dae3;
-  --border: #e3e8ef;
-  --border2: #d6dce5;
-  --text0: #0f172a;
-  --text1: #33415c;
-  --text2: #64748b;
-  --text3: #94a3b8;
-  --green:  #0f9d58;
-  --green2: #e3f6ea;
-  --red:    #d93025;
-  --red2:   #fbe8e6;
-  --yellow: #b7791f;
-  --yellow2:#fdf1dc;
-  --blue:   #111111;
-  --purple: #7c5fd6;
-  --teal:   #0891a8;
-  --font: -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
-  --radius: 6px;
-  --radius-lg: 8px;
-  --shadow-sm: 0 1px 2px rgba(15,23,42,.04);
-  --shadow-md: 0 2px 10px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
-}
-
-html, body { height: 100%; background: var(--bg0); color: var(--text1); font-family: var(--font); font-size: 13px; }
-
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: var(--bg1); }
-::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
-
-.header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  height: 44px;
-  padding: 0 16px;
-  background: var(--bg1);
-  border-bottom: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.logo {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text0);
-  letter-spacing: -0.3px;
-  white-space: nowrap;
-}
-
-.header-time {
-  font-size: 11px;
-  color: var(--text3);
-  font-family: var(--font-mono);
-  white-space: nowrap;
-}
-
-.tab-bar {
-  display: flex;
-  gap: 2px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  flex: 1;
-}
-.tab-bar::-webkit-scrollbar { display: none; }
-
-.tab {
-  background: none;
-  border: none;
-  color: var(--text3);
-  padding: 6px 12px;
-  font-size: 12px;
-  cursor: pointer;
-  border-radius: var(--radius);
-  white-space: nowrap;
-  transition: background .15s, color .15s;
-}
-.tab:hover  { background: var(--bg2); color: var(--text1); }
-.tab.active { background: var(--bg3); color: var(--text0); }
-
-.header-right { margin-left: auto; white-space: nowrap; }
-
-.conn-badge {
-  font-size: 11px;
-  color: var(--text3);
-}
-.conn-badge.ok    { color: var(--green); }
-.conn-badge.error { color: var(--red); }
-
-/* ── HEADER USER INFO ──────────────────────── */
-.header-user { display: none; align-items: center; gap: 8px; }
-.header-user.show { display: flex; }
-.hu-avatar {
-  width: 24px; height: 24px;
-  border-radius: 50%;
-  background: var(--blue);
-  color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700;
-  flex-shrink: 0;
-}
-.hu-email {
-  font-size: 12px;
-  color: var(--text1);
-  max-width: 150px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.hu-logout {
-  border: 1px solid var(--border2);
-  border-radius: var(--radius);
-  background: var(--bg2);
-  color: var(--red);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 9px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background .15s;
-}
-.hu-logout:hover { background: var(--red2); }
-
-.main { padding: 12px 16px; max-width: 1400px; margin: 0 auto; }
-
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-
-.card {
-  background: var(--bg1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 12px 14px;
-  box-shadow: var(--shadow-sm);
-}
-
-.card-title {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text3);
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  margin-bottom: 10px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text3);
-  flex-shrink: 0;
-}
-.dot.green  { background: var(--green); }
-.dot.yellow { background: var(--yellow); }
-.dot.red    { background: var(--red); }
-
-.overview-grid {
-  display: grid;
-  grid-template-columns: 200px 160px 1fr 200px 180px;
-  gap: 10px;
-  align-items: start;
-}
-
-.multitf-list { display: flex; flex-direction: column; gap: 8px; }
-
-.tf-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.tf-label {
-  color: var(--text2);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  width: 28px;
-}
-.bar-track {
-  flex: 1;
-  height: 4px;
-  background: var(--bg3);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.bar-fill {
-  height: 100%;
-  border-radius: 2px;
-  transition: width .6s ease;
-}
-.tf-pct {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  width: 32px;
-  text-align: right;
-}
-
-.fg-widget { text-align: center; }
-.fg-svg { width: 100%; max-width: 180px; }
-.fg-arc { transition: stroke-dashoffset .8s ease; }
-.fg-value {
-  font-size: 28px;
-  font-weight: 700;
-  font-family: var(--font-mono);
-  color: var(--text0);
-  margin-top: -4px;
-}
-.fg-label { font-size: 11px; color: var(--text2); margin-top: 2px; }
-
-.price-list { display: flex; flex-direction: column; gap: 6px; }
-
-.price-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 5px 8px;
-  background: var(--bg2);
-  border-radius: var(--radius);
-}
-.price-sym { font-weight: 600; font-size: 12px; color: var(--text0); }
-.price-val { font-family: var(--font-mono); font-size: 12px; color: var(--text1); }
-.price-chg { font-family: var(--font-mono); font-size: 11px; min-width: 52px; text-align: right; }
-
-.forex-list { display: flex; flex-direction: column; gap: 6px; }
-.forex-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 8px;
-  background: var(--bg2);
-  border-radius: var(--radius);
-}
-.forex-code { font-weight: 600; font-size: 12px; color: var(--text0); }
-.forex-sell { font-family: var(--font-mono); font-size: 11px; color: var(--red); }
-.forex-buy  { font-family: var(--font-mono); font-size: 11px; color: var(--green); }
-
-.gold-widget { text-align: center; padding: 8px 0; }
-.gold-price {
-  font-size: 22px;
-  font-weight: 700;
-  font-family: var(--font-mono);
-  color: var(--yellow);
-}
-.gold-unit { font-size: 11px; color: var(--text3); margin-top: 4px; }
-
-.global-markets-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 8px;
-}
-.gm-card {
-  background: var(--bg2);
-  border-radius: var(--radius);
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.gm-region { font-size: 10px; color: var(--text3); }
-.gm-name   { font-size: 12px; font-weight: 600; color: var(--text0); }
-.gm-price  { font-size: 13px; font-family: var(--font-mono); color: var(--text1); }
-.gm-change { font-size: 11px; font-family: var(--font-mono); font-weight: 500; }
-.gm-change.pos { color: var(--green); }
-.gm-change.neg { color: var(--red); }
-.gm-change.neu { color: var(--text3); }
-
-.toolbar {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-}
-
-.search-input {
-  background: var(--bg2);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius);
-  color: var(--text1);
-  padding: 5px 10px;
-  font-size: 12px;
-  outline: none;
-  width: 160px;
-}
-.search-input:focus { border-color: var(--blue); }
-
-.select-input {
-  background: var(--bg2);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius);
-  color: var(--text1);
-  padding: 5px 8px;
-  font-size: 12px;
-  outline: none;
-  cursor: pointer;
-}
-
-.btn-refresh {
-  background: var(--bg3);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius);
-  color: var(--text1);
-  padding: 5px 10px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background .15s;
-}
-.btn-refresh:hover { background: var(--bg4); }
-
-.btn-primary {
-  background: var(--blue);
-  border: none;
-  border-radius: var(--radius);
-  color: #fff;
-  padding: 8px 16px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: opacity .15s;
-}
-.btn-primary:hover { opacity: 0.85; }
-
-.update-time { font-size: 11px; color: var(--text3); }
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-.data-table thead th {
-  text-align: left;
-  padding: 6px 8px;
-  color: var(--text3);
-  font-weight: 500;
-  font-size: 11px;
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-.data-table thead th.num { text-align: right; }
-
-.data-table tbody tr {
-  border-bottom: 1px solid var(--border);
-  transition: background .1s;
-  cursor: pointer;
-}
-.data-table tbody tr:hover { background: var(--bg2); }
-
-.data-table tbody td {
-  padding: 6px 8px;
-  color: var(--text1);
-  vertical-align: middle;
-}
-.data-table tbody td.num { text-align: right; font-family: var(--font-mono); }
-
-.sym-cell { font-weight: 600; color: var(--text0); font-size: 12px; }
-.name-cell { font-size: 11px; color: var(--text3); margin-top: 1px; }
-
-.sector-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  color: var(--text3);
-}
-.sector-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.badge {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-}
-.badge.pos { background: var(--green2); color: var(--green); }
-.badge.neg { background: var(--red2);   color: var(--red);   }
-.badge.neu { background: var(--bg3);    color: var(--text3); }
-
-.pager {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 10px;
-  font-size: 12px;
-}
-.pager-info { flex: 1; color: var(--text3); }
-.pager button {
-  background: var(--bg2);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius);
-  color: var(--text2);
-  padding: 3px 10px;
-  font-size: 13px;
-  cursor: pointer;
-}
-.pager button:hover { background: var(--bg3); color: var(--text0); }
-
-.chart-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-.interval-btns { display: flex; gap: 4px; }
-.interval-btn {
-  background: var(--bg2);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius);
-  color: var(--text2);
-  padding: 4px 10px;
-  font-size: 11px;
-  cursor: pointer;
-  transition: background .1s, color .1s;
-}
-.interval-btn:hover  { background: var(--bg3); color: var(--text1); }
-.interval-btn.active { background: var(--bg4); color: var(--text0); border-color: var(--blue); }
-
-.chart-price-label {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text0);
-  margin-left: auto;
-}
-
-.chart-container {
-  height: 400px;
-  background: var(--bg1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-}
-
-.orderbook-row { margin-top: 10px; }
-.ob-card { max-width: 600px; }
-.ob-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.ob-header {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text3);
-  margin-bottom: 6px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--border);
-}
-.ob-asks, .ob-bids { display: flex; flex-direction: column; gap: 2px; }
-.ob-asks .ob-row { color: var(--red);   }
-.ob-bids .ob-row { color: var(--green); }
-.ob-row {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 2px 4px;
-  border-radius: 3px;
-}
-.ob-asks .ob-row:hover { background: var(--red2); }
-.ob-bids .ob-row:hover { background: var(--green2); }
-
-.hose-multitf-bar {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-}
-.tf-mini {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--bg1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 5px 10px;
-}
-.tf-mini-label {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text3);
-  width: 24px;
-}
-.tf-mini-bar {
-  width: 80px;
-  height: 3px;
-  background: var(--bg3);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.tf-mini-fill { height: 100%; border-radius: 2px; }
-.tf-mini-pct {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  width: 30px;
-  text-align: right;
-}
-
-.forex-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 10px;
-}
-.forex-card {
-  background: var(--bg1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 14px;
-  box-shadow: var(--shadow-sm);
-}
-.forex-card-code {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text0);
-  margin-bottom: 4px;
-}
-.forex-card-name { font-size: 11px; color: var(--text3); margin-bottom: 10px; }
-.forex-card-rates { display: flex; flex-direction: column; gap: 4px; }
-.forex-rate-row { display: flex; justify-content: space-between; font-size: 12px; }
-.forex-rate-label { color: var(--text3); }
-.forex-rate-val-buy  { font-family: var(--font-mono); color: var(--green); }
-.forex-rate-val-sell { font-family: var(--font-mono); color: var(--red); }
-
-.impact-badge {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 10px;
-  font-weight: 500;
-}
-.impact-high   { background: #fbe8e6; color: #d93025; }
-.impact-medium { background: #fdf1dc; color: #b7791f; }
-.impact-low    { background: #e3f6ea; color: #0f9d58; }
-
-.alerts-grid {
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 12px;
-}
-.alert-config-list { display: flex; flex-direction: column; gap: 8px; }
-.alert-config-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 10px;
-  background: var(--bg2);
-  border-radius: var(--radius);
-}
-.alert-config-key   { font-weight: 600; color: var(--text0); font-size: 12px; }
-.alert-config-range { font-family: var(--font-mono); font-size: 11px; color: var(--text2); }
-
-.text-green  { color: var(--green); }
-.text-red    { color: var(--red); }
-.text-yellow { color: var(--yellow); }
-.text-gray   { color: var(--text3); }
-.mono        { font-family: var(--font-mono); }
-
-.loading {
-  text-align: center;
-  padding: 40px;
-  color: var(--text3);
-  font-size: 13px;
-}
-
-@media (max-width: 1100px) {
-  .overview-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-  .card-multitf { grid-column: 1 / -1; }
-
-  .ob-card { max-width: 100%; }
-}
-
-@media (max-width: 768px) {
-  html, body { font-size: 12px; }
-
-  .main { padding: 8px 10px; }
-
-  .header {
-    height: auto;
-    min-height: 44px;
-    flex-wrap: wrap;
-    padding: 6px 10px;
-    gap: 6px;
-  }
-  .header-time { display: none; }
-  .logo { font-size: 14px; }
-
-  .tab-bar {
-    order: 3;
-    width: 100%;
-    flex-basis: 100%;
-    -webkit-overflow-scrolling: touch;
-  }
-  .tab { padding: 6px 10px; font-size: 11px; }
-
-  .header-right { gap: 6px !important; }
-  #chat-toggle-btn { padding: 4px 8px !important; font-size: 11px !important; }
-  .conn-badge { font-size: 10px; }
-  .hu-email { max-width: 90px; }
-
-  .overview-grid {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-  .card-multitf { grid-column: auto; }
-
-  .card { padding: 10px; }
-
-  .toolbar {
-    gap: 6px;
-  }
-  .search-input { width: 100%; flex: 1 1 140px; }
-  .select-input { flex: 1 1 110px; }
-  .btn-refresh { flex: 0 0 auto; }
-  .update-time { width: 100%; order: 10; }
-
-  .data-table-wrap,
-  .tab-content table.data-table {
-    display: block;
-    width: 100%;
-    overflow-x: auto;
-    white-space: nowrap;
-  }
-  .data-table thead th,
-  .data-table tbody td {
-    padding: 5px 6px;
-    font-size: 11px;
-  }
-  .name-cell { font-size: 10px; }
-
-  .chart-toolbar {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .chart-price-label {
-    margin-left: 0;
-    flex-basis: 100%;
-    text-align: right;
-  }
-  .interval-btns { flex-wrap: wrap; }
-  .chart-container { height: 280px; }
-
-  .ob-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .ob-row { font-size: 10px; }
-
-  .hose-multitf-bar { gap: 6px; }
-  .tf-mini { padding: 4px 8px; }
-  .tf-mini-bar { width: 50px; }
-
-  .forex-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  }
-  .alerts-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .pager { flex-wrap: wrap; }
-
-  #analysis-modal {
-    max-height: 92vh;
-    padding: 14px;
-  }
-  .an-zone-grid { grid-template-columns: 1fr; gap: 6px; }
-  .an-zone-card { display: flex; justify-content: space-between; align-items: center; text-align: left; padding: 8px 10px; }
-  .an-zone-card .an-zone-label { margin-bottom: 0; }
-  .an-price { font-size: 20px; }
-
-  #chat-panel {
-    right: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 70vh !important;
-    border-radius: 12px 12px 0 0 !important;
-  }
-  #chat-toggle-btn {
-    position: fixed;
-    bottom: 12px;
-    right: 12px;
-    z-index: 9998;
-    border-radius: 20px !important;
-    box-shadow: 0 2px 10px rgba(15,23,42,.18);
-  }
-}
+"""
+Market Research Hub — Backend
+==============================
+- FastAPI server
+- WebSocket proxy: OKX → client (Bybit/Binance bị geo-block trên Render US IP)
+- REST APIs: OKX klines, CoinGecko, Yahoo Finance, TCBS, SJC, Vietcombank
+- HOSE Top 250 endpoint (TCBS + Yahoo fallback, retry cho lỗi DNS/geo-block)
+- Telegram alerts: BTC, ETH, USD/VND, Gold (SJC)
+- Serve static files
+- Credit system (Supabase): free_tier bị giới hạn lượt, premium/admin unlimited
+"""
+
+import os, re, json, logging, asyncio, time, socket
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
+import httpx
+import pytz
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, Depends
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+import websockets
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import gspread
+import credits
+import auth
+from google.oauth2.service_account import Credentials
+from config.security import setup_cors, SecurityHeadersMiddleware, RateLimiter
+
+ICT = pytz.timezone("Asia/Ho_Chi_Minh")
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
+
+# ─────────────────────────────────────────────
+# CONFIG — ENV VARS
+# ─────────────────────────────────────────────
+
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "")
+
+BTC_MIN    = float(os.getenv("BTC_MIN",    "55000"))
+BTC_MAX    = float(os.getenv("BTC_MAX",    "75000"))
+ETH_MIN    = float(os.getenv("ETH_MIN",    "1500"))
+ETH_MAX    = float(os.getenv("ETH_MAX",    "2000"))
+CHANGE_PCT = float(os.getenv("CHANGE_PCT", "5.0"))
+USD_MIN    = float(os.getenv("USD_MIN",    "24000"))
+USD_MAX    = float(os.getenv("USD_MAX",    "27000"))
+GOLD_MIN   = float(os.getenv("GOLD_MIN",   "100000000"))
+GOLD_MAX   = float(os.getenv("GOLD_MAX",   "150000000"))
+
+# ─────────────────────────────────────────────
+# GOOGLE SHEETS — Chat Log Storage
+# ─────────────────────────────────────────────
+
+GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON", "")
+CHAT_LOG_SHEET_ID = "12W6K3Y3-Ac2tCE1B8JBOC-ZYAB09QRdFJn-Yv1mmk3w"
+CHAT_LOG_SHEET_NAME = "Logs"
+
+_gsheet_client = None
+_chat_log_worksheet = None
+
+def _get_chat_log_worksheet():
+    global _gsheet_client, _chat_log_worksheet
+    if _chat_log_worksheet is not None:
+        return _chat_log_worksheet
+
+    if not GOOGLE_CREDENTIALS_JSON:
+        log.warning("GOOGLE_CREDENTIALS_JSON chưa cấu hình — bỏ qua chat log")
+        return None
+
+    try:
+        creds_dict = json.loads(GOOGLE_CREDENTIALS_JSON)
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        _gsheet_client = gspread.authorize(creds)
+
+        sheet = _gsheet_client.open_by_key(CHAT_LOG_SHEET_ID)
+        try:
+            ws = sheet.worksheet(CHAT_LOG_SHEET_NAME)
+        except gspread.WorksheetNotFound:
+            ws = sheet.add_worksheet(title=CHAT_LOG_SHEET_NAME, rows=1000, cols=5)
+            ws.append_row(["Timestamp", "Session", "Role", "Message"])
+
+        _chat_log_worksheet = ws
+        log.info("Chat log: kết nối Google Sheets OK")
+        return ws
+    except Exception as e:
+        log.error(f"Chat log: lỗi kết nối Google Sheets: {e}")
+        return None
+
+
+def log_chat_message(session_id: str, role: str, message: str):
+    try:
+        ws = _get_chat_log_worksheet()
+        if ws is None:
+            return
+        timestamp = datetime.now(ICT).strftime("%Y-%m-%d %H:%M:%S")
+        ws.append_row([timestamp, session_id, role, message])
+    except Exception as e:
+        log.error(f"Chat log write error: {e}")
+
 
-@media (max-width: 400px) {
-  .logo { font-size: 13px; }
-  .tab { padding: 5px 8px; font-size: 10px; }
-  .fg-svg { max-width: 140px; }
-  .gold-price { font-size: 18px; }
-  .price-row, .forex-row { padding: 4px 6px; }
-}
-
-@media (max-width: 900px) and (orientation: landscape) {
-  .chart-container { height: 240px; }
-  #chat-panel { height: 85vh !important; }
-}
-</style>
-</head>
-<body>
-<div id="app">
-  <header class="header">
-    <div class="header-left">
-      <span class="logo">◈ Market Hub</span>
-      <span class="header-time" id="header-time"></span>
-    </div>
-    <nav class="tab-bar">
-      <button class="tab active" data-tab="overview">Tổng quan</button>
-      <button class="tab" data-tab="crypto">Crypto</button>
-      <button class="tab" data-tab="chart">Biểu đồ</button>
-      <button class="tab" data-tab="hose">HOSE Top 200</button>
-      <button class="tab" data-tab="forex">Ngoại tệ</button>
-      <button class="tab" data-tab="calendar">Lịch sự kiện</button>
-      <button class="tab" data-tab="alerts">Cảnh báo</button>
-    </nav>
-    <div class="header-right" style="display:flex;align-items:center;gap:10px;">
-      <button id="chat-toggle-btn" onclick="toggleChat()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;color:var(--text1);padding:4px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">💬 Chat</button>
-      <span class="conn-badge" id="conn-status">⬤ Đang kết nối...</span>
-      <div class="header-user" id="header-user">
-        <span class="hu-avatar" id="hu-avatar">?</span>
-        <span class="hu-email" id="hu-email">--</span>
-        <button class="hu-logout" id="hu-logout">Đăng xuất</button>
-      </div>
-    </div>
-  </header>
-
-  <main class="main">
-
-    <section class="tab-content active" id="tab-overview">
-      <div class="overview-grid">
-        <div class="card card-multitf">
-          <div class="card-title"><span class="dot green"></span> Multi-TF Strength</div>
-          <div id="multitf-list" class="multitf-list"></div>
-        </div>
-        <div class="card card-fg">
-          <div class="card-title"><span class="dot"></span> Fear & Greed</div>
-          <div id="fg-widget" class="fg-widget">
-            <div class="fg-gauge" id="fg-gauge">
-              <svg viewBox="0 0 200 110" class="fg-svg">
-                <defs>
-                  <linearGradient id="fgGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%"   stop-color="#d93025"/>
-                    <stop offset="25%"  stop-color="#e07b2a"/>
-                    <stop offset="50%"  stop-color="#c9a227"/>
-                    <stop offset="75%"  stop-color="#6ea82f"/>
-                    <stop offset="100%" stop-color="#0f9d58"/>
-                  </linearGradient>
-                </defs>
-                <path d="M10,100 A90,90 0 0,1 190,100" fill="none" stroke="#e3e8ef" stroke-width="18"/>
-                <path d="M10,100 A90,90 0 0,1 190,100" fill="none" stroke="url(#fgGrad)" stroke-width="18" opacity="0.3"/>
-                <path id="fg-arc" d="M10,100 A90,90 0 0,1 190,100" fill="none" stroke="url(#fgGrad)" stroke-width="18"
-                      stroke-dasharray="283" stroke-dashoffset="283"/>
-                <line id="fg-needle" x1="100" y1="100" x2="100" y2="18" stroke="#33415c" stroke-width="2"
-                      transform="rotate(0, 100, 100)"/>
-                <circle cx="100" cy="100" r="4" fill="#33415c"/>
-              </svg>
-            </div>
-            <div class="fg-value" id="fg-value">--</div>
-            <div class="fg-label" id="fg-label">Loading...</div>
-          </div>
-        </div>
-        <div class="card card-prices">
-          <div class="card-title"><span class="dot green"></span> Crypto</div>
-          <div id="crypto-quick" class="price-list"></div>
-        </div>
-        <div class="card card-forex">
-          <div class="card-title"><span class="dot"></span> Tỷ giá VCB</div>
-          <div id="forex-quick" class="forex-list"></div>
-        </div>
-        <div class="card card-gold">
-          <div class="card-title"><span class="dot yellow"></span> Vàng SJC</div>
-          <div id="gold-widget" class="gold-widget">
-            <div class="gold-price" id="gold-price">--</div>
-            <div class="gold-unit">VND / lượng</div>
-          </div>
-        </div>
-
-        <div class="card" style="grid-column: 1 / -1;">
-          <div class="card-title"><span class="dot"></span> Thị trường toàn cầu</div>
-          <div id="global-markets-list" class="global-markets-list"></div>
-        </div>
-
-      </div>
-    </section>
-
-    <section class="tab-content" id="tab-crypto">
-      <div class="toolbar">
-        <input type="text" id="crypto-search" placeholder="Tìm coin..." class="search-input">
-        <select id="crypto-sort" class="select-input">
-          <option value="rank">Vốn hóa</option>
-          <option value="change">% 24h</option>
-          <option value="price">Giá</option>
-        </select>
-        <button class="btn-refresh" onclick="loadCryptoTop200()">↻ Cập nhật</button>
-      </div>
-      <table class="data-table" id="crypto-table">
-        <thead>
-          <tr>
-            <th>#</th><th>Coin</th><th class="num">Giá (USD)</th>
-            <th class="num">24h%</th><th class="num">7d%</th>
-            <th class="num">Vốn hóa</th>
-          </tr>
-        </thead>
-        <tbody id="crypto-tbody"></tbody>
-      </table>
-      <div class="pager">
-        <button id="crypto-prev">‹</button>
-        <span id="crypto-page-info">1 / 2</span>
-        <button id="crypto-next">›</button>
-      </div>
-    </section>
-
-    <section class="tab-content" id="tab-chart">
-      <div class="chart-toolbar">
-        <select id="chart-symbol" class="select-input">
-          <option value="BTCUSDT">BTC/USDT</option>
-          <option value="ETHUSDT">ETH/USDT</option>
-          <option value="SOLUSDT">SOL/USDT</option>
-          <option value="BNBUSDT">BNB/USDT</option>
-          <option value="XRPUSDT">XRP/USDT</option>
-          <option value="ADAUSDT">ADA/USDT</option>
-          <option value="DOGEUSDT">DOGE/USDT</option>
-        </select>
-        <div class="interval-btns">
-          <button class="interval-btn" data-iv="5m">5m</button>
-          <button class="interval-btn" data-iv="15m">15m</button>
-          <button class="interval-btn active" data-iv="1h">1H</button>
-          <button class="interval-btn" data-iv="4h">4H</button>
-          <button class="interval-btn" data-iv="1d">1D</button>
-          <button class="interval-btn" data-iv="1w">1W</button>
-        </div>
-        <span class="chart-price-label" id="chart-live-price"></span>
-      </div>
-      <div id="chart-container" class="chart-container"></div>
-      <div class="orderbook-row">
-        <div class="card ob-card">
-          <div class="card-title">Order Book</div>
-          <div class="ob-grid">
-            <div>
-              <div class="ob-header"><span>Giá Ask</span><span class="num">Qty</span></div>
-              <div id="ob-asks" class="ob-asks"></div>
-            </div>
-            <div>
-              <div class="ob-header"><span>Giá Bid</span><span class="num">Qty</span></div>
-              <div id="ob-bids" class="ob-bids"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="tab-content" id="tab-hose">
-      <div class="toolbar">
-        <input type="text" id="hose-search" placeholder="Tìm mã hoặc tên..." class="search-input">
-        <select id="hose-sort" class="select-input">
-          <option value="rank">Vốn hóa</option>
-          <option value="change">% thay đổi</option>
-          <option value="price">Giá</option>
-          <option value="volume">Khối lượng</option>
-          <option value="sym">Mã A-Z</option>
-        </select>
-        <select id="hose-sector" class="select-input">
-          <option value="">Tất cả ngành</option>
-          <option value="Ngân hàng">Ngân hàng</option>
-          <option value="Bất động sản">Bất động sản</option>
-          <option value="Tiêu dùng">Tiêu dùng</option>
-          <option value="Năng lượng">Năng lượng</option>
-          <option value="Công nghệ">Công nghệ</option>
-          <option value="Vật liệu">Vật liệu</option>
-          <option value="Công nghiệp">Công nghiệp</option>
-          <option value="Chứng khoán">Chứng khoán</option>
-          <option value="Hóa chất">Hóa chất</option>
-        </select>
-        <button class="btn-refresh" onclick="loadHoseTop50()">↻ Cập nhật</button>
-        <span class="update-time" id="hose-updated"></span>
-      </div>
-      <div class="hose-multitf-bar" id="hose-multitf-bar"></div>
-      <table class="data-table" id="hose-table">
-        <thead>
-          <tr>
-            <th style="width:36px">#</th>
-            <th>Mã / Tên</th>
-            <th>Ngành</th>
-            <th class="num">Giá</th>
-            <th class="num">1D%</th>
-            <th class="num">KL (nghìn)</th>
-          </tr>
-        </thead>
-        <tbody id="hose-tbody"></tbody>
-      </table>
-      <div class="pager">
-        <span id="hose-count" class="pager-info"></span>
-        <button id="hose-prev">‹</button>
-        <span id="hose-page-info">1 / 5</span>
-        <button id="hose-next">›</button>
-      </div>
-    </section>
-
-    <section class="tab-content" id="tab-forex">
-      <div class="forex-grid" id="forex-full"></div>
-    </section>
-
-    <section class="tab-content" id="tab-calendar">
-      <div class="toolbar">
-        <span class="update-time" id="calendar-updated"></span>
-        <button class="btn-refresh" onclick="loadCalendar(true)" style="margin-left:auto">↻ Cập nhật</button>
-      </div>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Ngày</th><th>Giờ (ICT)</th><th>Sự kiện</th>
-            <th>Loại</th><th>Tác động</th><th>Tóm tắt</th>
-          </tr>
-        </thead>
-        <tbody id="calendar-tbody"></tbody>
-      </table>
-    </section>
-
-    <section class="tab-content" id="tab-alerts">
-      <div class="alerts-grid">
-        <div class="card">
-          <div class="card-title">Cấu hình cảnh báo</div>
-          <div id="alert-config-list" class="alert-config-list"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">Kiểm tra bot Telegram</div>
-          <button class="btn-primary" onclick="testAlert()">Gửi test message</button>
-          <div id="alert-test-result" style="margin-top:12px;font-size:13px;color:var(--green)"></div>
-        </div>
-      </div>
-    </section>
-
-  </main>
-</div>
-<script>
-const API = "";
-
-const SECTOR_COLORS = {
-  "Ngân hàng":     "#2f5fd6",
-  "Bất động sản":  "#b7791f",
-  "Tiêu dùng":     "#0f9d58",
-  "Năng lượng":    "#d93025",
-  "Công nghệ":     "#7c5fd6",
-  "Công nghiệp":   "#64748b",
-  "Vật liệu":      "#c2661a",
-  "Chứng khoán":   "#0891a8",
-  "Hóa chất":      "#5c8a1e",
-};
-
-const fmtNum  = (n, d=2)    => (n == null || isNaN(n)) ? "--" : Number(n).toLocaleString("vi-VN", { minimumFractionDigits: d, maximumFractionDigits: d });
-const fmtPct  = (n)         => n == null ? "--" : (n >= 0 ? "+" : "") + Number(n).toFixed(2) + "%";
-const fmtVol  = (n)         => n >= 1e9 ? (n/1e9).toFixed(2)+"B" : n >= 1e6 ? (n/1e6).toFixed(2)+"M" : n >= 1e3 ? (n/1e3).toFixed(0)+"K" : String(n);
-const badgeCls = (v)        => v > 0 ? "pos" : v < 0 ? "neg" : "neu";
-
-async function apiFetch(path) {
-  const r = await fetch(API + path);
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
-}
-
-function startClock() {
-  const el = document.getElementById("header-time");
-  const tick = () => {
-    el.textContent = new Date().toLocaleString("vi-VN", {
-      timeZone: "Asia/Ho_Chi_Minh",
-      hour: "2-digit", minute: "2-digit", second: "2-digit",
-      day: "2-digit", month: "2-digit", year: "numeric",
-    });
-  };
-  tick();
-  setInterval(tick, 1000);
-}
-
-function initTabs() {
-  document.querySelectorAll(".tab").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const tabId = btn.dataset.tab;
-      document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
-      document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
-      btn.classList.add("active");
-      document.getElementById(`tab-${tabId}`)?.classList.add("active");
-      if (tabId === "crypto")   loadCryptoTop200();
-      if (tabId === "hose")     loadHoseTop50();
-      if (tabId === "forex")    loadForexFull();
-      if (tabId === "calendar") loadCalendar();
-      if (tabId === "alerts")   loadAlertConfig();
-      if (tabId === "chart") {
-        requestAnimationFrame(() => {
-          if (chart) {
-            const container = document.getElementById("chart-container");
-            chart.applyOptions({ width: container.offsetWidth });
-          }
-          switchChart();
-        });
-      }
-    });
-  });
-}
-
-async function loadMultiTF() {
-  const el = document.getElementById("multitf-list");
-  try {
-    const data = await apiFetch("/api/vn/multitf");
-    const tfs  = ["1H", "4H", "1D", "1W", "1Q", "1Y"];
-    el.innerHTML = tfs.map(k => {
-      const pct = data[k] ?? 50;
-      const clr = pct >= 70 ? "var(--green)" : pct >= 50 ? "var(--yellow)" : "var(--red)";
-      const txtCls = pct >= 70 ? "text-green" : pct >= 50 ? "text-yellow" : "text-red";
-      return `<div class="tf-row">
-        <span class="tf-label">${k}</span>
-        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${clr}"></div></div>
-        <span class="tf-pct ${txtCls}">${pct}%</span>
-      </div>`;
-    }).join("");
-  } catch (e) {
-    el.innerHTML = `<div class="text-gray">Lỗi tải Multi-TF</div>`;
-  }
-}
-
-async function loadFearGreed() {
-  try {
-    const data  = await apiFetch("/api/fear-greed");
-    const item  = data.data?.[0];
-    if (!item) return;
-    const val   = parseInt(item.value);
-    const label = item.value_classification;
-    document.getElementById("fg-value").textContent = val;
-    document.getElementById("fg-label").textContent = label;
-
-    const offset = 283 - (val / 100) * 283;
-    document.getElementById("fg-arc").style.strokeDashoffset = offset;
-
-    const deg = -90 + (val / 100) * 180;
-    document.getElementById("fg-needle").setAttribute("transform", `rotate(${deg}, 100, 100)`);
-
-    const color = val < 25 ? "var(--red)" : val < 45 ? "var(--yellow)" : val < 55 ? "var(--yellow)" : val < 75 ? "var(--green)" : "var(--green)";
-    document.getElementById("fg-value").style.color = color;
-  } catch (e) {
-    console.warn("Fear/Greed error:", e);
-  }
-}
-
-async function loadGlobalMarkets() {
-  const el = document.getElementById("global-markets-list");
-  try {
-    const data = await apiFetch("/api/global-markets");
-    el.innerHTML = data.map(m => {
-      const chg = m.change ?? 0;
-      const cls = chg > 0 ? "pos" : chg < 0 ? "neg" : "neu";
-      const arrow = chg > 0 ? "▲" : chg < 0 ? "▼" : "—";
-      return `<div class="gm-card">
-        <span class="gm-region">${m.region}</span>
-        <span class="gm-name">${m.name}</span>
-        <span class="gm-price">${m.price > 0 ? m.price.toLocaleString("en-US", {maximumFractionDigits: 2}) : "--"}</span>
-        <span class="gm-change ${cls}">${arrow} ${m.price > 0 ? (chg >= 0 ? "+" : "") + chg.toFixed(2) + "%" : "--"}</span>
-      </div>`;
-    }).join("");
-  } catch (e) {
-    el.innerHTML = `<div class="text-gray">Lỗi tải dữ liệu: ${e.message}</div>`;
-  }
-}
-
-async function loadCryptoQuick() {
-  const el = document.getElementById("crypto-quick");
-  try {
-    const data = await apiFetch("/api/crypto/prices?ids=bitcoin,ethereum,solana,binancecoin,ripple");
-    const coins = [
-      { id: "bitcoin",     sym: "BTC" },
-      { id: "ethereum",    sym: "ETH" },
-      { id: "solana",      sym: "SOL" },
-      { id: "binancecoin", sym: "BNB" },
-      { id: "ripple",      sym: "XRP" },
-    ];
-    el.innerHTML = coins.map(c => {
-      const d   = data[c.id] || {};
-      const pct = d.usd_24h_change ?? 0;
-      const cls = badgeCls(pct);
-      return `<div class="price-row">
-        <span class="price-sym">${c.sym}</span>
-        <span class="price-val mono">$${fmtNum(d.usd, 2)}</span>
-        <span class="price-chg badge ${cls}">${fmtPct(pct)}</span>
-      </div>`;
-    }).join("");
-  } catch (e) {
-    el.innerHTML = `<div class="text-gray">Lỗi</div>`;
-  }
-}
-
-async function loadForexQuick() {
-  const el = document.getElementById("forex-quick");
-  try {
-    const rates = await apiFetch("/api/forex/vnd");
-    el.innerHTML = Object.entries(rates).map(([code, r]) => {
-      return `<div class="forex-row">
-        <span class="forex-code">${code}</span>
-        <span class="forex-buy mono">${fmtNum(r.buy, 0)}</span>
-        <span class="forex-sell mono">${fmtNum(r.sell, 0)}</span>
-      </div>`;
-    }).join("");
-  } catch (e) {
-    el.innerHTML = `<div class="text-gray">Lỗi</div>`;
-  }
-}
-
-async function loadGold() {
-  const el = document.getElementById("gold-price");
-  try {
-    const data = await apiFetch("/api/gold");
-    el.textContent = fmtNum(data.price, 0);
-  } catch (e) {
-    el.textContent = "--";
-  }
-}
-
-function loadOverview() {
-  loadMultiTF();
-  loadFearGreed();
-  loadCryptoQuick();
-  loadForexQuick();
-  loadGold();
-  loadGlobalMarkets();
-}
-
-let cryptoData  = [];
-let cryptoPage  = 0;
-const cryptoPer = 20;
-
-async function loadCryptoTop200() {
-  try {
-    const [p1, p2] = await Promise.all([
-      apiFetch("/api/crypto/top200?page=1"),
-      apiFetch("/api/crypto/top200?page=2"),
-    ]);
-    cryptoData = [...(Array.isArray(p1) ? p1 : []), ...(Array.isArray(p2) ? p2 : [])];
-    cryptoPage = 0;
-    renderCryptoTable();
-  } catch (e) {
-    document.getElementById("crypto-tbody").innerHTML =
-      `<tr><td colspan="6" class="loading">Lỗi tải dữ liệu: ${e.message}</td></tr>`;
-  }
-}
-
-function renderCryptoTable() {
-  const q   = document.getElementById("crypto-search").value.trim().toLowerCase();
-  const srt = document.getElementById("crypto-sort").value;
-
-  let filtered = cryptoData.filter(c =>
-    !q || c.symbol?.toLowerCase().includes(q) || c.name?.toLowerCase().includes(q)
-  );
-
-  if (srt === "change") filtered.sort((a,b) => (b.price_change_percentage_24h ?? 0) - (a.price_change_percentage_24h ?? 0));
-  else if (srt === "price") filtered.sort((a,b) => (b.current_price ?? 0) - (a.current_price ?? 0));
-  else filtered.sort((a,b) => (a.market_cap_rank ?? 999) - (b.market_cap_rank ?? 999));
-
-  const pages = Math.max(1, Math.ceil(filtered.length / cryptoPer));
-  if (cryptoPage >= pages) cryptoPage = 0;
-  document.getElementById("crypto-page-info").textContent = `${cryptoPage+1} / ${pages}`;
-
-  const slice = filtered.slice(cryptoPage * cryptoPer, (cryptoPage+1) * cryptoPer);
-  const tbody = document.getElementById("crypto-tbody");
-  tbody.innerHTML = slice.map(c => {
-    const d24 = c.price_change_percentage_24h ?? 0;
-    const d7  = c.price_change_percentage_7d_in_currency ?? 0;
-    return `<tr>
-      <td class="text-gray">${c.market_cap_rank ?? "--"}</td>
-      <td>
-        <span class="sym-cell">${c.symbol?.toUpperCase()}</span>
-        <div class="name-cell">${c.name}</div>
-      </td>
-      <td class="num mono">$${c.current_price?.toLocaleString("en-US") ?? "--"}</td>
-      <td class="num"><span class="badge ${badgeCls(d24)}">${fmtPct(d24)}</span></td>
-      <td class="num"><span class="badge ${badgeCls(d7)}">${fmtPct(d7)}</span></td>
-      <td class="num text-gray">$${fmtVol(c.market_cap ?? 0)}</td>
-    </tr>`;
-  }).join("");
-}
-
-document.getElementById("crypto-search").addEventListener("input", () => { cryptoPage = 0; renderCryptoTable(); });
-document.getElementById("crypto-sort").addEventListener("change",  () => { cryptoPage = 0; renderCryptoTable(); });
-document.getElementById("crypto-prev").addEventListener("click",   () => { if (cryptoPage > 0) { cryptoPage--; renderCryptoTable(); } });
-document.getElementById("crypto-next").addEventListener("click",   () => {
-  const filtered = cryptoData.filter(c => {
-    const q = document.getElementById("crypto-search").value.trim().toLowerCase();
-    return !q || c.symbol?.toLowerCase().includes(q) || c.name?.toLowerCase().includes(q);
-  });
-  const pages = Math.max(1, Math.ceil(filtered.length / cryptoPer));
-  if (cryptoPage < pages - 1) { cryptoPage++; renderCryptoTable(); }
-});
-
-let chart, candleSeries, volSeries;
-let chartSymbol   = "BTCUSDT";
-let chartInterval = "1h";
-let chartWs       = null;
-
-function initChart() {
-  const container = document.getElementById("chart-container");
-  chart = LightweightCharts.createChart(container, {
-    layout: {
-      background: { color: "#ffffff" },
-      textColor:  "#64748b",
-    },
-    grid: {
-      vertLines: { color: "#eef1f5" },
-      horzLines: { color: "#eef1f5" },
-    },
-    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    rightPriceScale: { borderColor: "#e3e8ef" },
-    timeScale: {
-      borderColor: "#e3e8ef",
-      timeVisible: true,
-      secondsVisible: false,
-    },
-    width:  container.offsetWidth,
-    height: 400,
-  });
-
-  candleSeries = chart.addCandlestickSeries({
-    upColor:   "#0f9d58",
-    downColor: "#d93025",
-    borderUpColor:   "#0f9d58",
-    borderDownColor: "#d93025",
-    wickUpColor:   "#0f9d58",
-    wickDownColor: "#d93025",
-  });
-
-  window.addEventListener("resize", () => {
-    chart.applyOptions({ width: container.offsetWidth });
-  });
-}
 
-async function loadKlines() {
-  try {
-    const data = await apiFetch(`/api/klines?symbol=${chartSymbol}&interval=${chartInterval}&limit=300`);
-    if (!Array.isArray(data)) return;
-    const bars = data.map(k => ({
-      time:  k.time,
-      open:  k.open,
-      high:  k.high,
-      low:   k.low,
-      close: k.close,
-    }));
-    candleSeries.setData(bars);
-
-    if (bars.length > 0) {
-      const last = bars[bars.length - 1];
-      const chg  = bars.length > 1 ? ((last.close - bars[bars.length-2].close) / bars[bars.length-2].close * 100) : 0;
-      const priceEl = document.getElementById("chart-live-price");
-      priceEl.textContent = `${last.close.toLocaleString("en-US")} USDT`;
-      priceEl.style.color = chg >= 0 ? "var(--green)" : "var(--red)";
+HOSE_TOP200 = [
+    "AAA","AAM","AAN","AAT","ABR","ABS","ABT","ACB","ACC","ACG",
+    "ACL","ADG","ADP","ADS","AFX","AGG","AGR","ANT","ANV","APG",
+    "APH","ASG","ASM","ASP","AST","BAF","BCE","BCM","BFC","BHN",
+    "BIC","BID","BKG","BMC","BMI","BMP","BRC","BSI","BSR","BTP",
+    "BTT","BVB","BVH","BWE","CCC","CCI","CCL","CDC","CHP","CIG",
+    "CII","CKG","CLC","CLL","CLW","CMG","CMV","CMX","CNG","COM",
+    "CRC","CRE","CRV","CSM","CSV","CTD","CTF","CTG","CTI","CTR",
+    "CTS","CVT","DAH","DAT","DBC","DBD","DBT","DCL","DCM","DGC",
+    "DGW","DHA","DHC","DHG","DHM","DIG","DLG","DMC","DMX","DPG",
+    "DPM","DPR","DQC","DRC","DRH","DRL","DSC","DSE","DSN","DTA",
+    "DTL","DTT","DVP","DXG","DXS","DXV","EIB","ELC","EVE","EVF",
+    "EVG","FCM","FCN","FDC","FIR","FIT","FMC","FPT","FRT","FTS",
+    "GAS","GDT","GEE","GEG","GEL","GEX","GHC","GIL","GMD","GMH",
+    "GSP","GTA","GVR","HAG","HAH","HAP","HAR","HAS","HAX","HCD",
+    "HCM","HDB","HDC","HDG","HHP","HHS","HHV","HID","HII","HMC",
+    "HNA","HPA","HPG","HPX","HQC","HRC","HSG","HSL","HTG","HTI",
+    "HTL","HTN","HTV","HUB","HVH","HVN","ICT","IDI","IJC","ILB",
+    "IMP","ITC","ITD","JVC","KBC","KDC","KDH","KHG","KHP","KLB",
+    "KMR","KOS","KSB","LAF","LBM","LCG","LDG","LGC","LGL","LHG",
+    "LIX","LPB","LPS","LSS","MBB","MCH","MCM","MCP","MDG","MHC",
+    "MIG","MSB","MSH","MSN","MWG","MZG","NAB","NAF","NAV","NBB",
+    "NCT","NHA","NHH","NHT","NKG","NLG","NNC","NSC","NTC","NTL",
+    "NVL","NVT","OCB","OGC","OPC","ORS","PAC","PAN","PDN","PDR",
+    "PDV","PET","PGC","PGD","PGI","PGV","PHC","PHR","PIT","PJT",
+    "PLP","PLX","PMG","PNC","PNJ","POW","PPC","PTB","PTC","PTL",
+    "PVD","PVP","PVT","QCG","QNP","RAL","REE","RYG","SAB","SAM",
+    "SAV","SBA","SBG","SBT","SBV","SCR","SCS","SFC","SFG","SFI",
+    "SGN","SGR","SGT","SHA","SHB","SHI","SHP","SIP","SJD","SJS",
+    "SKG","SMA","SMB","SMC","SPM","SRC","SRF","SSB","SSC","SSI",
+    "STB","STG","STK","SVC","SVD","SVT","SZC","SZL","TAL","TBC",
+    "TCB","TCH","TCI","TCL","TCM","TCO","TCR","TCT","TCX","TDC",
+    "TDG","TDH","TDM","TDP","TDW","TEG","THG","TIP","TIX","TLD",
+    "TLG","TLH","TMP","TMS","TMT","TNC","TNH","TNI","TNT","TPB",
+    "TPC","TRA","TRC","TSA","TSC","TTA","TTE","TTF","TVB","TVS",
+    "TVT","TYA","UIC","VAB","VBB","VCA","VCB","VCF","VCG","VCI",
+    "VCK","VDP","VDS","VFG","VGC","VHC","VHM","VIB","VIC","VID",
+    "VIP","VIX","VJC","VMD","VND","VNG","VNL","VNM","VNS","VOS",
+    "VPB","VPD","VPG","VPH","VPI","VPL","VPS","VPX","VRC","VRE",
+    "VSC","VSH","VSI","VTB","VTO","VTP","VVS","YBM","YEG",
+]
+HOSE_TOP100 = HOSE_TOP200
+HOSE_TOP50  = HOSE_TOP200
+
+
+HOSE_INFO = {
+    "VCB":  {"name": "Vietcombank",        "sector": "Ngân hàng"},
+    "BID":  {"name": "BIDV",               "sector": "Ngân hàng"},
+    "VIC":  {"name": "Vingroup",           "sector": "Bất động sản"},
+    "VHM":  {"name": "Vinhomes",           "sector": "Bất động sản"},
+    "CTG":  {"name": "VietinBank",         "sector": "Ngân hàng"},
+    "GAS":  {"name": "PV Gas",             "sector": "Năng lượng"},
+    "VNM":  {"name": "Vinamilk",           "sector": "Tiêu dùng"},
+    "SAB":  {"name": "Sabeco",             "sector": "Tiêu dùng"},
+    "MSN":  {"name": "Masan Group",        "sector": "Tiêu dùng"},
+    "TCB":  {"name": "Techcombank",        "sector": "Ngân hàng"},
+    "MBB":  {"name": "MB Bank",            "sector": "Ngân hàng"},
+    "FPT":  {"name": "FPT Corp",           "sector": "Công nghệ"},
+    "ACB":  {"name": "ACB",                "sector": "Ngân hàng"},
+    "PLX":  {"name": "Petrolimex",         "sector": "Năng lượng"},
+    "HPG":  {"name": "Hòa Phát Group",     "sector": "Vật liệu"},
+    "VPB":  {"name": "VPBank",             "sector": "Ngân hàng"},
+    "STB":  {"name": "Sacombank",          "sector": "Ngân hàng"},
+    "HDB":  {"name": "HDBank",             "sector": "Ngân hàng"},
+    "GVR":  {"name": "VRG",                "sector": "Công nghiệp"},
+    "POW":  {"name": "PV Power",           "sector": "Năng lượng"},
+    "MWG":  {"name": "Thế Giới Di Động",   "sector": "Tiêu dùng"},
+    "PNJ":  {"name": "PNJ",                "sector": "Tiêu dùng"},
+    "REE":  {"name": "Cơ Điện Lạnh REE",   "sector": "Công nghiệp"},
+    "SSI":  {"name": "SSI Securities",     "sector": "Chứng khoán"},
+    "VND":  {"name": "VNDirect",           "sector": "Chứng khoán"},
+    "HCM":  {"name": "HSC",                "sector": "Chứng khoán"},
+    "DPM":  {"name": "Đạm Phú Mỹ",        "sector": "Hóa chất"},
+    "DCM":  {"name": "Đạm Cà Mau",        "sector": "Hóa chất"},
+    "VEA":  {"name": "VEAM",               "sector": "Công nghiệp"},
+    "KDH":  {"name": "Khang Điền",         "sector": "Bất động sản"},
+    "NVL":  {"name": "Novaland",           "sector": "Bất động sản"},
+    "PDR":  {"name": "Phát Đạt",           "sector": "Bất động sản"},
+    "DXG":  {"name": "Đất Xanh Group",     "sector": "Bất động sản"},
+    "PVD":  {"name": "PV Drilling",        "sector": "Năng lượng"},
+    "HSG":  {"name": "Hoa Sen Group",      "sector": "Vật liệu"},
+    "NKG":  {"name": "Nam Kim Steel",      "sector": "Vật liệu"},
+    "PHR":  {"name": "Cao su Phước Hòa",   "sector": "Vật liệu"},
+    "DRC":  {"name": "Cao su Đà Nẵng",     "sector": "Vật liệu"},
+    "IDC":  {"name": "IDICO",              "sector": "Bất động sản"},
+    "KBC":  {"name": "Kinh Bắc City",      "sector": "Bất động sản"},
+    "NTC":  {"name": "Nam Tân Uyên",       "sector": "Bất động sản"},
+    "LHG":  {"name": "Long Hậu",           "sector": "Bất động sản"},
+    "EIB":  {"name": "Eximbank",           "sector": "Ngân hàng"},
+    "EVF":  {"name": "EVNFinance",         "sector": "Ngân hàng"},
+    "CMG":  {"name": "CMC Corp",           "sector": "Công nghệ"},
+    "VGI":  {"name": "Viettel Global",     "sector": "Công nghệ"},
+    "FRT":  {"name": "FPT Retail",         "sector": "Tiêu dùng"},
+    "DGW":  {"name": "Digiworld",          "sector": "Tiêu dùng"},
+    "GEX":  {"name": "Gelex Group",        "sector": "Công nghiệp"},
+    "VRE":  {"name": "Vincom Retail",      "sector": "Bất động sản"},
+    "BVH":  {"name": "Bảo Việt",           "sector": "Bảo hiểm"},
+    "BCM":  {"name": "Becamex IDC",        "sector": "Bất động sản"},
+    "PC1":  {"name": "PC1 Group",          "sector": "Công nghiệp"},
+    "PVT":  {"name": "PV Trans",           "sector": "Năng lượng"},
+    "BSR":  {"name": "Bình Sơn Refinery",  "sector": "Năng lượng"},
+    "BMI":  {"name": "Bảo Minh",           "sector": "Bảo hiểm"},
+    "DGC":  {"name": "Hóa chất Đức Giang", "sector": "Hóa chất"},
+    "CTD":  {"name": "Coteccons",          "sector": "Công nghiệp"},
+    "HDG":  {"name": "Hà Đô Group",        "sector": "Bất động sản"},
+    "HAH":  {"name": "Hải An Transport",   "sector": "Công nghiệp"},
+    "ANV":  {"name": "Nam Việt",           "sector": "Tiêu dùng"},
+    "VHC":  {"name": "Vĩnh Hoàn",          "sector": "Tiêu dùng"},
+    "DBC":  {"name": "Dabaco",             "sector": "Tiêu dùng"},
+    "NLG":  {"name": "Nam Long Group",     "sector": "Bất động sản"},
+    "CII":  {"name": "CII",                "sector": "Bất động sản"},
+    "TCH":  {"name": "Hòa Phát Hospitality","sector": "Bất động sản"},
+    "HHV":  {"name": "Đèo Cả Group",       "sector": "Công nghiệp"},
+    "VCG":  {"name": "Vinaconex",          "sector": "Công nghiệp"},
+    "HT1":  {"name": "Xi măng Hà Tiên 1",  "sector": "Vật liệu"},
+    "PAN":  {"name": "PAN Group",          "sector": "Tiêu dùng"},
+    "VOS":  {"name": "Vosco",              "sector": "Công nghiệp"},
+    "VTP":  {"name": "Viettel Post",       "sector": "Công nghiệp"},
+    "VCI":  {"name": "VietCap Securities", "sector": "Chứng khoán"},
+    "SHB":  {"name": "SHB",                "sector": "Ngân hàng"},
+    "TPB":  {"name": "TPBank",             "sector": "Ngân hàng"},
+    "OCB":  {"name": "OCB",                "sector": "Ngân hàng"},
+    "MSB":  {"name": "MSB",                "sector": "Ngân hàng"},
+    "LPB":  {"name": "LPBank",             "sector": "Ngân hàng"},
+    "BAB":  {"name": "Bắc Á Bank",         "sector": "Ngân hàng"},
+    "NAB":  {"name": "Nam A Bank",         "sector": "Ngân hàng"},
+    "TLG":  {"name": "Thiên Long Group",   "sector": "Tiêu dùng"},
+    "SCS":  {"name": "SCSC",               "sector": "Công nghiệp"},
+    "ASM":  {"name": "Sao Mai Group",      "sector": "Bất động sản"},
+    "CTS":  {"name": "VietinBank Securities","sector": "Chứng khoán"},
+    "FTS":  {"name": "FPT Securities",     "sector": "Chứng khoán"},
+    "PVS":  {"name": "PV Service",         "sector": "Năng lượng"},
+    "PVC":  {"name": "PV Coating",         "sector": "Năng lượng"},
+    "TIS":  {"name": "Gang Thép Thái Nguyên","sector": "Vật liệu"},
+    "NT2":  {"name": "Nhơn Trạch 2 Power", "sector": "Năng lượng"},
+    "VSH":  {"name": "Vĩnh Sơn-Sông Hinh", "sector": "Năng lượng"},
+    "BWE":  {"name": "BIWASE",             "sector": "Công nghiệp"},
+    "DPR":  {"name": "Cao su Đồng Phú",    "sector": "Vật liệu"},
+    "HAG":  {"name": "Hoàng Anh Gia Lai",  "sector": "Tiêu dùng"},
+    "HNG":  {"name": "HAGL Agrico",        "sector": "Tiêu dùng"},
+    "DHC":  {"name": "Đông Hải Bến Tre",   "sector": "Vật liệu"},
+    "SBT":  {"name": "TTC Sugar",          "sector": "Tiêu dùng"},
+    "SZC":  {"name": "Sonadezi Châu Đức",  "sector": "Bất động sản"},
+    "DIG":  {"name": "DIC Corp",           "sector": "Bất động sản"},
+    "ITA":  {"name": "Tân Tạo Group",      "sector": "Bất động sản"},
+    "TDM":  {"name": "Thủ Dầu Một Water",  "sector": "Công nghiệp"},
+    "AAA":  {"name": "An Phát Holdings",   "sector": "Vật liệu"},
+    "APH":  {"name": "An Phát Plastic",    "sector": "Vật liệu"},
+    "BFC":  {"name": "Phân bón Bình Điền", "sector": "Hóa chất"},
+    "BCG":  {"name": "Bamboo Capital",     "sector": "Bất động sản"},
+    "BHN":  {"name": "Habeco",             "sector": "Tiêu dùng"},
+    "CAV":  {"name": "Dây cáp điện CADIVI","sector": "Công nghiệp"},
+    "CKG":  {"name": "Cảng Kiên Giang",    "sector": "Bất động sản"},
+    "CLL":  {"name": "Cảng Cát Lái",       "sector": "Công nghiệp"},
+    "CMX":  {"name": "Camimex Group",      "sector": "Tiêu dùng"},
+    "CRE":  {"name": "Cen Land",           "sector": "Bất động sản"},
+    "DAH":  {"name": "Tập đoàn Khách sạn Đông Á","sector": "Tiêu dùng"},
+    "DBD":  {"name": "Dược Bidiphar",      "sector": "Y tế"},
+    "DHA":  {"name": "Hóa An",             "sector": "Vật liệu"},
+    "DPG":  {"name": "Đạt Phương Group",   "sector": "Công nghiệp"},
+    "ELC":  {"name": "Elcom",              "sector": "Công nghệ"},
+    "EVE":  {"name": "Everpia",            "sector": "Tiêu dùng"},
+    "FCN":  {"name": "FECON",              "sector": "Công nghiệp"},
+    "FIT":  {"name": "FIT Group",          "sector": "Công nghiệp"},
+    "FTM":  {"name": "Đầu tư Phát triển TDT","sector": "Tiêu dùng"},
+    "GEG":  {"name": "Gia Lai Electricity","sector": "Năng lượng"},
+    "GIL":  {"name": "Bình Thạnh Garment", "sector": "Tiêu dùng"},
+    "GMD":  {"name": "Gemadept",           "sector": "Công nghiệp"},
+    "HBC":  {"name": "Hòa Bình Construction","sector": "Công nghiệp"},
+    "HCD":  {"name": "Hòa Cường",          "sector": "Vật liệu"},
+    "HII":  {"name": "An Tiến Industries", "sector": "Vật liệu"},
+    "HQC":  {"name": "Hoàng Quân Group",   "sector": "Bất động sản"},
+    "HU1":  {"name": "Đầu tư & Phát triển nhà HUD1","sector": "Bất động sản"},
+    "HVH":  {"name": "Hồ Việt Holdings",   "sector": "Tiêu dùng"},
+    "IJC":  {"name": "Becamex IJC",        "sector": "Bất động sản"},
+    "IMP":  {"name": "Imexpharm",          "sector": "Y tế"},
+    "ITC":  {"name": "Đầu tư & Kinh doanh Nhà",   "sector": "Bất động sản"},
+    "KSB":  {"name": "Khoáng sản Bình Dương","sector": "Vật liệu"},
+    "LCG":  {"name": "Licogi 16",          "sector": "Công nghiệp"},
+    "LDG":  {"name": "LDG Group",          "sector": "Bất động sản"},
+    "LSS":  {"name": "Mía đường Lam Sơn",  "sector": "Tiêu dùng"},
+    "MCP":  {"name": "In & Bao bì Mỹ Châu","sector": "Vật liệu"},
+    "NHA":  {"name": "Đầu tư Phát triển Nhà & Đô thị Nam Hà Nội","sector": "Bất động sản"},
+    "NHH":  {"name": "Nhựa Hà Nội",        "sector": "Vật liệu"},
+    "NTL":  {"name": "Đô thị Từ Liêm",     "sector": "Bất động sản"},
+    "OGC":  {"name": "Đại Dương Group",    "sector": "Bất động sản"},
+    "PDN":  {"name": "Cảng Đồng Nai",      "sector": "Công nghiệp"},
+    "PGD":  {"name": "PV Gas City",        "sector": "Năng lượng"},
+    "PGI":  {"name": "Bảo hiểm Petrolimex","sector": "Bảo hiểm"},
+    "PHC":  {"name": "Xây dựng Phục Hưng Holdings","sector": "Công nghiệp"},
+    "PIT":  {"name": "Xuất nhập khẩu Phú Yên","sector": "Tiêu dùng"},
+    "PLP":  {"name": "Bao bì Dầu thực vật","sector": "Vật liệu"},
+    "PMG":  {"name": "Đầu tư Khí Mê Kông", "sector": "Năng lượng"},
+    "PTB":  {"name": "Phú Tài",            "sector": "Vật liệu"},
+    "QCG":  {"name": "Quốc Cường Gia Lai", "sector": "Bất động sản"},
+    "RAL":  {"name": "Rạng Đông",          "sector": "Công nghiệp"},
+    "SAM":  {"name": "SAM Holdings",       "sector": "Công nghiệp"},
+    "SBA":  {"name": "Sông Ba Hydropower", "sector": "Năng lượng"},
+    "SCD":  {"name": "Nước giải khát Chương Dương","sector": "Tiêu dùng"},
+    "SFG":  {"name": "Phân bón Miền Nam",  "sector": "Hóa chất"},
+    "SGN":  {"name": "Phục vụ mặt đất Sài Gòn","sector": "Công nghiệp"},
+    "SGT":  {"name": "Công nghệ Viễn thông Sài Gòn","sector": "Công nghệ"},
+    "SHA":  {"name": "Sơn Hà SHI Group",   "sector": "Vật liệu"},
+    "SHI":  {"name": "Quốc tế Sơn Hà",     "sector": "Vật liệu"},
+    "SJD":  {"name": "Thủy điện Cần Đơn",  "sector": "Năng lượng"},
+    "SJS":  {"name": "Sudico",             "sector": "Bất động sản"},
+    "SMA":  {"name": "Thiết bị Phụ tùng Sài Gòn","sector": "Công nghiệp"},
+    "SMB":  {"name": "Bia Sài Gòn Miền Trung","sector": "Tiêu dùng"},
+    "SMC":  {"name": "Đầu tư Thương mại SMC","sector": "Vật liệu"},
+    "SRC":  {"name": "Cao su Sao Vàng",    "sector": "Vật liệu"},
+    "SRF":  {"name": "Kỹ nghệ lạnh SEAREFICO","sector": "Công nghiệp"},
+    "SVC":  {"name": "Savico",             "sector": "Tiêu dùng"},
+    "SVI":  {"name": "Bao bì Biên Hòa",    "sector": "Vật liệu"},
+    "TCM":  {"name": "Dệt may - Đầu tư - Thương mại Thành Công","sector": "Tiêu dùng"},
+    "TDC":  {"name": "Kinh doanh & Phát triển Bình Dương","sector": "Bất động sản"},
+    "TDH":  {"name": "Thuduc House",       "sector": "Bất động sản"},
+    "TDP":  {"name": "Thuận Đức",          "sector": "Vật liệu"},
+    "TEG":  {"name": "Trường Tiền Group",  "sector": "Công nghiệp"},
+    "THG":  {"name": "Tiền Giang",         "sector": "Công nghiệp"},
+    "TLH":  {"name": "Thép Tiến Lên",      "sector": "Vật liệu"},
+    "TNA":  {"name": "Thương mại Xuất nhập khẩu Thiên Nam","sector": "Tiêu dùng"},
+    "TNI":  {"name": "Tập đoàn Thành Nam", "sector": "Vật liệu"},
+    "TNT":  {"name": "Tài Nguyên",         "sector": "Bất động sản"},
+    "TPC":  {"name": "Nhựa Tân Đại Hưng",  "sector": "Vật liệu"},
+    "TRA":  {"name": "Traphaco",           "sector": "Y tế"},
+    "TSC":  {"name": "Vật tư Kỹ thuật Nông nghiệp Cần Thơ","sector": "Tiêu dùng"},
+    "TTF":  {"name": "Gỗ Trường Thành",    "sector": "Vật liệu"},
+    "TV2":  {"name": "Tư vấn Xây dựng Điện 2","sector": "Công nghiệp"},
+    "TVS":  {"name": "Chứng khoán Thiên Việt","sector": "Chứng khoán"},
+    "UDC":  {"name": "Xây dựng & Phát triển Đô thị Bà Rịa","sector": "Bất động sản"},
+    "VCF":  {"name": "Vinacafé Biên Hòa",  "sector": "Tiêu dùng"},
+    "VDS":  {"name": "Chứng khoán Rồng Việt","sector": "Chứng khoán"},
+    "VFG":  {"name": "Khử trùng Việt Nam VFG","sector": "Hóa chất"},
+    "VID":  {"name": "Đầu tư & Phát triển Thương mại Viễn Đông","sector": "Vật liệu"},
+    "VIP":  {"name": "Vận tải Xăng dầu VIPCO","sector": "Công nghiệp"},
+    "VIX":  {"name": "Chứng khoán VIX",    "sector": "Chứng khoán"},
+    "VNE":  {"name": "Tổng CTCP Xây dựng Điện Việt Nam","sector": "Công nghiệp"},
+    "VNG":  {"name": "Du lịch Việt Nam VNG","sector": "Tiêu dùng"},
+    "VPG":  {"name": "Đầu tư Thương mại Xuất nhập khẩu Việt Phát","sector": "Vật liệu"},
+    "VPI":  {"name": "Đầu tư Văn Phú - Invest","sector": "Bất động sản"},
+    "VSC":  {"name": "Container Việt Nam VSC","sector": "Công nghiệp"},
+    "VTO":  {"name": "Vận tải Xăng dầu VITACO","sector": "Công nghiệp"},
+    "YEG":  {"name": "Yeah1 Group",        "sector": "Công nghệ"},
+    "BMP":  {"name": "Nhựa Bình Minh",     "sector": "Vật liệu"},
+    "DXS":  {"name": "Đất Xanh Services",  "sector": "Bất động sản"},
+    "NAF":  {"name": "Nafoods Group",      "sector": "Tiêu dùng"},
+    "VJC":  {"name": "Vietjet Air",              "sector": "Công nghiệp"},
+    "HVN":  {"name": "Vietnam Airlines",         "sector": "Công nghiệp"},
+    "VGC":  {"name": "Viglacera",                "sector": "Vật liệu"},
+    "DHG":  {"name": "Dược Hậu Giang",           "sector": "Y tế"},
+    "DBT":  {"name": "Dược phẩm Bến Tre",        "sector": "Y tế"},
+    "PPC":  {"name": "Nhiệt điện Phả Lại",       "sector": "Năng lượng"},
+    "NBB":  {"name": "Năm Bảy Bảy",              "sector": "Bất động sản"},
+    "ABT":  {"name": "XNK Thủy sản Bến Tre",     "sector": "Tiêu dùng"},
+    "ACL":  {"name": "XNK Thủy sản Cửu Long An Giang","sector": "Tiêu dùng"},
+    "BBC":  {"name": "Bibica",                   "sector": "Tiêu dùng"},
+    "BTP":  {"name": "Nhiệt điện Bà Rịa",        "sector": "Năng lượng"},
+    "C32":  {"name": "Xây dựng Số 32",           "sector": "Công nghiệp"},
+    "CDC":  {"name": "Chương Dương",             "sector": "Bất động sản"},
+    "CIG":  {"name": "COMA18",                   "sector": "Bất động sản"},
+    "CLC":  {"name": "Cát Lợi",                  "sector": "Vật liệu"},
+    "COM":  {"name": "Vật tư Xăng dầu COMECO",   "sector": "Năng lượng"},
+    "CTI":  {"name": "Cường Thuận IDICO",        "sector": "Công nghiệp"},
+    "D2D":  {"name": "PT Đô thị Công nghiệp Số 2","sector": "Bất động sản"},
+    "DAG":  {"name": "Tập đoàn Nhựa Đông Á",     "sector": "Vật liệu"},
+    "DRH":  {"name": "DRH Holdings",             "sector": "Bất động sản"},
+    "DTL":  {"name": "Đại Thiên Lộc",            "sector": "Vật liệu"},
+    "EVG":  {"name": "Everland",                 "sector": "Bất động sản"},
+    "FIR":  {"name": "Địa ốc First Real",        "sector": "Bất động sản"},
+    "GDT":  {"name": "Chế biến Gỗ Đức Thành",    "sector": "Vật liệu"},
+    "HAP":  {"name": "Tập đoàn Hapaco",          "sector": "Vật liệu"},
+    "HDC":  {"name": "PT Nhà Bà Rịa - Vũng Tàu", "sector": "Bất động sản"},
+    "HRC":  {"name": "Cao su Hòa Bình",          "sector": "Vật liệu"},
+    "HTN":  {"name": "Hưng Thịnh Incons",        "sector": "Công nghiệp"},
+    "ICF":  {"name": "ĐT Thương mại Thủy sản",   "sector": "Tiêu dùng"},
+    "IDI":  {"name": "ĐT & PT Đa Quốc gia IDI",  "sector": "Tiêu dùng"},
+    "ILB":  {"name": "Tân Cảng Long Bình",       "sector": "Công nghiệp"},
+    "JVC":  {"name": "Thiết bị Y tế Việt Nhật",  "sector": "Y tế"},
+    "KHP":  {"name": "Điện lực Khánh Hòa",       "sector": "Năng lượng"},
+    "LAF":  {"name": "Chế biến Hàng XK Long An", "sector": "Tiêu dùng"},
+    "LGC":  {"name": "Đầu tư Cầu đường CII",     "sector": "Công nghiệp"},
+    "LIX":  {"name": "Bột giặt Lix",             "sector": "Tiêu dùng"},
+    "MHC":  {"name": "MHC Group",                "sector": "Công nghiệp"},
+    "NNC":  {"name": "Đá Núi Nhỏ",               "sector": "Vật liệu"},
+    "PET":  {"name": "Dịch vụ Tổng hợp Dầu khí", "sector": "Công nghiệp"},
+    "PGC":  {"name": "Gas Petrolimex",           "sector": "Năng lượng"},
+    "QNS":  {"name": "Đường Quảng Ngãi",         "sector": "Tiêu dùng"},
+    "RDP":  {"name": "Nhựa Rạng Đông",           "sector": "Vật liệu"},
+    "SAV":  {"name": "Savimex",                  "sector": "Vật liệu"},
+    "SC5":  {"name": "Xây dựng Số 5",            "sector": "Công nghiệp"},
+    "SCR":  {"name": "Địa ốc Sài Gòn Thương Tín","sector": "Bất động sản"},
+    "SFC":  {"name": "Nhiên liệu Sài Gòn",       "sector": "Năng lượng"},
+    "SFI":  {"name": "Đại lý Vận tải SAFI",      "sector": "Công nghiệp"},
+    "SGR":  {"name": "Địa ốc Sài Gòn",           "sector": "Bất động sản"},
+    "SKG":  {"name": "Superdong Kiên Giang",     "sector": "Công nghiệp"},
+    "STK":  {"name": "Sợi Thế Kỷ",               "sector": "Vật liệu"},
+}
+
+
+async def get_all_hose_symbols() -> list[dict]:
+    return [{"symbol": s, **HOSE_INFO.get(s, {"name": s, "sector": "Khác"})} for s in HOSE_TOP200]
+
+
+_hose_cache: dict = {}
+HOSE_TTL = 60
+
+_multitf_cache: dict = {}
+MULTITF_TTL = 300
+
+_prev: dict    = {}
+_alerted: dict = {}
+ALERT_COOLDOWN = 3600
+
+def _should_alert(key: str) -> bool:
+    last = _alerted.get(key, 0)
+    return (time.time() - last) >= ALERT_COOLDOWN
+
+def _mark_alerted(key: str):
+    _alerted[key] = time.time()
+
+def _clear_alert(key: str):
+    _alerted.pop(key, None)
+
+async def send_telegram_async(text: str):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        log.warning("Telegram credentials not set — skipping")
+        return
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"},
+            )
+        log.info(f"Telegram sent: {text[:60]}...")
+    except Exception as e:
+        log.error(f"Telegram error: {e}")
+
+def _fmt(value: float, unit: str) -> str:
+    if unit.startswith("$"):
+        return f"${value:,.2f}" if value < 1000 else f"${value:,.0f}"
+    elif unit:
+        return f"{value:,.0f} {unit}"
+    return f"{value:,.0f}"
+
+
+def check_alert(key, value, min_val, max_val, label, unit=""):
+    alerts = []
+    now = datetime.now(ICT).strftime("%H:%M %d/%m")
+    key_min, key_max, key_pct = f"{key}_min", f"{key}_max", f"{key}_pct"
+    v_str, min_str, max_str = _fmt(value, unit), _fmt(min_val, unit), _fmt(max_val, unit)
+
+    if min_val and value < min_val:
+        if _should_alert(key_min):
+            _mark_alerted(key_min)
+            alerts.append(f"🔴 *{label} XUỐNG NGƯỠNG*\n💰 {v_str} < {min_str}\n🕐 {now}")
+    else:
+        _clear_alert(key_min)
+
+    if max_val and value > max_val:
+        if _should_alert(key_max):
+            _mark_alerted(key_max)
+            alerts.append(f"🟢 *{label} VƯỢT NGƯỠNG*\n💰 {v_str} > {max_str}\n🕐 {now}")
+    else:
+        _clear_alert(key_max)
+
+    prev = _prev.get(key)
+    if prev and prev > 0:
+        pct = (value - prev) / prev * 100
+        if abs(pct) >= CHANGE_PCT and _should_alert(key_pct):
+            _mark_alerted(key_pct)
+            icon = "📈" if pct > 0 else "📉"
+            alerts.append(f"{icon} *{label} BIẾN ĐỘNG MẠNH*\n{pct:+.2f}% | {_fmt(prev,unit)} → {v_str}\n🕐 {now}")
+        elif abs(pct) < CHANGE_PCT * 0.5:
+            _clear_alert(key_pct)
+
+    _prev[key] = value
+    return alerts
+
+async def fetch_price(symbol_okx: str, symbol_binance: str) -> float:
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(
+                "https://www.okx.com/api/v5/market/ticker",
+                params={"instId": symbol_okx},
+            )
+        data = r.json()
+        lst  = data.get("data", [])
+        if lst:
+            price = float(lst[0]["last"])
+            if price > 0:
+                return price
+    except Exception as e:
+        log.warning(f"OKX price error ({symbol_okx}): {e}")
+
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(f"https://api.binance.com/api/v3/ticker/price?symbol={symbol_binance}")
+        data = r.json()
+        if not isinstance(data, dict):
+            raise ValueError(f"Binance unexpected response: {type(data)}")
+        price = float(data.get("price", 0))
+        if price > 0:
+            return price
+    except Exception as e:
+        log.warning(f"Binance fallback price error ({symbol_binance}): {e}")
+
+    raise ValueError(f"Cannot fetch price for {symbol_okx}/{symbol_binance}")
+
+async def fetch_gold_price() -> float | None:
+    LUONG_PER_OZ = 37.5 / 31.1035
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            rg = await client.get(
+                "https://query1.finance.yahoo.com/v8/finance/chart/GC%3DF",
+                params={"interval": "1d", "range": "1d"},
+                headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+            )
+            gold_usd_oz = rg.json()["chart"]["result"][0]["meta"]["regularMarketPrice"]
+
+            import xml.etree.ElementTree as ET
+            rv = await client.get(
+                "https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10",
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+            root = ET.fromstring(rv.text)
+            usd_vnd = 0.0
+            for ex in root.findall(".//Exrate"):
+                if ex.get("CurrencyCode") == "USD":
+                    usd_vnd = float(ex.get("Sell", "0").replace(",", ""))
+                    break
+
+            if gold_usd_oz > 0 and usd_vnd > 0:
+                price = gold_usd_oz * usd_vnd * LUONG_PER_OZ * 1.08
+                return round(price / 100_000) * 100_000
+    except Exception as e:
+        log.error(f"fetch_gold_price error: {e}")
+    return None
+
+async def job_alert():
+    all_alerts = []
+
+    try:
+        btc = await fetch_price("BTC-USDT", "BTCUSDT")
+        all_alerts += check_alert("BTC", btc, BTC_MIN, BTC_MAX, "BTC/USDT", "$")
+    except Exception as e:
+        log.error(f"BTC alert error: {e}")
+
+    try:
+        eth = await fetch_price("ETH-USDT", "ETHUSDT")
+        all_alerts += check_alert("ETH", eth, ETH_MIN, ETH_MAX, "ETH/USDT", "$")
+    except Exception as e:
+        log.error(f"ETH alert error: {e}")
+
+    try:
+        import xml.etree.ElementTree as ET
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                "https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10",
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+        root = ET.fromstring(r.text)
+        for ex in root.findall(".//Exrate"):
+            if ex.get("CurrencyCode") == "USD":
+                usd = float(ex.get("Sell", "0").replace(",", ""))
+                if usd > 0:
+                    all_alerts += check_alert("USD", usd, USD_MIN, USD_MAX, "USD/VND", "đ")
+                break
+    except Exception as e:
+        log.error(f"USD alert error: {e}")
+
+    try:
+        gold_price = await fetch_gold_price()
+        if gold_price and gold_price > 0:
+            all_alerts += check_alert("GOLD", gold_price, GOLD_MIN, GOLD_MAX, "Vàng SJC", "đ/lượng")
+    except Exception as e:
+        log.error(f"Gold alert error: {e}")
+
+    for alert in all_alerts:
+        await send_telegram_async(alert)
+
+    log.info(f"Alert check done — {len(all_alerts)} alert(s) sent")
+
+alert_scheduler = AsyncIOScheduler(timezone=ICT)
+alert_scheduler.add_job(job_alert, "interval", minutes=5, id="alert_job")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    alert_scheduler.start()
+    log.info("Alert scheduler started")
+    yield
+    alert_scheduler.shutdown(wait=False)
+
+app = FastAPI(title="Market Research Hub", lifespan=lifespan)
+setup_cors(app)
+app.add_middleware(SecurityHeadersMiddleware)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+register_limiter = RateLimiter(max_requests=5, window_seconds=3600)
+
+@app.get("/api/vn/hose-all-symbols")
+async def hose_all_symbols():
+    return await get_all_hose_symbols()
+
+@app.get("/")
+def index():
+    return FileResponse("static/index.html")
+
+@app.get("/chat")
+def chat_page():
+    return FileResponse("static/chat.html")
+
+def to_okx_symbol(symbol: str) -> str:
+    s = symbol.upper()
+    if "-" in s:
+        return s
+    for quote in ("USDT", "USDC", "BTC", "ETH"):
+        if s.endswith(quote) and len(s) > len(quote):
+            return f"{s[:-len(quote)]}-{quote}"
+    return s
+
+OKX_INTERVAL_MAP = {
+    "1m": "1m",  "3m": "3m",  "5m": "5m",  "15m": "15m", "30m": "30m",
+    "1h": "1H",  "2h": "2H",  "4h": "4H",  "6h": "6H",   "12h": "12H",
+    "1d": "1D",  "1w": "1W",  "1M": "1M",
+}
+
+@app.websocket("/ws/kline")
+async def ws_kline(ws: WebSocket, symbol: str = "btcusdt", interval: str = "1h"):
+    await ws.accept()
+    okx_symbol   = to_okx_symbol(symbol)
+    okx_bar      = OKX_INTERVAL_MAP.get(interval, "1H")
+    okx_url      = "wss://ws.okx.com:8443/ws/v5/business"
+    subscribe_msg = json.dumps({
+        "op": "subscribe",
+        "args": [{"channel": f"candle{okx_bar}", "instId": okx_symbol}],
+    })
+    RECONNECT_DELAY = 3
+
+    for attempt in range(10):
+        try:
+            async with websockets.connect(okx_url, ping_interval=20, ping_timeout=10) as okx_ws:
+                await okx_ws.send(subscribe_msg)
+                log.info(f"OKX kline connected: {okx_symbol} {okx_bar}")
+                while True:
+                    try:
+                        msg = await asyncio.wait_for(okx_ws.recv(), timeout=35)
+                    except asyncio.TimeoutError:
+                        await ws.send_json({"ping": True})
+                        try:
+                            await okx_ws.send("ping")
+                        except Exception:
+                            pass
+                        continue
+
+                    if msg == "pong":
+                        continue
+
+                    data = json.loads(msg)
+                    if "data" not in data:
+                        continue
+
+                    for k in data["data"]:
+                        await ws.send_json({
+                            "time":      int(k[0]) // 1000,
+                            "open":      float(k[1]),
+                            "high":      float(k[2]),
+                            "low":       float(k[3]),
+                            "close":     float(k[4]),
+                            "volume":    float(k[5]),
+                            "is_closed": k[8] == "1" if len(k) > 8 else False,
+                        })
+        except WebSocketDisconnect:
+            return
+        except websockets.exceptions.ConnectionClosed as e:
+            log.warning(f"OKX kline closed (attempt {attempt+1}): {e}")
+        except Exception as e:
+            log.error(f"OKX kline error (attempt {attempt+1}): {e}")
+
+        try:
+            await ws.send_json({"reconnecting": True, "attempt": attempt + 1})
+        except Exception:
+            return
+        await asyncio.sleep(RECONNECT_DELAY)
+        RECONNECT_DELAY = min(RECONNECT_DELAY * 2, 60)
+
+@app.websocket("/ws/orderbook")
+async def ws_orderbook(ws: WebSocket, symbol: str = "btcusdt"):
+    await ws.accept()
+    okx_symbol  = to_okx_symbol(symbol)
+    okx_url     = "wss://ws.okx.com:8443/ws/v5/public"
+    subscribe_msg = json.dumps({
+        "op": "subscribe",
+        "args": [{"channel": "books5", "instId": okx_symbol}],
+    })
+    RECONNECT_DELAY = 3
+
+    for attempt in range(10):
+        try:
+            async with websockets.connect(okx_url, ping_interval=20, ping_timeout=10) as okx_ws:
+                await okx_ws.send(subscribe_msg)
+                log.info(f"OKX orderbook connected: {okx_symbol}")
+                while True:
+                    try:
+                        msg = await asyncio.wait_for(okx_ws.recv(), timeout=35)
+                    except asyncio.TimeoutError:
+                        try:
+                            await okx_ws.send("ping")
+                        except Exception:
+                            pass
+                        continue
+
+                    if msg == "pong":
+                        continue
+
+                    data = json.loads(msg)
+                    if "data" not in data:
+                        continue
+
+                    for book in data["data"]:
+                        bids = book.get("bids", [])[:10]
+                        asks = book.get("asks", [])[:10]
+                        await ws.send_json({
+                            "bids": [[float(p), float(q)] for p, q, *_ in bids],
+                            "asks": [[float(p), float(q)] for p, q, *_ in asks],
+                        })
+        except WebSocketDisconnect:
+            return
+        except websockets.exceptions.ConnectionClosed as e:
+            log.warning(f"OKX orderbook closed (attempt {attempt+1}): {e}")
+        except Exception as e:
+            log.error(f"OKX orderbook error (attempt {attempt+1}): {e}")
+
+        try:
+            await ws.send_json({"reconnecting": True, "attempt": attempt + 1})
+        except Exception:
+            return
+        await asyncio.sleep(RECONNECT_DELAY)
+        RECONNECT_DELAY = min(RECONNECT_DELAY * 2, 60)
+
+@app.get("/api/klines")
+async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int = 200):
+    okx_symbol = to_okx_symbol(symbol)
+    okx_bar    = OKX_INTERVAL_MAP.get(interval, "1H")
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                "https://www.okx.com/api/v5/market/candles",
+                params={"instId": okx_symbol, "bar": okx_bar, "limit": min(limit, 300)},
+            )
+        result = r.json()
+        if result.get("code") == "0":
+            raw = result.get("data", [])
+            if isinstance(raw, list) and len(raw) > 0:
+                raw = raw[::-1]
+                log.info(f"OKX kline OK: {okx_symbol} {okx_bar} ({len(raw)} bars)")
+                return [{
+                    "time":   int(k[0]) // 1000,
+                    "open":   float(k[1]),
+                    "high":   float(k[2]),
+                    "low":    float(k[3]),
+                    "close":  float(k[4]),
+                    "volume": float(k[5]),
+                } for k in raw]
+        log.warning(f"OKX kline non-zero code: {result.get('msg')}")
+    except Exception as e:
+        log.warning(f"OKX kline REST error: {e}")
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                f"https://api.binance.com/api/v3/klines?symbol={symbol.upper()}&interval={interval}&limit={limit}"
+            )
+        if r.status_code == 451:
+            return JSONResponse(status_code=503, content={"error": "OKX failed, Binance geo-blocked"})
+        data = r.json()
+        if not isinstance(data, list):
+            return JSONResponse(status_code=503, content={"error": "Kline fetch failed"})
+        return [{"time": int(k[0])//1000, "open": float(k[1]), "high": float(k[2]),
+                 "low": float(k[3]), "close": float(k[4]), "volume": float(k[5])} for k in data]
+    except Exception as e:
+        return JSONResponse(status_code=503, content={"error": str(e)})
+
+_coingecko_cache: dict = {}
+COINGECKO_TTL = 60
+
+async def _coingecko_get(url: str, ttl: int = COINGECKO_TTL):
+    cached = _coingecko_cache.get(url)
+    if cached and (time.time() - cached[0]) < ttl:
+        return cached[1]
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(url)
+        if r.status_code == 429:
+            return cached[1] if cached else []
+        data = r.json()
+    _coingecko_cache[url] = (time.time(), data)
+    return data
+
+@app.get("/api/crypto/prices")
+async def get_crypto_prices(ids: str = "bitcoin,ethereum,solana,binancecoin,ripple"):
+    url = (f"https://api.coingecko.com/api/v3/simple/price"
+           f"?ids={ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true")
+    return await _coingecko_get(url)
+
+@app.get("/api/crypto/top200")
+async def get_top200(page: int = 1):
+    url = (f"https://api.coingecko.com/api/v3/coins/markets"
+           f"?vs_currency=usd&order=market_cap_desc&per_page=100&page={page}"
+           f"&sparkline=false&price_change_percentage=24h,7d")
+    return await _coingecko_get(url, ttl=300)
+
+@app.get("/api/fear-greed")
+async def get_fear_greed():
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get("https://api.alternative.me/fng/?limit=1")
+        return r.json()
+
+@app.get("/api/forex/vnd")
+async def get_forex_vnd():
+    import xml.etree.ElementTree as ET
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                "https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx?b=10",
+                headers={"User-Agent": "Mozilla/5.0"},
+            )
+        root = ET.fromstring(r.text)
+        rates = {}
+        for ex in root.findall(".//Exrate"):
+            code = ex.get("CurrencyCode", "")
+            sell = ex.get("Sell", "0").replace(",", "")
+            buy  = ex.get("Buy",  "0").replace(",", "")
+            if code in ["USD", "EUR", "JPY", "CNY", "GBP"]:
+                rates[code] = {"sell": float(sell) if sell else 0, "buy": float(buy) if buy else 0}
+        return rates
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/api/gold")
+async def get_gold():
+    try:
+        price = await fetch_gold_price()
+        if price:
+            return {"price": price, "unit": "VND/lượng", "source": "Yahoo+VCB"}
+        return JSONResponse(status_code=503, content={"error": "Không lấy được giá vàng"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+YAHOO_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+    "Accept": "application/json",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://finance.yahoo.com/",
+    "Origin": "https://finance.yahoo.com",
+}
+
+async def _fetch_yahoo_stock(client: httpx.AsyncClient, sym: str) -> dict:
+    base = {"symbol": sym.replace(".VN", ""), "price": 0, "change": 0, "volume": 0}
+    try:
+        r = await client.get(
+            f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}",
+            params={"interval": "1d", "range": "2d"},
+        )
+        meta  = r.json()["chart"]["result"][0]["meta"]
+        prev  = meta.get("previousClose") or meta.get("chartPreviousClose") or 1
+        price = meta.get("regularMarketPrice", 0)
+        base.update({
+            "price":  price,
+            "change": round((price - prev) / prev * 100, 2),
+            "volume": meta.get("regularMarketVolume", 0),
+        })
+    except Exception as e:
+        log.warning(f"Yahoo v8 error [{sym}]: {e}")
+    return base
+
+@app.get("/api/vn/stocks")
+async def get_vn_stocks(
+    symbols: str = "VNM.VN,FPT.VN,VCB.VN,HPG.VN,MWG.VN,TCB.VN,VIC.VN,VHM.VN,BID.VN,CTG.VN"
+                   ",VPB.VN,MBB.VN,ACB.VN,STB.VN,HDB.VN,VIB.VN,SSI.VN,VND.VN,HCM.VN,MSN.VN"
+                   ",VRE.VN,PDR.VN,DXG.VN,NVL.VN,KDH.VN,GVR.VN,SAB.VN,GAS.VN,PLX.VN,POW.VN"
+):
+    sym_list = [s.strip() for s in symbols.split(",")]
+    async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=10) as client:
+        results = await asyncio.gather(*[_fetch_yahoo_stock(client, s) for s in sym_list], return_exceptions=True)
+    return [r for r in results if isinstance(r, dict)]
+
+async def _fetch_tcbs_batch(client: httpx.AsyncClient, batch: list[str], max_retries: int = 2) -> list:
+    last_err = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            r = await client.get(
+                "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/price",
+                params={"tickers": ",".join(batch)},
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
+            )
+            data = r.json()
+            items = data if isinstance(data, list) else data.get("data", [])
+            if items:
+                return items
+            log.warning(f"TCBS batch {batch[0]}..{batch[-1]} trả rỗng (attempt {attempt})")
+        except (httpx.ConnectError, OSError, socket.gaierror) as e:
+            last_err = e
+            wait = 1.5 * attempt
+            log.warning(f"TCBS batch {batch[0]}..{batch[-1]} lỗi DNS/network (attempt {attempt}/{max_retries}): {e} — retry sau {wait}s")
+            await asyncio.sleep(wait)
+        except Exception as e:
+            last_err = e
+            log.warning(f"TCBS batch {batch[0]}..{batch[-1]} lỗi khác (attempt {attempt}/{max_retries}): {e}")
+            await asyncio.sleep(1)
+
+    if last_err:
+        log.error(f"TCBS batch {batch[0]}..{batch[-1]} thất bại sau {max_retries} lần thử: {last_err}")
+    return []
+
+
+async def _yahoo_fallback_fill(missing_symbols: list[str], price_map: dict):
+    if not missing_symbols:
+        return
+    CHUNK = 30
+    try:
+        async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=15) as client:
+            for i in range(0, len(missing_symbols), CHUNK):
+                chunk = missing_symbols[i:i + CHUNK]
+                yahoo_syms = [f"{s}.VN" for s in chunk]
+                res = await asyncio.gather(
+                    *[_fetch_yahoo_stock(client, s) for s in yahoo_syms],
+                    return_exceptions=True,
+                )
+                for sym, r in zip(chunk, res):
+                    if isinstance(r, dict) and r.get("price", 0) > 0:
+                        price_map[sym] = {
+                            "price": r["price"], "change": r["change"],
+                            "volume": r["volume"], "source": "Yahoo",
+                        }
+                if i + CHUNK < len(missing_symbols):
+                    await asyncio.sleep(0.4)
+    except Exception as e:
+        log.warning(f"Yahoo fallback error: {e}")
+
+
+@app.get("/api/vn/hose-top50")
+async def get_hose_top50():
+    now = time.time()
+    cached = _hose_cache.get("top250")
+    if cached and (now - cached["ts"]) < HOSE_TTL:
+        return cached["data"]
+
+    symbols = HOSE_TOP200
+    price_map = {}
+    BATCH = 50
+
+    try:
+        limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
+        async with httpx.AsyncClient(timeout=25, limits=limits) as client:
+            for i in range(0, len(symbols), BATCH):
+                batch = symbols[i:i+BATCH]
+                items = await _fetch_tcbs_batch(client, batch)
+                for item in items:
+                    ticker = (item.get("ticker") or item.get("symbol") or "").upper()
+                    if not ticker:
+                        continue
+                    price  = float(item.get("close") or item.get("price") or item.get("lastPrice") or 0)
+                    prev   = float(item.get("referencePrice") or item.get("prevClose") or item.get("ref") or 0)
+                    change = round((price - prev) / prev * 100, 2) if prev > 0 else 0
+                    volume = int(item.get("volume") or item.get("totalVolume") or 0)
+                    if price > 0:
+                        price_map[ticker] = {"price": price, "change": change, "volume": volume, "source": "TCBS"}
+                if i + BATCH < len(symbols):
+                    await asyncio.sleep(0.5)
+
+        missing = [s for s in symbols if s not in price_map]
+        if missing:
+            log.info(f"TCBS thiếu {len(missing)} mã — fallback sang Yahoo Finance")
+            await _yahoo_fallback_fill(missing, price_map)
+
+        results = []
+        for i, sym in enumerate(symbols):
+            info = HOSE_INFO.get(sym, {"name": sym, "sector": "Khác"})
+            p = price_map.get(sym, {})
+            results.append({
+                "rank": i + 1, "symbol": sym,
+                "name": info["name"], "sector": info["sector"],
+                "price": p.get("price", 0), "change": p.get("change", 0),
+                "volume": p.get("volume", 0),
+                "source": p.get("source", "—"),
+            })
+
+        _hose_cache["top250"] = {"ts": now, "data": results}
+        log.info(f"HOSE prices: {len(price_map)}/{len(symbols)} mã có giá (TCBS + Yahoo fallback)")
+        return results
+
+    except Exception as e:
+        log.error(f"HOSE prices fatal error: {e}")
+        if cached:
+            return cached["data"]
+        return JSONResponse(status_code=503, content={"error": str(e)})
+
+
+@app.get("/api/vn/history")
+async def get_vn_history(symbol: str = "VCB", period: str = "1M"):
+    period_map = {
+        "1D": ("1", "day"),  "1W": ("5", "day"),
+        "1M": ("1", "month"),"3M": ("3", "month"),
+        "6M": ("6", "month"),"1Y": ("1", "year"),
+        "3Y": ("3", "year"),
     }
-  } catch (e) {
-    console.error("Kline load error:", e);
-  }
-}
+    count, unit = period_map.get(period.upper(), ("1", "month"))
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/bars-long-term",
+                params={"ticker": symbol.upper(), "type": unit, "count": count},
+                headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
+            )
+        data = r.json()
+        bars = data if isinstance(data, list) else data.get("data", [])
+        return [{
+            "time":   b.get("tradingDate") or b.get("date", ""),
+            "open":   float(b.get("open",   0)),
+            "high":   float(b.get("high",   0)),
+            "low":    float(b.get("low",    0)),
+            "close":  float(b.get("close",  0)),
+            "volume": int(b.get("volume",   0)),
+        } for b in bars]
+    except Exception as e:
+        return JSONResponse(status_code=503, content={"error": str(e)})
 
-function connectKlineWs() {
-  if (chartWs) { chartWs.close(); chartWs = null; }
+@app.get("/api/vn/multitf")
+async def get_multitf():
+    now = time.time()
+    cached = _multitf_cache.get("multitf")
+    if cached and (now - cached["ts"]) < MULTITF_TTL:
+        return cached["data"]
 
-  const wsUrl = (location.protocol === "https:" ? "wss" : "ws")
-    + "://" + location.host + `/ws/kline?symbol=${chartSymbol}&interval=${chartInterval}`;
+    sample = HOSE_TOP50[:20]
+    timeframes = [
+        {"key": "1H",  "interval": "60m", "range": "5d",  "ma": 20},
+        {"key": "4H",  "interval": "1h",  "range": "30d", "ma": 20},
+        {"key": "1D",  "interval": "1d",  "range": "90d", "ma": 20},
+        {"key": "1W",  "interval": "1wk", "range": "2y",  "ma": 20},
+        {"key": "1Q",  "interval": "3mo", "range": "10y", "ma": 4},
+        {"key": "1Y",  "interval": "1mo", "range": "20y", "ma": 12},
+    ]
 
-  chartWs = new WebSocket(wsUrl);
-  chartWs.onmessage = (e) => {
-    try {
-      const d = JSON.parse(e.data);
-      if (d.ping || d.reconnecting) return;
-      if (!d.time) return;
-      const bar = { time: d.time, open: d.open, high: d.high, low: d.low, close: d.close };
-      candleSeries.update(bar);
+    results = {}
+    async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=15) as client:
+        for tf in timeframes:
+            bullish, total = 0, 0
+            responses = await asyncio.gather(*[
+                client.get(
+                    f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}.VN",
+                    params={"interval": tf["interval"], "range": tf["range"]},
+                )
+                for sym in sample
+            ], return_exceptions=True)
 
-      const priceEl = document.getElementById("chart-live-price");
-      priceEl.textContent = `${d.close.toLocaleString("en-US")} USDT`;
-    } catch (_) {}
-  };
-  chartWs.onerror = (e) => console.warn("Kline WS error:", e);
-}
+            for resp in responses:
+                try:
+                    if isinstance(resp, Exception):
+                        continue
+                    closes = resp.json()["chart"]["result"][0]["indicators"]["quote"][0].get("close", [])
+                    closes = [c for c in closes if c is not None]
+                    if len(closes) < tf["ma"] + 1:
+                        continue
+                    ma = sum(closes[-tf["ma"]:]) / tf["ma"]
+                    if closes[-1] > ma:
+                        bullish += 1
+                    total += 1
+                except Exception:
+                    continue
 
-let obWs = null;
-function connectOrderbookWs() {
-  if (obWs) { obWs.close(); obWs = null; }
-  const wsUrl = (location.protocol === "https:" ? "wss" : "ws")
-    + "://" + location.host + `/ws/orderbook?symbol=${chartSymbol}`;
-  obWs = new WebSocket(wsUrl);
-  obWs.onmessage = (e) => {
-    try {
-      const { bids, asks } = JSON.parse(e.data);
-      if (!bids || !asks) return;
-      document.getElementById("ob-asks").innerHTML = asks.slice(0,8).reverse().map(([p,q]) =>
-        `<div class="ob-row"><span>${Number(p).toLocaleString("en-US")}</span><span>${Number(q).toFixed(4)}</span></div>`
-      ).join("");
-      document.getElementById("ob-bids").innerHTML = bids.slice(0,8).map(([p,q]) =>
-        `<div class="ob-row"><span>${Number(p).toLocaleString("en-US")}</span><span>${Number(q).toFixed(4)}</span></div>`
-      ).join("");
-    } catch (_) {}
-  };
-}
+            results[tf["key"]] = round(bullish / total * 100) if total > 0 else 50
 
-async function switchChart() {
-  if (chartWs) { chartWs.close(); chartWs = null; }
-  if (obWs)    { obWs.close();    obWs    = null; }
+    _multitf_cache["multitf"] = {"ts": now, "data": results}
+    return results
 
-  if (candleSeries) candleSeries.setData([]);
-
-  await loadKlines();
-  connectKlineWs();
-  connectOrderbookWs();
-}
-
-document.getElementById("chart-symbol").addEventListener("change", (e) => {
-  chartSymbol = e.target.value;
-  switchChart();
-});
-
-document.querySelectorAll(".interval-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".interval-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    chartInterval = btn.dataset.iv;
-    switchChart();
-  });
-});
-
-let hoseData  = [];
-let hosePage  = 0;
-const hosePer = 10;
-
-async function loadHoseTop50() {
-  document.getElementById("hose-tbody").innerHTML =
-    `<tr><td colspan="7" class="loading">Đang tải dữ liệu HOSE...</td></tr>`;
-  try {
-    hoseData = await apiFetch("/api/vn/hose-top50");
-    hosePage = 0;
-    document.getElementById("hose-updated").textContent =
-      "Cập nhật: " + new Date().toLocaleTimeString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
-    renderHoseTable();
-    loadHoseMultiTF();
-  } catch (e) {
-    document.getElementById("hose-tbody").innerHTML =
-      `<tr><td colspan="7" class="loading">Lỗi: ${e.message}</td></tr>`;
-  }
-}
-
-function renderHoseTable() {
-  const q   = document.getElementById("hose-search").value.trim().toUpperCase();
-  const srt = document.getElementById("hose-sort").value;
-  const sec = document.getElementById("hose-sector").value;
-
-  let filtered = hoseData.filter(r => {
-    const matchQ = !q || r.symbol.includes(q) || r.name.toUpperCase().includes(q);
-    const matchS = !sec || r.sector === sec;
-    return matchQ && matchS;
-  });
-
-  if      (srt === "change") filtered.sort((a,b) => (b.change ?? 0) - (a.change ?? 0));
-  else if (srt === "price")  filtered.sort((a,b) => (b.price  ?? 0) - (a.price  ?? 0));
-  else if (srt === "volume") filtered.sort((a,b) => (b.volume ?? 0) - (a.volume ?? 0));
-  else if (srt === "sym")    filtered.sort((a,b) => a.symbol.localeCompare(b.symbol));
-  else                       filtered.sort((a,b) => (a.rank ?? 99) - (b.rank ?? 99));
-
-  const pages = Math.max(1, Math.ceil(filtered.length / hosePer));
-  if (hosePage >= pages) hosePage = 0;
-  document.getElementById("hose-page-info").textContent = `${hosePage+1} / ${pages}`;
-  document.getElementById("hose-count").textContent = `${filtered.length} mã`;
-
-  const slice = filtered.slice(hosePage * hosePer, (hosePage+1) * hosePer);
-  const tbody = document.getElementById("hose-tbody");
-
-  tbody.innerHTML = slice.map(r => {
-    const chg = r.change ?? 0;
-    const sColor = SECTOR_COLORS[r.sector] || "#94a3b8";
-    const safeName = r.name.replace(/'/g, "\\'");
-    return `<tr onclick="window.open('/analysis.html?sym=${r.symbol}', '_blank')" style="cursor:pointer">
-      <td class="text-gray mono" style="font-size:11px">${r.rank}</td>
-      <td>
-        <span class="sym-cell">${r.symbol}</span>
-        <div class="name-cell">${r.name}</div>
-      </td>
-      <td>
-        <span class="sector-badge">
-          <span class="sector-dot" style="background:${sColor}"></span>
-          ${r.sector}
-        </span>
-      </td>
-      <td class="num mono">${r.price > 0 ? fmtNum(r.price, 2) : "--"}</td>
-      <td class="num"><span class="badge ${badgeCls(chg)}">${r.price > 0 ? fmtPct(chg) : "--"}</span></td>
-      <td class="num text-gray">${r.volume > 0 ? Math.round(r.volume/1000).toLocaleString("vi-VN") : "--"}</td>
-    </tr>`;
-  }).join("");
-}
-
-async function loadHoseMultiTF() {
-  const bar = document.getElementById("hose-multitf-bar");
-  try {
-    const data = await apiFetch("/api/vn/multitf");
-    const tfs  = ["1H", "4H", "1D", "1W", "1Q", "1Y"];
-    bar.innerHTML = tfs.map(k => {
-      const pct = data[k] ?? 50;
-      const clr = pct >= 70 ? "var(--green)" : pct >= 50 ? "var(--yellow)" : "var(--red)";
-      const txtCls = pct >= 70 ? "text-green" : pct >= 50 ? "text-yellow" : "text-red";
-      return `<div class="tf-mini">
-        <span class="tf-mini-label">${k}</span>
-        <div class="tf-mini-bar"><div class="tf-mini-fill" style="width:${pct}%;background:${clr}"></div></div>
-        <span class="tf-mini-pct ${txtCls}">${pct}%</span>
-      </div>`;
-    }).join("");
-  } catch (_) {
-    bar.innerHTML = "";
-  }
-}
-
-document.getElementById("hose-search").addEventListener("input", () => { hosePage = 0; renderHoseTable(); });
-document.getElementById("hose-sort").addEventListener("change",   () => { hosePage = 0; renderHoseTable(); });
-document.getElementById("hose-sector").addEventListener("change", () => { hosePage = 0; renderHoseTable(); });
-document.getElementById("hose-prev").addEventListener("click",    () => { if (hosePage > 0) { hosePage--; renderHoseTable(); } });
-document.getElementById("hose-next").addEventListener("click",    () => {
-  const q   = document.getElementById("hose-search").value.trim().toUpperCase();
-  const sec = document.getElementById("hose-sector").value;
-  const filtered = hoseData.filter(r => (!q || r.symbol.includes(q) || r.name.toUpperCase().includes(q)) && (!sec || r.sector === sec));
-  const pages = Math.max(1, Math.ceil(filtered.length / hosePer));
-  if (hosePage < pages - 1) { hosePage++; renderHoseTable(); }
-});
-
-const CURRENCY_NAMES = {
-  USD: "Đô la Mỹ", EUR: "Euro", JPY: "Yên Nhật",
-  CNY: "Nhân dân tệ", GBP: "Bảng Anh",
-};
-
-async function loadForexFull() {
-  const el = document.getElementById("forex-full");
-  el.innerHTML = `<div class="loading">Đang tải tỷ giá...</div>`;
-  try {
-    const rates = await apiFetch("/api/forex/vnd");
-    el.innerHTML = Object.entries(rates).map(([code, r]) => {
-      return `<div class="forex-card">
-        <div class="forex-card-code">${code}</div>
-        <div class="forex-card-name">${CURRENCY_NAMES[code] || code}</div>
-        <div class="forex-card-rates">
-          <div class="forex-rate-row">
-            <span class="forex-rate-label">Mua vào</span>
-            <span class="forex-rate-val-buy mono">${fmtNum(r.buy, 0)} đ</span>
-          </div>
-          <div class="forex-rate-row">
-            <span class="forex-rate-label">Bán ra</span>
-            <span class="forex-rate-val-sell mono">${fmtNum(r.sell, 0)} đ</span>
-          </div>
-        </div>
-      </div>`;
-    }).join("");
-  } catch (e) {
-    el.innerHTML = `<div class="loading">Lỗi: ${e.message}</div>`;
-  }
-}
-
-const CATEGORY_LABELS = {
-  fed:    { label: "FED",     color: "#d93025" },
-  stock:  { label: "Cổ phiếu",color: "#2f5fd6" },
-  crypto: { label: "Crypto",  color: "#b7791f" },
-  macro:  { label: "Vĩ mô",   color: "#7c5fd6" },
-};
-
-async function loadCalendar(forceRefresh = false) {
-  const tbody = document.getElementById("calendar-tbody");
-  tbody.innerHTML = `<tr><td colspan="6" class="loading">Đang tải tin tức từ Gemini...</td></tr>`;
-  try {
-    const events = await apiFetch("/api/news-calendar" + (forceRefresh ? "?t=" + Date.now() : ""));
-    if (!Array.isArray(events) || events.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" class="loading">Không có sự kiện nào</td></tr>`;
-      return;
-    }
-    tbody.innerHTML = events.map(ev => {
-      const cat = CATEGORY_LABELS[ev.category] || { label: ev.category || "—", color: "#94a3b8" };
-      const impact = ev.impact || "low";
-      return `<tr>
-        <td class="mono">${ev.date || "--"}</td>
-        <td class="mono">${ev.time || "--"}</td>
-        <td>${ev.event || "--"}</td>
-        <td><span style="font-size:10px;color:${cat.color};border:1px solid ${cat.color};border-radius:3px;padding:1px 6px;">${cat.label}</span></td>
-        <td><span class="impact-badge impact-${impact}">${impact.toUpperCase()}</span></td>
-        <td style="font-size:12px;color:var(--text2)">${ev.summary || ""}</td>
-      </tr>`;
-    }).join("");
-    document.getElementById("calendar-updated").textContent =
-      "Cập nhật: " + new Date().toLocaleTimeString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" });
-  } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="6" class="loading">Lỗi: ${e.message}</td></tr>`;
-  }
-}
-
-async function loadAlertConfig() {
-  try {
-    const cfg = await apiFetch("/api/alert/config");
-    const el  = document.getElementById("alert-config-list");
-    el.innerHTML = Object.entries(cfg).map(([key, val]) => {
-      if (typeof val === "object") {
-        return `<div class="alert-config-row">
-          <span class="alert-config-key">${key}</span>
-          <span class="alert-config-range">Min: ${val.min?.toLocaleString()} — Max: ${val.max?.toLocaleString()}</span>
-        </div>`;
-      }
-      return `<div class="alert-config-row">
-        <span class="alert-config-key">${key}</span>
-        <span class="alert-config-range">${val}</span>
-      </div>`;
-    }).join("");
-  } catch (e) {
-    document.getElementById("alert-config-list").innerHTML = `<div class="text-gray">Lỗi tải config</div>`;
-  }
-}
-
-async function testAlert() {
-  const resultEl = document.getElementById("alert-test-result");
-  resultEl.textContent = "Đang gửi...";
-  resultEl.style.color = "var(--text3)";
-  try {
-    const res = await apiFetch("/api/alert/test");
-    resultEl.textContent = "✓ Đã gửi test message đến Telegram!";
-    resultEl.style.color = "var(--green)";
-  } catch (e) {
-    resultEl.textContent = "✗ Lỗi: " + e.message;
-    resultEl.style.color = "var(--red)";
-  }
-}
-
-async function checkConnection() {
-  const el = document.getElementById("conn-status");
-  try {
-    await apiFetch("/health");
-    el.textContent = "⬤ Online";
-    el.className   = "conn-badge ok";
-  } catch (e) {
-    el.textContent = "⬤ Offline";
-    el.className   = "conn-badge error";
-  }
-}
-
-async function initHeaderUser() {
-  const token = localStorage.getItem("mh_access_token");
-  const wrap  = document.getElementById("header-user");
-  if (!token) return;
-
-  try {
-    const res = await fetch("/api/auth/me", {
-      headers: { "Authorization": "Bearer " + token },
-    });
-    if (!res.ok) return;
-
-    const data = await res.json();
-    document.getElementById("hu-avatar").textContent = (data.email || "?")[0].toUpperCase();
-    document.getElementById("hu-email").textContent = data.email;
-    wrap.classList.add("show");
-  } catch (e) {
-    console.warn("Không tải được thông tin user:", e);
-  }
-}
-
-document.getElementById("hu-logout").addEventListener("click", () => {
-  localStorage.removeItem("mh_access_token");
-  localStorage.removeItem("mh_refresh_token");
-  localStorage.removeItem("mh_user_email");
-  location.href = "/login.html";
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-  startClock();
-  initTabs();
-  initChart();
-
-  loadOverview();
-
-  checkConnection();
-  setInterval(checkConnection, 30000);
-
-  setInterval(loadOverview, 60000);
-
-  initHeaderUser();
-});
-
-window.addEventListener("pageshow", (e) => {
-  if (e.persisted) {
-    const chartTabActive = document.getElementById("tab-chart")?.classList.contains("active");
-    if (chartTabActive) {
-      switchChart();
-    }
-    checkConnection();
-  }
-});
-
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
-    const chartTabActive = document.getElementById("tab-chart")?.classList.contains("active");
-    if (chartTabActive && (!chartWs || chartWs.readyState !== WebSocket.OPEN)) {
-      switchChart();
-    }
-  }
-});
-
-window.loadCryptoTop200 = loadCryptoTop200;
-window.loadHoseTop50    = loadHoseTop50;
-window.testAlert        = testAlert;
-
-let chatHistory = [];
-let chatOpen = false;
-let chatSessionId = sessionStorage.getItem("chat_session_id") || null;
-
-function toggleChat() {
-  chatOpen = !chatOpen;
-  const panel = document.getElementById("chat-panel");
-  const btn   = document.getElementById("chat-toggle-btn");
-  panel.style.display = chatOpen ? "flex" : "none";
-  btn.textContent = chatOpen ? "✕ Chat" : "💬 Chat";
-  if (chatOpen) document.getElementById("chat-input").focus();
-}
-
-function appendMsg(role, text) {
-  const box = document.getElementById("chat-messages");
-  const div = document.createElement("div");
-  div.className = role === "user" ? "chat-msg user" : "chat-msg bot";
-  div.innerHTML = text.replace(/\n/g, "<br>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
-}
-
-async function sendChat() {
-  const input = document.getElementById("chat-input");
-  const msg   = input.value.trim();
-  if (!msg) return;
-
-  input.value = "";
-  appendMsg("user", msg);
-
-  const box = document.getElementById("chat-messages");
-  const typing = document.createElement("div");
-  typing.className = "chat-msg bot typing";
-  typing.textContent = "...";
-  box.appendChild(typing);
-  box.scrollTop = box.scrollHeight;
-
-  try {
-    const res = await fetch(`${API}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: msg,
-        history: chatHistory,
-        session_id: chatSessionId,
-      }),
-    });
-    const data = await res.json();
-    typing.remove();
-
-    if (data.session_id) {
-      chatSessionId = data.session_id;
-      sessionStorage.setItem("chat_session_id", chatSessionId);
+@app.get("/api/global-markets")
+async def get_global_markets():
+    SYMBOLS = {
+        "^GSPC":  {"name": "S&P 500",    "region": "🇺🇸 Mỹ"},
+        "^IXIC":  {"name": "Nasdaq",     "region": "🇺🇸 Mỹ"},
+        "^DJI":   {"name": "Dow Jones",  "region": "🇺🇸 Mỹ"},
+        "^N225":  {"name": "Nikkei 225", "region": "🇯🇵 Nhật"},
+        "^KS11":  {"name": "KOSPI",      "region": "🇰🇷 Hàn Quốc"},
+        "^GDAXI": {"name": "DAX",        "region": "🇩🇪 Đức"},
+        "^FTSE":  {"name": "FTSE 100",   "region": "🇬🇧 Anh"},
+        "^FCHI":  {"name": "CAC 40",     "region": "🇫🇷 Pháp"},
+        "CL=F":   {"name": "Dầu WTI",    "region": "🛢️ Năng lượng"},
+        "BZ=F":   {"name": "Dầu Brent",  "region": "🛢️ Năng lượng"},
     }
 
-    if (data.error) {
-      appendMsg("bot", "Lỗi: " + data.error);
-      return;
+    now = time.time()
+    cached = _coingecko_cache.get("global_markets")
+    if cached and (now - cached[0]) < 300:
+        return cached[1]
+
+    results = []
+    async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=12) as client:
+        tasks = [
+            client.get(
+                f"https://query2.finance.yahoo.com/v8/finance/chart/{sym}",
+                params={"interval": "1d", "range": "2d"},
+            )
+            for sym in SYMBOLS
+        ]
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for sym, resp in zip(SYMBOLS, responses):
+        info = SYMBOLS[sym]
+        item = {"symbol": sym, "name": info["name"], "region": info["region"],
+                "price": 0, "change": 0, "change_abs": 0}
+        try:
+            if isinstance(resp, Exception):
+                raise resp
+            if resp.status_code != 200:
+                raise ValueError(f"HTTP {resp.status_code}")
+            data = resp.json()
+            meta  = data["chart"]["result"][0]["meta"]
+            prev  = meta.get("previousClose") or meta.get("chartPreviousClose") or 1
+            price = meta.get("regularMarketPrice", 0)
+            item.update({
+                "price":      round(price, 2),
+                "change":     round((price - prev) / prev * 100, 2) if prev else 0,
+                "change_abs": round(price - prev, 2),
+            })
+        except Exception as e:
+            log.warning(f"global_markets [{sym}]: {e}")
+        results.append(item)
+
+    _coingecko_cache["global_markets"] = (now, results)
+    return results
+
+
+@app.get("/api/calendar")
+async def get_calendar():
+    now = datetime.now(ICT)
+    return [
+        {"date": (now + timedelta(days=1)).strftime("%d/%m/%Y"), "time": "19:30", "event": "US CPI MoM",       "impact": "high",   "prev": "0.3%",  "forecast": "0.2%"},
+        {"date": (now + timedelta(days=2)).strftime("%d/%m/%Y"), "time": "02:00", "event": "FED Rate Decision", "impact": "high",   "prev": "5.50%", "forecast": "5.50%"},
+        {"date": (now + timedelta(days=3)).strftime("%d/%m/%Y"), "time": "08:00", "event": "BTC Options Expiry","impact": "medium", "prev": "$1.8B", "forecast": "$2.1B"},
+        {"date": (now + timedelta(days=5)).strftime("%d/%m/%Y"), "time": "21:30", "event": "US NFP",            "impact": "high",   "prev": "175K",  "forecast": "180K"},
+    ]
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+
+_news_cache: dict = {}
+NEWS_TTL = 3600
+
+@app.get("/api/news-calendar")
+async def get_news_calendar():
+    now = time.time()
+    cached = _news_cache.get("calendar")
+    if cached and (now - cached["ts"]) < NEWS_TTL:
+        return cached["data"]
+
+    if not GEMINI_API_KEY:
+        return JSONResponse(status_code=503, content={"error": "GEMINI_API_KEY chưa được cấu hình"})
+
+    today_str = datetime.now(ICT).strftime("%d/%m/%Y")
+
+    prompt = (
+        f"Hôm nay là {today_str}. Tìm kiếm và liệt kê các tin tức/sự kiện kinh tế "
+        f"QUAN TRỌNG trong 7 ngày tới liên quan đến: FED, lãi suất Mỹ, CPI, NFP, "
+        f"thị trường chứng khoán Mỹ (S&P500, Nasdaq), chứng khoán Việt Nam (VN-Index, HOSE), "
+        f"và thị trường crypto (Bitcoin, Ethereum, ETF, regulation).\n\n"
+        f"Trả về DUY NHẤT một JSON array, không markdown, không giải thích, theo format:\n"
+        f'[{{"date": "DD/MM/YYYY", "time": "HH:MM", "event": "Tên sự kiện ngắn gọn tiếng Việt", '
+        f'"impact": "high|medium|low", "category": "fed|stock|crypto|macro", '
+        f'"summary": "Tóm tắt 1 câu ngắn về sự kiện/dự báo"}}]\n\n'
+        f"Tối đa 10 sự kiện, sắp xếp theo ngày gần nhất trước. Chỉ trả JSON, không có markdown code block."
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                GEMINI_URL,
+                json={
+                    "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                    "tools": [{"google_search": {}}],
+                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 2048},
+                },
+            )
+        data = r.json()
+        text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+
+        text = text.strip()
+        if text.startswith("```"):
+            text = re.sub(r"^```[a-zA-Z]*\n?", "", text)
+            text = re.sub(r"```$", "", text).strip()
+
+        events = json.loads(text)
+        if not isinstance(events, list):
+            raise ValueError("Gemini response is not a list")
+
+        _news_cache["calendar"] = {"ts": now, "data": events}
+        log.info(f"News calendar: Gemini OK — {len(events)} events")
+        return events
+
+    except Exception as e:
+        log.error(f"News calendar error: {e}")
+        if cached:
+            return cached["data"]
+        now_dt = datetime.now(ICT)
+        return [
+            {"date": (now_dt + timedelta(days=1)).strftime("%d/%m/%Y"), "time": "19:30", "event": "US CPI MoM", "impact": "high", "category": "macro", "summary": "Chỉ số giá tiêu dùng Mỹ"},
+            {"date": (now_dt + timedelta(days=2)).strftime("%d/%m/%Y"), "time": "02:00", "event": "FED Rate Decision", "impact": "high", "category": "fed", "summary": "Quyết định lãi suất FED"},
+        ]
+
+from pydantic import BaseModel
+from fastapi import BackgroundTasks
+import uuid
+
+class ChatMessage(BaseModel):
+    role: str
+    text: str
+
+class ChatRequest(BaseModel):
+    message: str
+    history: list[ChatMessage] = []
+    session_id: str | None = None
+
+@app.post("/api/chat")
+async def chat_with_gemini(req: ChatRequest, background_tasks: BackgroundTasks):
+    if not GEMINI_API_KEY:
+        return JSONResponse(status_code=503, content={"error": "GEMINI_API_KEY chưa được cấu hình trên server"})
+
+    session_id = req.session_id or str(uuid.uuid4())[:8]
+
+    contents = [
+        {"role": m.role, "parts": [{"text": m.text}]}
+        for m in req.history
+    ]
+    contents.append({"role": "user", "parts": [{"text": req.message}]})
+
+    background_tasks.add_task(log_chat_message, session_id, "user", req.message)
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(
+                GEMINI_URL,
+                json={
+                    "system_instruction": {
+                        "parts": [{"text": "Bạn là trợ lý phân tích thị trường tài chính. Hỗ trợ phân tích crypto, chứng khoán Việt Nam (HOSE), tỷ giá, vàng, FED và lãi suất. Trả lời ngắn gọn, súc tích bằng tiếng Việt."}]
+                    },
+                    "contents": contents,
+                    "generationConfig": {"maxOutputTokens": 1024, "temperature": 0.7},
+                },
+            )
+        data = r.json()
+
+        if "error" in data:
+            log.error(f"Gemini chat error: {data['error']}")
+            err_msg = data["error"].get("message", "Gemini API error")
+            background_tasks.add_task(log_chat_message, session_id, "error", err_msg)
+            return JSONResponse(status_code=502, content={"error": err_msg, "session_id": session_id})
+
+        reply = (
+            data.get("candidates", [{}])[0]
+                .get("content", {})
+                .get("parts", [{}])[0]
+                .get("text", "")
+        )
+        if not reply:
+            log.warning(f"Gemini empty reply: {str(data)[:300]}")
+            reply = "Xin lỗi, không nhận được phản hồi từ AI."
+
+        background_tasks.add_task(log_chat_message, session_id, "model", reply)
+
+        return {"reply": reply, "session_id": session_id}
+
+    except Exception as e:
+        log.error(f"Chat proxy error: {e}")
+        background_tasks.add_task(log_chat_message, session_id, "error", str(e))
+        return JSONResponse(status_code=500, content={"error": str(e), "session_id": session_id})
+
+@app.get("/api/liquidations")
+async def get_liquidations(symbol: str = "BTC"):
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                f"https://open-api.coinglass.com/public/v2/liquidation_history?symbol={symbol}&timeType=0",
+                headers={"coinglassSecret": ""},
+            )
+        return r.json()
+    except Exception:
+        return {"data": []}
+
+@app.get("/health")
+def health():
+    return {
+        "status":    "ok",
+        "time":      datetime.now(ICT).isoformat(),
+        "scheduler": alert_scheduler.running,
+        "next_alert": str(alert_scheduler.get_job("alert_job").next_run_time),
     }
 
-    const reply = data.reply || "Xin lỗi, không lấy được phản hồi.";
-    chatHistory.push({ role: "user",  text: msg });
-    chatHistory.push({ role: "model", text: reply });
-    if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
-    appendMsg("bot", reply);
-  } catch (e) {
-    typing.remove();
-    appendMsg("bot", "Lỗi kết nối server: " + e.message);
-  }
-}
+@app.get("/api/alert/test")
+async def test_alert():
+    msg = "✅ *Market Hub Alert Test*\nBot đang hoạt động bình thường!\n🕐 " + datetime.now(ICT).strftime("%H:%M %d/%m/%Y")
+    await send_telegram_async(msg)
+    return {"status": "sent", "message": msg}
 
-document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("chat-input").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); }
-  });
-});
-
-window.toggleChat = toggleChat;
-window.sendChat   = sendChat;
-</script>
-
-<div id="chat-panel" style="display:none;position:fixed;bottom:0;right:24px;width:360px;height:480px;
-  background:#ffffff;border:1px solid #e3e8ef;border-bottom:none;border-radius:10px 10px 0 0;
-  flex-direction:column;z-index:9999;box-shadow:0 -4px 24px rgba(15,23,42,.14);">
-  <div style="padding:10px 14px;background:#f1f4f8;border-bottom:1px solid #e3e8ef;border-radius:10px 10px 0 0;
-    display:flex;align-items:center;justify-content:space-between;">
-    <span style="font-size:13px;font-weight:600;color:#0f172a;">💬 Market AI</span>
-    <button onclick="toggleChat()" style="background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer;line-height:1;">✕</button>
-  </div>
-  <div id="chat-messages" style="flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;
-    scrollbar-width:thin;scrollbar-color:#e3e8ef #ffffff;">
-    <div class="chat-msg bot">Xin chào! Tôi có thể giúp bạn phân tích thị trường crypto, cổ phiếu HOSE, tỷ giá và vàng. Hỏi gì đi!</div>
-  </div>
-  <div style="padding:8px;border-top:1px solid #e3e8ef;display:flex;gap:6px;">
-    <textarea id="chat-input" rows="2" placeholder="Hỏi về thị trường..."
-      style="flex:1;background:#f1f4f8;border:1px solid #d6dce5;border-radius:6px;color:#33415c;
-      padding:6px 10px;font-size:12px;resize:none;outline:none;font-family:inherit;line-height:1.4;"></textarea>
-    <button onclick="sendChat()" style="background:#111111;border:none;border-radius:6px;color:#fff;
-      padding:0 14px;font-size:18px;cursor:pointer;transition:opacity .15s;" onmouseover="this.style.opacity='.8'" onmouseout="this.style.opacity='1'">↑</button>
-  </div>
-</div>
-
-<style>
-.chat-msg {
-  max-width: 85%;
-  padding: 8px 11px;
-  border-radius: 10px;
-  font-size: 12px;
-  line-height: 1.5;
-  word-break: break-word;
-}
-.chat-msg.user {
-  background: #f0f0f0;
-  color: #111111;
-  align-self: flex-end;
-  border-bottom-right-radius: 3px;
-}
-.chat-msg.bot {
-  background: #f1f4f8;
-  color: #33415c;
-  align-self: flex-start;
-  border-bottom-left-radius: 3px;
-}
-.chat-msg.typing { color: #94a3b8; font-style: italic; }
-#chat-messages::-webkit-scrollbar { width: 3px; }
-#chat-messages::-webkit-scrollbar-thumb { background: #d6dce5; border-radius: 2px; }
-
-#analysis-overlay {
-  display: none;
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(15,23,42,.35);
-  z-index: 10000;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-}
-#analysis-modal {
-  background: var(--bg1);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  width: 100%;
-  max-width: 520px;
-  max-height: 88vh;
-  overflow-y: auto;
-  padding: 18px;
-  box-shadow: var(--shadow-md);
-}
-#analysis-modal::-webkit-scrollbar { width: 4px; }
-#analysis-modal::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 2px; }
-
-.an-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.an-title { font-size: 16px; font-weight: 700; color: var(--text0); }
-.an-close {
-  background: none; border: none; color: var(--text3);
-  font-size: 18px; cursor: pointer; line-height: 1;
-}
-.an-section { margin-bottom: 14px; }
-.an-label {
-  font-size: 11px; color: var(--text3); text-transform: uppercase;
-  letter-spacing: .05em; margin-bottom: 6px;
-}
-.an-price-row {
-  display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px;
-}
-.an-price { font-size: 24px; font-weight: 700; font-family: var(--font-mono); color: var(--text0); }
-.an-trend-badge {
-  display: inline-block; padding: 3px 10px; border-radius: 5px;
-  font-size: 12px; font-weight: 600;
-}
-.an-trend-badge.uptrend   { background: var(--green2); color: var(--green); }
-.an-trend-badge.downtrend { background: var(--red2);   color: var(--red); }
-.an-trend-badge.sideway   { background: var(--bg3);     color: var(--yellow); }
-
-.an-gauge-track {
-  position: relative;
-  height: 10px;
-  background: linear-gradient(90deg, var(--green) 0%, var(--yellow) 50%, var(--red) 100%);
-  border-radius: 5px;
-  margin: 10px 0 6px;
-}
-.an-gauge-marker {
-  position: absolute;
-  top: -4px;
-  width: 2px;
-  height: 18px;
-  background: var(--text0);
-  transform: translateX(-1px);
-}
-.an-gauge-labels {
-  display: flex; justify-content: space-between;
-  font-size: 10px; color: var(--text3); font-family: var(--font-mono);
-}
-
-.an-zone-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-}
-.an-zone-card {
-  background: var(--bg2);
-  border-radius: 8px;
-  padding: 10px;
-  text-align: center;
-}
-.an-zone-card .an-zone-label { font-size: 10px; color: var(--text3); margin-bottom: 4px; }
-.an-zone-card .an-zone-val { font-family: var(--font-mono); font-size: 13px; font-weight: 600; }
-.an-zone-card.buy  .an-zone-val { color: var(--green); }
-.an-zone-card.sell .an-zone-val { color: var(--red); }
-.an-zone-card.stop .an-zone-val { color: var(--yellow); }
-
-.an-action-box {
-  background: var(--bg2);
-  border-left: 3px solid var(--blue);
-  border-radius: 6px;
-  padding: 10px 12px;
-  font-size: 13px;
-  color: var(--text1);
-  line-height: 1.5;
-}
-.an-action-box.buy_zone  { border-left-color: var(--green); }
-.an-action-box.sell_zone { border-left-color: var(--red); }
-.an-action-box.wait      { border-left-color: var(--yellow); }
-
-.an-levels-list { display: flex; flex-direction: column; gap: 4px; }
-.an-level-row {
-  display: flex; justify-content: space-between;
-  font-size: 12px; padding: 4px 8px;
-  background: var(--bg2); border-radius: 4px;
-}
-.an-level-row .an-strength { color: var(--text3); font-size: 10px; }
-
-.an-disclaimer {
-  font-size: 10px; color: var(--text3);
-  margin-top: 8px; line-height: 1.4;
-}
-</style>
-
-<div id="analysis-overlay" onclick="closeAnalysisModal(event)">
-  <div id="analysis-modal" onclick="event.stopPropagation()">
-    <div class="an-header">
-      <span class="an-title" id="an-title">Phân tích</span>
-      <button class="an-close" onclick="closeAnalysisModal()">✕</button>
-    </div>
-    <div id="an-body">
-      <div class="loading">Đang tải dữ liệu...</div>
-    </div>
-  </div>
-</div>
-
-<script>
-async function openAnalysisModal(symbol, name) {
-  const overlay = document.getElementById("analysis-overlay");
-  const body = document.getElementById("an-body");
-  document.getElementById("an-title").textContent = `${symbol} — ${name}`;
-  body.innerHTML = `<div class="loading">Đang phân tích ${symbol}...</div>`;
-  overlay.style.display = "flex";
-
-  try {
-    const a = await apiFetch(`/api/vn/analysis/${symbol}`);
-    if (a.error) {
-      body.innerHTML = `<div class="loading">Lỗi: ${a.error}</div>`;
-      return;
+@app.get("/api/alert/config")
+def alert_config():
+    return {
+        "BTC": {"min": BTC_MIN, "max": BTC_MAX},
+        "ETH": {"min": ETH_MIN, "max": ETH_MAX},
+        "USD_VND": {"min": USD_MIN, "max": USD_MAX},
+        "GOLD_SJC": {"min": GOLD_MIN, "max": GOLD_MAX},
+        "change_pct_threshold": CHANGE_PCT,
+        "alert_cooldown_sec": ALERT_COOLDOWN,
     }
 
-    const trendCls = a.trend;
-    const chg = a.ma20 ? ((a.current_price - a.ma20) / a.ma20 * 100) : 0;
+@app.post("/api/alert/trigger-now")
+async def trigger_alert_now():
+    await job_alert()
+    return {"status": "ok", "message": "Alert job executed"}
 
-    const supportLevelsHtml = (a.support_levels || []).map(l =>
-      `<div class="an-level-row"><span>${fmtNum(l.price, 2)}</span><span class="an-strength">chạm ${l.strength} lần</span></div>`
-    ).join("") || `<div class="an-level-row"><span>${fmtNum(a.support,2)}</span><span class="an-strength">vùng thấp gần đây</span></div>`;
+@app.post("/api/auth/register", dependencies=[Depends(register_limiter)])
+async def auth_register(payload: dict):
+    email = (payload.get("email") or "").strip()
+    password = payload.get("password") or ""
+    if not email or not password:
+        return JSONResponse(status_code=400, content={"error": "Thiếu email hoặc mật khẩu"})
+    try:
+        await auth.sign_up(email, password)
+        return {"message": "Đăng ký thành công — kiểm tra email để xác minh tài khoản trước khi đăng nhập."}
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    except Exception as e:
+        return JSONResponse(status_code=503, content={"error": str(e)})
 
-    const resistanceLevelsHtml = (a.resistance_levels || []).map(l =>
-      `<div class="an-level-row"><span>${fmtNum(l.price, 2)}</span><span class="an-strength">chạm ${l.strength} lần</span></div>`
-    ).join("") || `<div class="an-level-row"><span>${fmtNum(a.resistance,2)}</span><span class="an-strength">vùng cao gần đây</span></div>`;
 
-    body.innerHTML = `
-      <div class="an-section">
-        <div class="an-price-row">
-          <span class="an-price">${fmtNum(a.current_price, 2)}</span>
-          <span class="an-trend-badge ${trendCls}">${a.trend_label}</span>
-        </div>
-        <div style="font-size:11px;color:var(--text3)">
-          MA20: ${a.ma20 ? fmtNum(a.ma20,2) : "--"} &nbsp;•&nbsp; MA50: ${a.ma50 ? fmtNum(a.ma50,2) : "--"}
-        </div>
-      </div>
+@app.post("/api/auth/login")
+async def auth_login(payload: dict):
+    email = (payload.get("email") or "").strip()
+    password = payload.get("password") or ""
+    if not email or not password:
+        return JSONResponse(status_code=400, content={"error": "Thiếu email hoặc mật khẩu"})
+    try:
+        data = await auth.sign_in(email, password)
+        return {
+            "access_token": data.get("access_token"),
+            "refresh_token": data.get("refresh_token"),
+            "user": {"id": data["user"]["id"], "email": data["user"]["email"]},
+        }
+    except ValueError as e:
+        return JSONResponse(status_code=401, content={"error": str(e)})
+    except Exception as e:
+        return JSONResponse(status_code=503, content={"error": str(e)})
 
-      <div class="an-section">
-        <div class="an-label">Vị trí trong vùng Hỗ trợ — Kháng cự</div>
-        <div class="an-gauge-track">
-          <div class="an-gauge-marker" style="left:${a.position_pct}%"></div>
-        </div>
-        <div class="an-gauge-labels">
-          <span>Hỗ trợ ${fmtNum(a.support,2)}</span>
-          <span>${a.position_pct}%</span>
-          <span>Kháng cự ${fmtNum(a.resistance,2)}</span>
-        </div>
-      </div>
 
-      <div class="an-section">
-        <div class="an-label">Vùng giao dịch gợi ý</div>
-        <div class="an-zone-grid">
-          <div class="an-zone-card buy">
-            <div class="an-zone-label">Vùng vào tiền</div>
-            <div class="an-zone-val">${fmtNum(a.buy_zone.low,2)} – ${fmtNum(a.buy_zone.high,2)}</div>
-          </div>
-          <div class="an-zone-card sell">
-            <div class="an-zone-label">Vùng chốt lời</div>
-            <div class="an-zone-val">${fmtNum(a.sell_zone.low,2)} – ${fmtNum(a.sell_zone.high,2)}</div>
-          </div>
-          <div class="an-zone-card stop">
-            <div class="an-zone-label">Cắt lỗ</div>
-            <div class="an-zone-val">${fmtNum(a.stop_loss,2)}</div>
-          </div>
-        </div>
-      </div>
+@app.get("/api/auth/me")
+async def auth_me(user: dict = Depends(auth.require_auth)):
+    profile = await credits.get_profile(user["id"])
+    if profile is None:
+        return JSONResponse(status_code=404, content={"error": "Chưa có hồ sơ — thử đăng xuất rồi đăng nhập lại"})
+    return {
+        "email": user.get("email"),
+        "credits": profile["credits"],
+        "role": credits._role_name(profile),
+        "created_at": profile.get("created_at"),
+    }
 
-      <div class="an-section">
-        <div class="an-label">Nhận định</div>
-        <div class="an-action-box ${a.action}">${a.action_label}</div>
-      </div>
 
-      <div class="an-section">
-        <div class="an-label">Vùng hỗ trợ gần nhất</div>
-        <div class="an-levels-list">${supportLevelsHtml}</div>
-      </div>
+@app.post("/api/credit/topup")
+async def topup_credit(user_id: str, amount: int, x_admin_secret: str = Header(None)):
+    if not credits.ADMIN_SECRET or x_admin_secret != credits.ADMIN_SECRET:
+        return JSONResponse(status_code=403, content={"error": "Không có quyền"})
+    new_balance = await credits.add_credit(user_id, amount)
+    if new_balance is None:
+        return JSONResponse(status_code=404, content={"error": "user_id không tồn tại"})
+    return {"credits": new_balance}
 
-      <div class="an-section">
-        <div class="an-label">Vùng kháng cự gần nhất</div>
-        <div class="an-levels-list">${resistanceLevelsHtml}</div>
-      </div>
 
-      <div class="an-disclaimer">
-        ⚠️ Phân tích dựa trên dữ liệu kỹ thuật (MA20/MA50, swing high/low 6 tháng), chỉ mang tính tham khảo,
-        không phải lời khuyên đầu tư. Thị trường có thể biến động ngoài dự đoán.
-      </div>
-    `;
-  } catch (e) {
-    body.innerHTML = `<div class="loading">Lỗi: ${e.message}</div>`;
-  }
-}
+@app.post("/api/credit/set-role")
+async def set_user_role(user_id: str, role: str, x_admin_secret: str = Header(None)):
+    if not credits.ADMIN_SECRET or x_admin_secret != credits.ADMIN_SECRET:
+        return JSONResponse(status_code=403, content={"error": "Không có quyền"})
+    profile = await credits.set_role(user_id, role)
+    if profile is None:
+        return JSONResponse(status_code=404, content={"error": "user_id hoặc role không hợp lệ"})
+    return {"email": profile.get("email"), "role": credits._role_name(profile), "credits": profile["credits"]}
 
-function closeAnalysisModal(event) {
-  if (event && event.target !== event.currentTarget) return;
-  document.getElementById("analysis-overlay").style.display = "none";
-}
 
-window.openAnalysisModal = openAnalysisModal;
-window.closeAnalysisModal = closeAnalysisModal;
-</script>
+@app.get("/analysis.html")
+def analysis_page():
+    return FileResponse("static/analysis.html")
 
-</body></html>
+@app.get("/volume.html")
+def volume_page():
+    return FileResponse("static/volume.html")
+
+@app.get("/register.html")
+def register_page():
+    return FileResponse("static/register.html")
+
+@app.get("/login.html")
+def login_page():
+    return FileResponse("static/login.html")
+
+@app.get("/profile.html")
+def profile_page():
+    return FileResponse("static/profile.html")
+
+def _sma(values: list[float], period: int) -> list[float | None]:
+    out = []
+    for i in range(len(values)):
+        if i + 1 < period:
+            out.append(None)
+        else:
+            out.append(sum(values[i+1-period:i+1]) / period)
+    return out
+
+
+def _find_pivots(highs: list[float], lows: list[float], window: int = 3):
+    pivot_highs, pivot_lows = [], []
+    n = len(highs)
+    for i in range(window, n - window):
+        if highs[i] == max(highs[i-window:i+window+1]):
+            pivot_highs.append(highs[i])
+        if lows[i] == min(lows[i-window:i+window+1]):
+            pivot_lows.append(lows[i])
+    return pivot_highs, pivot_lows
+
+
+def _cluster_levels(levels: list[float], tolerance_pct: float = 0.015) -> list[dict]:
+    if not levels:
+        return []
+    levels = sorted(levels)
+    clusters = []
+    current = [levels[0]]
+    for lv in levels[1:]:
+        if abs(lv - current[-1]) / current[-1] <= tolerance_pct:
+            current.append(lv)
+        else:
+            clusters.append(current)
+            current = [lv]
+    clusters.append(current)
+
+    result = [{"price": sum(c)/len(c), "strength": len(c)} for c in clusters]
+    result.sort(key=lambda x: x["strength"], reverse=True)
+    return result
+
+async def _fetch_yahoo_daily_bars(symbol: str, range_: str = "6mo") -> list:
+    bars = []
+    try:
+        async with httpx.AsyncClient(headers=YAHOO_HEADERS, timeout=15) as client:
+            r = await client.get(
+                f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}.VN",
+                params={"interval": "1d", "range": range_},
+            )
+        data = r.json()
+        result = data["chart"]["result"][0]
+        timestamps = result.get("timestamp", [])
+        quote = result["indicators"]["quote"][0]
+        opens  = quote.get("open", [])
+        highs  = quote.get("high", [])
+        lows   = quote.get("low", [])
+        closes = quote.get("close", [])
+        vols   = quote.get("volume", [])
+
+        for i, ts in enumerate(timestamps):
+            c = closes[i] if i < len(closes) else None
+            if c is None:
+                continue
+            bars.append({
+                "tradingDate": datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d"),
+                "open":  opens[i]  if i < len(opens)  and opens[i]  is not None else c,
+                "high":  highs[i]  if i < len(highs)  and highs[i]  is not None else c,
+                "low":   lows[i]   if i < len(lows)   and lows[i]   is not None else c,
+                "close": c,
+                "volume": vols[i] if i < len(vols) and vols[i] is not None else 0,
+            })
+    except Exception as e:
+        log.warning(f"Yahoo daily bars error [{symbol}]: {e}")
+    return bars
+
+
+async def _fetch_volume_signal(symbol: str) -> dict | None:
+    bars = await _fetch_yahoo_daily_bars(symbol, range_="1mo")
+    if not bars or len(bars) < 15:
+        return None
+
+    volumes = [float(b.get("volume", 0)) for b in bars]
+    closes  = [float(b.get("close", 0)) for b in bars]
+
+    recent_vol   = volumes[-5:]
+    baseline_vol = volumes[:-5]
+    if not baseline_vol:
+        return None
+
+    recent_avg   = sum(recent_vol) / len(recent_vol)
+    baseline_avg = sum(baseline_vol) / len(baseline_vol)
+    if baseline_avg == 0:
+        return None
+
+    volume_ratio = recent_avg / baseline_avg
+
+    price_start = closes[-6] if len(closes) >= 6 else closes[0]
+    price_now   = closes[-1]
+    price_change_week = round((price_now - price_start) / price_start * 100, 2) if price_start else 0
+
+    return {
+        "symbol": symbol,
+        "price": round(price_now, 2),
+        "volume_ratio": round(volume_ratio, 2),
+        "avg_volume_week": int(recent_avg),
+        "price_change_week": price_change_week,
+    }
+
+
+_volume_week_cache: dict = {}
+VOLUME_WEEK_TTL = 4 * 3600
+
+
+@app.get("/api/vn/top-volume-week")
+async def get_top_volume_week(limit: int = 30):
+    now = time.time()
+    cached = _volume_week_cache.get("top")
+    if cached and (now - cached["ts"]) < VOLUME_WEEK_TTL:
+        return cached["data"][:limit]
+
+    all_symbols = await get_all_hose_symbols()
+    info_map = {s["symbol"]: s for s in all_symbols}
+    symbols = list(info_map.keys())
+
+    signals = []
+    CHUNK = 25
+
+    for i in range(0, len(symbols), CHUNK):
+        chunk = symbols[i:i + CHUNK]
+        results = await asyncio.gather(
+            *[_fetch_volume_signal(s) for s in chunk],
+            return_exceptions=True,
+        )
+        for r in results:
+            if isinstance(r, dict):
+                signals.append(r)
+        if i + CHUNK < len(symbols):
+            await asyncio.sleep(0.5)
+
+    for s in signals:
+        info = info_map.get(s["symbol"], {"name": s["symbol"], "sector": "Khác"})
+        s["name"] = info["name"]
+        s["sector"] = info["sector"]
+
+    signals.sort(key=lambda x: x["volume_ratio"], reverse=True)
+
+    _volume_week_cache["top"] = {"ts": now, "data": signals}
+    log.info(f"Top volume week: quét {len(signals)}/{len(symbols)} mã có dữ liệu")
+    return signals[:limit]
+
+
+@app.get("/api/vn/analysis/{symbol}")
+async def get_vn_analysis(symbol: str, user: dict = Depends(auth.require_auth)):
+    """
+    Phân tích kỹ thuật 1 mã HOSE dựa trên dữ liệu 6 tháng (nến ngày).
+    Trả kèm khối lượng giao dịch (volume, avg_volume, volume_ratio) — nhưng CHỈ
+    trả số liệu thật cho role premium/admin. free_tier vẫn nhận field volume=None
+    để frontend biết mà hiện khóa/nâng cấp, không rò rỉ dữ liệu thật.
+    """
+    symbol = symbol.upper()
+
+    try:
+        ok, balance, role = await credits.deduct_credit(user["id"], amount=1)
+    except Exception as e:
+        log.error(f"deduct_credit crash cho user {user.get('id')}: {e}")
+        return JSONResponse(status_code=503, content={"error": f"Lỗi hệ thống credit: {e}"})
+
+    if not ok:
+        return JSONResponse(
+            status_code=402,
+            content={"error": "Hết credit hoặc phiên đăng nhập không hợp lệ", "credits": balance},
+        )
+
+    try:
+        bars = []
+        async with httpx.AsyncClient(timeout=15) as client:
+            for params in [
+                {"ticker": symbol, "type": "day",   "count": "120"},
+                {"ticker": symbol, "type": "daily", "count": "120"},
+                {"ticker": symbol, "resolution": "D", "count": "120"},
+            ]:
+                try:
+                    r = await client.get(
+                        "https://apipublic.tcbs.com.vn/stock-insight/v1/stock/bars-long-term",
+                        params=params,
+                        headers={"User-Agent": "Mozilla/5.0", "Referer": "https://tcinvest.tcbs.com.vn/"},
+                    )
+                    data = r.json()
+                    bars = data if isinstance(data, list) else data.get("data", [])
+                    if bars and len(bars) >= 25:
+                        log.info(f"Analysis {symbol}: TCBS OK với params {params}, {len(bars)} bars")
+                        break
+                    else:
+                        log.warning(f"Analysis {symbol}: params {params} trả {len(bars)} bars")
+                except Exception as e:
+                    log.warning(f"Analysis {symbol}: params {params} lỗi: {e}")
+
+        if not bars or len(bars) < 10:
+            log.info(f"Analysis {symbol}: TCBS thiếu dữ liệu — fallback Yahoo Finance")
+            bars = await _fetch_yahoo_daily_bars(symbol, range_="6mo")
+            if bars:
+                log.info(f"Analysis {symbol}: Yahoo OK, {len(bars)} bars")
+
+        if not bars or len(bars) < 10:
+            return JSONResponse(status_code=503, content={"error": f"Không đủ dữ liệu lịch sử ({len(bars) if bars else 0} bars)"})
+
+        min_bars = len(bars)
+
+        closes  = [float(b.get("close", 0)) for b in bars if b.get("close")]
+        highs   = [float(b.get("high",  0)) for b in bars if b.get("high")]
+        lows    = [float(b.get("low",   0)) for b in bars if b.get("low")]
+        volumes = [float(b.get("volume", 0)) for b in bars]
+
+        if not closes:
+            return JSONResponse(status_code=503, content={"error": "Dữ liệu giá không hợp lệ"})
+
+        current_price = closes[-1]
+        n = len(closes)
+        ma20_period = min(20, max(5, n // 4))
+        ma50_period = min(50, max(10, n // 2))
+
+        ma20_series = _sma(closes, ma20_period)
+        ma50_series = _sma(closes, ma50_period)
+        ma20 = ma20_series[-1]
+        ma50 = ma50_series[-1]
+
+        if ma20 is not None and ma50 is not None:
+            if current_price > ma20 > ma50:
+                trend = "uptrend"
+                trend_label = "Xu hướng tăng"
+            elif current_price < ma20 < ma50:
+                trend = "downtrend"
+                trend_label = "Xu hướng giảm"
+            else:
+                trend = "sideway"
+                trend_label = "Tích lũy / Đi ngang"
+        elif ma20 is not None:
+            if current_price > ma20:
+                trend, trend_label = "uptrend", "Xu hướng tăng (ngắn hạn)"
+            else:
+                trend, trend_label = "downtrend", "Xu hướng giảm (ngắn hạn)"
+        else:
+            trend, trend_label = "sideway", "Chưa đủ dữ liệu xác định xu hướng"
+
+        pivot_highs, pivot_lows = _find_pivots(highs, lows, window=3)
+        resistance_clusters = _cluster_levels([p for p in pivot_highs if p > current_price])
+        support_clusters    = _cluster_levels([p for p in pivot_lows  if p < current_price])
+
+        nearest_resistance = resistance_clusters[0]["price"] if resistance_clusters else None
+        nearest_support    = support_clusters[0]["price"] if support_clusters else None
+
+        recent_high = max(highs[-60:]) if len(highs) >= 60 else max(highs)
+        recent_low  = min(lows[-60:])  if len(lows)  >= 60 else min(lows)
+        if nearest_resistance is None:
+            nearest_resistance = recent_high
+        if nearest_support is None:
+            nearest_support = recent_low
+
+        buy_zone_low  = nearest_support
+        buy_zone_high = nearest_support * 1.02
+        sell_zone_low  = nearest_resistance * 0.98
+        sell_zone_high = nearest_resistance
+        stop_loss = nearest_support * 0.97
+
+        if nearest_resistance > nearest_support:
+            position_pct = round((current_price - nearest_support) / (nearest_resistance - nearest_support) * 100, 1)
+        else:
+            position_pct = 50.0
+        position_pct = max(0, min(100, position_pct))
+
+        if position_pct <= 25 and trend != "downtrend":
+            action = "buy_zone"
+            action_label = "Đang gần vùng hỗ trợ — cân nhắc tích lũy"
+        elif position_pct >= 80:
+            action = "sell_zone"
+            action_label = "Đang gần vùng kháng cự — cân nhắc chốt lời / giảm tỷ trọng"
+        elif trend == "downtrend":
+            action = "wait"
+            action_label = "Xu hướng giảm — chờ tín hiệu đảo chiều rõ ràng"
+        elif trend == "uptrend":
+            action = "hold"
+            action_label = "Xu hướng tăng — có thể nắm giữ, theo dõi sát kháng cự"
+        else:
+            action = "wait"
+            action_label = "Đang tích lũy — chờ phá vùng để xác nhận xu hướng"
+
+        # ── KHỐI LƯỢNG GIAO DỊCH ──
+        # Chỉ tính & trả số liệu thật cho premium/admin. free_tier nhận None
+        # (không rò rỉ dữ liệu qua network response dù UI có bị can thiệp).
+        volume = None
+        avg_volume = None
+        volume_ratio = None
+        if role in ("premium", "admin"):
+            valid_volumes = [v for v in volumes if v > 0]
+            if valid_volumes:
+                volume = valid_volumes[-1]
+                baseline = valid_volumes[-21:-1] if len(valid_volumes) >= 21 else valid_volumes[:-1]
+                if baseline:
+                    avg_volume = sum(baseline) / len(baseline)
+                    if avg_volume > 0:
+                        volume_ratio = round(volume / avg_volume, 2)
+
+        history = []
+        for b in bars[-60:]:
+            entry = {"time": b.get("tradingDate") or b.get("date", ""), "close": float(b.get("close", 0))}
+            # Chỉ đính kèm volume vào history (để vẽ biểu đồ cột) nếu premium/admin
+            if role in ("premium", "admin"):
+                entry["volume"] = float(b.get("volume", 0))
+            history.append(entry)
+
+        return {
+            "symbol": symbol,
+            "current_price": round(current_price, 2),
+            "ma20": round(ma20, 2) if ma20 else None,
+            "ma50": round(ma50, 2) if ma50 else None,
+            "trend": trend,
+            "trend_label": trend_label,
+            "support": round(nearest_support, 2),
+            "resistance": round(nearest_resistance, 2),
+            "position_pct": position_pct,
+            "buy_zone":  {"low": round(buy_zone_low, 2),  "high": round(buy_zone_high, 2)},
+            "sell_zone": {"low": round(sell_zone_low, 2), "high": round(sell_zone_high, 2)},
+            "stop_loss": round(stop_loss, 2),
+            "action": action,
+            "action_label": action_label,
+            "support_levels":    [{"price": round(c["price"],2), "strength": c["strength"]} for c in support_clusters[:3]],
+            "resistance_levels": [{"price": round(c["price"],2), "strength": c["strength"]} for c in resistance_clusters[:3]],
+            "history": history,
+            "credits_remaining": balance,
+            "role": role,
+            "volume": round(volume) if volume is not None else None,
+            "avg_volume": round(avg_volume) if avg_volume is not None else None,
+            "volume_ratio": volume_ratio,
+        }
+
+    except Exception as e:
+        log.error(f"Analysis error [{symbol}]: {e}")
+        return JSONResponse(status_code=503, content={"error": str(e)})
