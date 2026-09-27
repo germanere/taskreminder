@@ -878,6 +878,7 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
           <option value="rank">Vốn hóa</option>
           <option value="change">% thay đổi</option>
           <option value="price">Giá</option>
+          <option value="volume">Khối lượng</option>
           <option value="sym">Mã A-Z</option>
         </select>
         <select id="hose-sector" class="select-input">
@@ -905,7 +906,6 @@ html, body { height: 100%; background: var(--bg0); color: var(--text1); font-fam
             <th class="num">Giá</th>
             <th class="num">1D%</th>
             <th class="num">KL (nghìn)</th>
-            <th class="num">Nguồn</th>
           </tr>
         </thead>
         <tbody id="hose-tbody"></tbody>
@@ -1375,6 +1375,7 @@ function renderHoseTable() {
 
   if      (srt === "change") filtered.sort((a,b) => (b.change ?? 0) - (a.change ?? 0));
   else if (srt === "price")  filtered.sort((a,b) => (b.price  ?? 0) - (a.price  ?? 0));
+  else if (srt === "volume") filtered.sort((a,b) => (b.volume ?? 0) - (a.volume ?? 0));
   else if (srt === "sym")    filtered.sort((a,b) => a.symbol.localeCompare(b.symbol));
   else                       filtered.sort((a,b) => (a.rank ?? 99) - (b.rank ?? 99));
 
@@ -1389,7 +1390,6 @@ function renderHoseTable() {
   tbody.innerHTML = slice.map(r => {
     const chg = r.change ?? 0;
     const sColor = SECTOR_COLORS[r.sector] || "#94a3b8";
-    const srcColor = r.source === "TCBS" ? "var(--green)" : "var(--yellow)";
     const safeName = r.name.replace(/'/g, "\\'");
     return `<tr onclick="window.open('/analysis.html?sym=${r.symbol}', '_blank')" style="cursor:pointer">
       <td class="text-gray mono" style="font-size:11px">${r.rank}</td>
@@ -1406,7 +1406,6 @@ function renderHoseTable() {
       <td class="num mono">${r.price > 0 ? fmtNum(r.price, 2) : "--"}</td>
       <td class="num"><span class="badge ${badgeCls(chg)}">${r.price > 0 ? fmtPct(chg) : "--"}</span></td>
       <td class="num text-gray">${r.volume > 0 ? Math.round(r.volume/1000).toLocaleString("vi-VN") : "--"}</td>
-      <td class="num" style="font-size:10px;color:${srcColor}">${r.source}</td>
     </tr>`;
   }).join("");
 }
