@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<script src="/static/auth-guard.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mua thêm token — Market Hub</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>◈</text></svg>">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg0:#f4f6f9; --bg1:#ffffff; --bg2:#f1f4f8; --bg3:#e7ebf1; --border:#e3e8ef; --border2:#d6dce5;
+  --text0:#0f172a; --text1:#33415c; --text2:#64748b; --text3:#94a3b8;
+  --green:#0f9d58; --green2:#e3f6ea; --red:#d93025; --red2:#fbe8e6; --yellow:#b7791f; --yellow2:#fdf1dc;
+  --black:#111111; --font:-apple-system,'Segoe UI',sans-serif; --mono:'Cascadia Code','Fira Code','Courier New',monospace;
+}
+html,body { min-height:100%; background:var(--bg0); color:var(--text1); font-family:var(--font); font-size:13px; }
+.header { display:flex; align-items:center; gap:12px; height:48px; padding:0 20px; background:var(--bg1); border-bottom:1px solid var(--border); }
+.back { background:var(--bg3); border:1px solid var(--border2); border-radius:6px; color:var(--text2); padding:5px 10px; font-size:12px; text-decoration:none; }
+.title { font-size:15px; font-weight:700; color:var(--text0); }
+.main { max-width:720px; margin:0 auto; padding:24px 20px; }
+.card { background:var(--bg1); border:1px solid var(--border); border-radius:10px; padding:18px; margin-bottom:16px; }
+.balance { display:flex; justify-content:space-between; align-items:center; }
+.balance .num { font-family:var(--mono); font-size:26px; font-weight:700; color:var(--text0); }
+.muted { color:var(--text3); font-size:12px; }
+.banner { display:none; padding:11px 14px; border-radius:6px; margin-bottom:16px; font-size:13px; line-height:1.5; }
+.banner.show { display:block; }
+.banner.ok { background:var(--green2); color:var(--green); border-left:3px solid var(--green); }
+.banner.err { background:var(--red2); color:var(--red); border-left:3px solid var(--red); }
+.banner.wait { background:var(--yellow2); color:var(--yellow); border-left:3px solid var(--yellow); }
+.packs { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; }
+.pack { border:1px solid var(--border2); border-radius:10px; padding:16px; text-align:center; background:var(--bg2); }
+.pack .amt { font-size:24px; font-weight:700; color:var(--text0); font-family:var(--mono); }
+.pack .unit { font-size:12px; color:var(--text2); margin-bottom:8px; }
+.pack .price { font-size:15px; font-weight:600; color:var(--text0); margin-bottom:4px; }
+.pack .per { font-size:11px; color:var(--text3); margin-bottom:12px; }
+.pack button { width:100%; background:var(--black); border:0; border-radius:6px; color:#fff; padding:9px; font-size:13px; font-weight:600; cursor:pointer; }
+.pack button:disabled { opacity:.5; cursor:default; }
+.note { font-size:11.5px; color:var(--text2); line-height:1.7; }
+</style>
+</head>
+<body>
+<header class="header">
+  <a href="/" class="back">← Về trang chủ</a>
+  <span class="title">Mua thêm token</span>
+</header>
+
+<div class="main">
+  <div class="banner" id="banner"></div>
+
+  <div class="card balance">
+    <div>
+      <div class="muted">Token còn lại</div>
+      <div class="num" id="credits">--</div>
+    </div>
+    <div class="muted" id="who"></div>
+  </div>
+
+  <div class="card" id="shop">
+    <div class="muted" style="margin-bottom:12px">CHỌN GÓI</div>
+    <div class="packs" id="packs"><div class="muted">Đang tải...</div></div>
+  </div>
+
+  <div class="note">
+    Mỗi lượt phân tích cổ phiếu tốn 1 token. Thanh toán qua VNPay (thẻ ATM nội địa, QR, thẻ quốc tế).
+    Token được cộng tự động ngay khi VNPay xác nhận, thường trong vài giây. Nếu đã trừ tiền mà chưa thấy token sau vài phút, hãy liên hệ và gửi kèm mã đơn hàng.
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const fmtVND = (n) => Number(n).toLocaleString("vi-VN") + " ₫";
+const token = () => localStorage.getItem("mh_access_token");
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token(), ...(opts.headers || {}) },
+  });
+  let data = {};
+  try { data = await res.json(); } catch (_) {}
+  return { ok: res.ok, status: res.status, data };
+}
+
+function banner(kind, text) {
+  const b = $("banner");
+  b.className = "banner show " + kind;
+  b.textContent = text;
+}
+
+async function loadMe() {
+  const r = await api("/api/auth/me");
+  if (!r.ok) return null;
+  $("credits").textContent = (r.data.role === "free_tier") ? r.data.credits : "∞";
+  $("who").textContent = r.data.email || "";
+  if (r.data.role === "premium" || r.data.role === "admin") {
+    $("shop").style.display = "none";
+    banner("ok", "Tài khoản của bạn đang dùng không giới hạn, không cần mua token.");
+  }
+  return r.data;
+}
+
+async function loadPacks() {
+  const res = await fetch("/api/payment/packs");
+  const packs = await res.json();
+  const box = $("packs");
+  box.textContent = "";
+  packs.forEach((p) => {
+    const el = document.createElement("div");
+    el.className = "pack";
+    const perToken = Math.round(p.amount / p.credits);
+    el.innerHTML = '<div class="amt"></div><div class="unit">token</div><div class="price"></div><div class="per"></div><button>Mua ngay</button>';
+    el.querySelector(".amt").textContent = p.credits;
+    el.querySelector(".price").textContent = fmtVND(p.amount);
+    el.querySelector(".per").textContent = "≈ " + fmtVND(perToken) + " / token";
+    el.querySelector("button").addEventListener("click", (e) => buy(p.id, e.target));
+    box.appendChild(el);
+  });
+}
+
+async function buy(packId, btn) {
+  btn.disabled = true;
+  btn.textContent = "Đang chuyển sang VNPay...";
+  const r = await api("/api/payment/create", { method: "POST", body: JSON.stringify({ pack_id: packId }) });
+  if (r.ok && r.data.payment_url) {
+    window.location.href = r.data.payment_url;
+    return;
+  }
+  banner("err", r.data.error || "Không tạo được đơn hàng, vui lòng thử lại.");
+  btn.disabled = false;
+  btn.textContent = "Mua ngay";
+}
+
+// Sau khi VNPay chuyển user về: hỏi server xem đơn đã được cộng token chưa (server mới là nơi cộng, không phải trang này)
+async function checkOrder(orderCode, status) {
+  if (status === "failed") { banner("err", "Thanh toán không thành công hoặc đã bị hủy. Bạn chưa bị trừ token/tiền cho đơn này."); return; }
+  if (status === "invalid") { banner("err", "Dữ liệu trả về không hợp lệ."); return; }
+  banner("wait", "Thanh toán thành công, đang xác nhận và cộng token...");
+  for (let i = 0; i < 15; i++) {
+    const r = await api("/api/payment/order/" + encodeURIComponent(orderCode));
+    if (r.ok && r.data.status === "paid") {
+      banner("ok", "Đã cộng " + r.data.credits + " token vào tài khoản. Cảm ơn bạn!");
+      await loadMe();
+      return;
+    }
+    await new Promise((res) => setTimeout(res, 2000));
+  }
+  banner("wait", "Đơn " + orderCode + " đang chờ VNPay xác nhận. Token sẽ tự cộng khi xác nhận xong, bạn có thể tải lại trang sau ít phút.");
+}
+
+(async function init() {
+  await loadMe();
+  await loadPacks();
+  const q = new URLSearchParams(location.search);
+  if (q.get("status")) checkOrder(q.get("order") || "", q.get("status"));
+})();
+</script>
+</body>
+</html>
