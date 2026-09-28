@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 import httpx
 import pytz
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, Depends
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, Depends, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +24,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import gspread
 import credits
 import auth
+import login_logs
 from google.oauth2.service_account import Credentials
 from config.security import setup_cors, SecurityHeadersMiddleware, RateLimiter
 
@@ -1499,13 +1500,19 @@ async def auth_register(payload: dict):
 
 
 @app.post("/api/auth/login")
-async def auth_login(payload: dict):
+async def auth_login(payload: dict, request: Request):
     email = (payload.get("email") or "").strip()
     password = payload.get("password") or ""
     if not email or not password:
         return JSONResponse(status_code=400, content={"error": "Thiếu email hoặc mật khẩu"})
     try:
         data = await auth.sign_in(email, password)
+
+        # Ghi log IP + thiết bị — chạy nền, không chặn response nếu lỗi
+        ip = login_logs.get_client_ip(request)
+        ua = request.headers.get("user-agent", "")
+        await login_logs.log_login(data["user"]["id"], data["user"]["email"], ip, ua)
+
         return {
             "access_token": data.get("access_token"),
             "refresh_token": data.get("refresh_token"),
@@ -1515,6 +1522,15 @@ async def auth_login(payload: dict):
         return JSONResponse(status_code=401, content={"error": str(e)})
     except Exception as e:
         return JSONResponse(status_code=503, content={"error": str(e)})
+
+
+@app.get("/api/admin/login-logs")
+async def admin_login_logs(limit: int = 50, profile_id: str | None = None, x_admin_secret: str = Header(None)):
+    """Xem log đăng nhập gần nhất (IP + thiết bị). Chỉ admin gọi được (cần header X-Admin-Secret)."""
+    if not credits.ADMIN_SECRET or x_admin_secret != credits.ADMIN_SECRET:
+        return JSONResponse(status_code=403, content={"error": "Không có quyền"})
+    logs = await login_logs.get_recent_logs(limit=limit, profile_id=profile_id)
+    return logs
 
 
 @app.get("/api/auth/me")
