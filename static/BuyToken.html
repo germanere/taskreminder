@@ -56,6 +56,17 @@ html,body { min-height:100%; background:var(--bg0); color:var(--text1); font-fam
     <div class="muted" id="who"></div>
   </div>
 
+  <div class="card" id="trial-card">
+    <div class="muted" style="margin-bottom:10px">GÓI DÙNG THỬ</div>
+    <div class="pack" style="text-align:left;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div>
+        <div class="price" style="margin-bottom:2px">5 token miễn phí</div>
+        <div class="per" style="font-size:12px">Mỗi tài khoản chỉ nhận được 1 lần</div>
+      </div>
+      <button id="btn-trial" style="width:auto;padding:9px 18px;white-space:nowrap">Nhận ngay</button>
+    </div>
+  </div>
+
   <div class="card" id="shop">
     <div class="muted" style="margin-bottom:12px">CHỌN GÓI</div>
     <div class="packs" id="packs"><div class="muted">Đang tải...</div></div>
@@ -95,9 +106,31 @@ async function loadMe() {
   $("who").textContent = r.data.email || "";
   if (r.data.role === "premium" || r.data.role === "admin") {
     $("shop").style.display = "none";
+    $("trial-card").style.display = "none";
     banner("ok", "Tài khoản của bạn đang dùng không giới hạn, không cần mua token.");
   }
   return r.data;
+}
+
+async function claimTrial() {
+  const btn = $("btn-trial");
+  btn.disabled = true;
+  btn.textContent = "Đang xử lý...";
+  const r = await api("/api/payment/claim-trial", { method: "POST" });
+  if (r.ok) {
+    banner("ok", `Đã nhận ${r.data.credits_added} token miễn phí!`);
+    btn.textContent = "Đã nhận";
+    await loadMe();
+    return;
+  }
+  if (r.status === 409) {
+    banner("wait", r.data.error);
+    btn.textContent = "Đã nhận";
+    return;
+  }
+  banner("err", r.data.error || "Không nhận được gói dùng thử, thử lại sau.");
+  btn.disabled = false;
+  btn.textContent = "Nhận ngay";
 }
 
 async function loadPacks() {
@@ -151,6 +184,7 @@ async function checkOrder(orderCode, status) {
 (async function init() {
   await loadMe();
   await loadPacks();
+  $("btn-trial").addEventListener("click", claimTrial);
   const q = new URLSearchParams(location.search);
   if (q.get("status")) checkOrder(q.get("order") || "", q.get("status"));
 })();
