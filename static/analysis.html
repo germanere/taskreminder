@@ -722,7 +722,8 @@ async function runAnalysis() {
     }
 
     if (res.status === 402) {
-      showError(`Hết lượt phân tích miễn phí (còn ${a.credits ?? 0} credit). <a href="/profile.html">Xem hồ sơ / nâng cấp</a>.`);
+      showError(`Hết lượt phân tích miễn phí (còn ${a.credits ?? 0} token). Đang chuyển sang trang mua thêm token...`);
+      setTimeout(() => { location.href = "/buy.html"; }, 1800);
       return;
     }
 
