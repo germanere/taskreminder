@@ -170,12 +170,28 @@ html, body {
   background: var(--bg2);
   border-left: 3px solid var(--black);
   border-radius: var(--radius);
-  padding: 10px 12px;
+  padding: 12px;
   font-size: 12px;
   color: var(--text2);
   line-height: 1.6;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
+
+.btn-buy {
+  display: block;
+  width: 100%;
+  text-align: center;
+  background: var(--black);
+  border-radius: var(--radius);
+  color: #fff;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  margin-bottom: 20px;
+  transition: opacity .15s;
+}
+.btn-buy:hover { opacity: .85; }
 
 .btn-logout {
   width: 100%;
@@ -226,7 +242,7 @@ html, body {
 
     <div class="stat-grid">
       <div class="stat-box">
-        <div class="stat-label">Credit còn lại</div>
+        <div class="stat-label">Token còn lại</div>
         <div class="stat-val" id="p-credits">--</div>
       </div>
       <div class="stat-box">
@@ -243,15 +259,12 @@ html, body {
     </div>
 
     <div class="upgrade-note" id="upgrade-note" style="display:none">
-      Bạn đang dùng gói miễn phí — mỗi lượt phân tích cổ phiếu tốn 1 credit. Liên hệ để nâng cấp premium (không giới hạn lượt).
+      Bạn đang dùng gói miễn phí — mỗi lượt phân tích cổ phiếu tốn 1 token. Mua thêm token bên dưới, hoặc liên hệ để nâng cấp Premium (không giới hạn lượt).
     </div>
 
-    <button class="btn-logout" onclick="logout()">Đăng xuất</button>
-  </div>
+    <a href="/buytoken.html" class="btn-buy" id="btn-buy" style="display:none">Mua thêm token</a>
 
-  <div class="error-state" id="error-state">
-    <div id="error-msg">Chưa đăng nhập.</div>
-    <div style="margin-top:10px"><a href="/login.html">Đến trang đăng nhập</a></div>
+    <button class="btn-logout" onclick="logout()">Đăng xuất</button>
   </div>
 
 </div>
@@ -314,6 +327,7 @@ async function loadProfile() {
 
     if (data.role === "free_tier") {
       document.getElementById("upgrade-note").style.display = "block";
+      document.getElementById("btn-buy").style.display = "block";
     }
 
     loading.style.display = "none";
