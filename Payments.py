@@ -34,6 +34,7 @@ PACKS = {
     "p120": {"label": "Gói 120 token", "credits": 120, "amount": 200000},
 }
 UNLIMITED_ROLES = ("premium", "admin")
+TRIAL_CREDITS = 5  # số token gói dùng thử, mỗi user chỉ nhận 1 lần
 
 
 def _cfg() -> dict:
@@ -121,7 +122,36 @@ async def _set_status(code: str, status: str, **extra) -> None:
         log.error(f"credit_orders set_status({code},{status}) lỗi {r.status_code}: {r.text[:200]}")
 
 
-def _client_ip(request: Request) -> str:
+def _sb_trial():
+    url = os.getenv("SUPABASE_URL", "").rstrip("/")
+    key = os.getenv("SUPABASE_SERVICE_KEY", "")
+    headers = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    return f"{url}/rest/v1/trial_claims", headers
+
+
+async def _claim_trial_row(user_id: str, credits_amount: int) -> bool:
+    """
+    Insert 1 dòng vào trial_claims(user_id PRIMARY KEY, ...).
+    user_id là khóa chính => 2 request cùng lúc (double-click, tab kép) chỉ 1 cái insert được,
+    cái còn lại nhận lỗi 409 (unique violation) => an toàn tuyệt đối trước khi cộng token.
+    """
+    url, h = _sb_trial()
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.post(url, headers={**h, "Prefer": "return=minimal"},
+                          json={"user_id": user_id, "credits": credits_amount})
+    if r.status_code == 409:
+        return False
+    if r.status_code >= 400:
+        log.error(f"trial_claims insert lỗi {r.status_code}: {r.text[:200]}")
+        return False
+    return True
+
+
+async def _delete_trial_row(user_id: str) -> None:
+    """Gỡ claim nếu add_credit thất bại sau đó, để user thử lại được thay vì mất suất."""
+    url, h = _sb_trial()
+    async with httpx.AsyncClient(timeout=10) as c:
+        await c.delete(url, headers=h, params={"user_id": f"eq.{user_id}"})
     ip = ""
     for h in ("cf-connecting-ip", "x-real-ip"):
         if request.headers.get(h):
@@ -136,6 +166,25 @@ def _client_ip(request: Request) -> str:
 
 
 # ─────────────── ROUTES ───────────────
+
+@router.post("/api/payment/claim-trial")
+async def claim_trial(user: dict = Depends(auth.require_auth)):
+    profile = await credits.get_profile(user["id"])
+    role = credits._role_name(profile) if profile else ""
+    if role in UNLIMITED_ROLES:
+        return JSONResponse(status_code=400, content={"error": "Tài khoản của bạn đã dùng không giới hạn, không cần gói dùng thử"})
+
+    if not await _claim_trial_row(user["id"], TRIAL_CREDITS):
+        return JSONResponse(status_code=409, content={"error": "Bạn đã nhận gói dùng thử rồi, mỗi tài khoản chỉ nhận 1 lần"})
+
+    new_balance = await credits.add_credit(user["id"], TRIAL_CREDITS)
+    if new_balance is None:
+        await _delete_trial_row(user["id"])  # gỡ claim để user bấm lại được
+        return JSONResponse(status_code=503, content={"error": "Có lỗi khi cộng token, thử lại sau"})
+
+    log.info(f"Trial claim: +{TRIAL_CREDITS} token cho user {user['id']}")
+    return {"credits_added": TRIAL_CREDITS, "new_balance": new_balance}
+
 
 @router.get("/api/payment/packs")
 async def list_packs():
@@ -251,10 +300,10 @@ async def vnpay_return(request: Request):
     params = dict(request.query_params)
     secret = _cfg()["secret"]
     if not secret or not verify_signature(params, secret):
-        return RedirectResponse("/buy.html?status=invalid")
+        return RedirectResponse("/Buytoken.html?status=invalid")
     ok = params.get("vnp_ResponseCode") == "00" and params.get("vnp_TransactionStatus") == "00"
     code = quote_plus(params.get("vnp_TxnRef", ""))
-    return RedirectResponse(f"/buy.html?status={'success' if ok else 'failed'}&order={code}")
+    return RedirectResponse(f"/Buytoken.html?status={'success' if ok else 'failed'}&order={code}")
 
 
 @router.get("/api/payment/order/{order_code}")
@@ -266,6 +315,6 @@ async def order_status(order_code: str, user: dict = Depends(auth.require_auth))
             "credits": order["credits"], "amount": order["amount_vnd"]}
 
 
-@router.get("/buy.html")
+@router.get("/buytoken.html")
 def buy_page():
-    return FileResponse("static/buy.html")
+    return FileResponse("static/Buytoken.html")
