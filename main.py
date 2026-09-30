@@ -11,22 +11,23 @@ Market Research Hub — Backend
 """
 
 import os, re, json, logging, asyncio, time, socket
-from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
 import httpx
 import pytz
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, Depends, Request
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 import websockets
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import gspread
 import credits
 import auth
 import login_logs
+import payments
 from google.oauth2.service_account import Credentials
 from config.security import setup_cors, SecurityHeadersMiddleware, RateLimiter
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Header, Depends, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 
 ICT = pytz.timezone("Asia/Ho_Chi_Minh")
 logging.basicConfig(level=logging.INFO)
