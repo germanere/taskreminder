@@ -300,10 +300,10 @@ async def vnpay_return(request: Request):
     params = dict(request.query_params)
     secret = _cfg()["secret"]
     if not secret or not verify_signature(params, secret):
-        return RedirectResponse("/Buytoken.html?status=invalid")
+        return RedirectResponse("/buytoken.html?status=invalid")
     ok = params.get("vnp_ResponseCode") == "00" and params.get("vnp_TransactionStatus") == "00"
     code = quote_plus(params.get("vnp_TxnRef", ""))
-    return RedirectResponse(f"/Buytoken.html?status={'success' if ok else 'failed'}&order={code}")
+    return RedirectResponse(f"/buytoken.html?status={'success' if ok else 'failed'}&order={code}")
 
 
 @router.get("/api/payment/order/{order_code}")
@@ -317,4 +317,4 @@ async def order_status(order_code: str, user: dict = Depends(auth.require_auth))
 
 @router.get("/buytoken.html")
 def buy_page():
-    return FileResponse("static/Buytoken.html")
+    return FileResponse("static/buytoken.html")
