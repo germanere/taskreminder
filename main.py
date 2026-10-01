@@ -18,7 +18,7 @@ import gspread
 import credits
 import auth
 import login_logs
-import payments
+import Payments
 from google.oauth2.service_account import Credentials
 from config.security import setup_cors, SecurityHeadersMiddleware, RateLimiter
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
