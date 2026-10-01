@@ -34,7 +34,7 @@ PACKS = {
     "p120": {"label": "Gói 120 token", "credits": 120, "amount": 200000},
 }
 UNLIMITED_ROLES = ("premium", "admin")
-TRIAL_CREDITS = 5  # số token gói dùng thử, mỗi user chỉ nhận 1 lần
+TRIAL_CREDITS = 60  # số token gói dùng thử, mỗi user chỉ nhận 1 lần
 
 
 def _cfg() -> dict:
