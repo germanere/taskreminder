@@ -122,39 +122,55 @@ async def _set_status(code: str, status: str, **extra) -> None:
         log.error(f"credit_orders set_status({code},{status}) lỗi {r.status_code}: {r.text[:200]}")
 
 
-def _sb_trial():
+def _sb_subs():
     url = os.getenv("SUPABASE_URL", "").rstrip("/")
     key = os.getenv("SUPABASE_SERVICE_KEY", "")
     headers = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-    return f"{url}/rest/v1/trial_claims", headers
+    return f"{url}/rest/v1/subscriptions", headers
 
 
-async def _claim_trial_row(user_id: str, credits_amount: int) -> bool:
+async def _claim_trial_row(user_id: str, credits_amount: int):
     """
-    Insert 1 dòng vào trial_claims(user_id PRIMARY KEY, ...).
-    user_id là khóa chính => 2 request cùng lúc (double-click, tab kép) chỉ 1 cái insert được,
-    cái còn lại nhận lỗi 409 (unique violation) => an toàn tuyệt đối trước khi cộng token.
+    Insert 1 dòng plan='free_trial' vào subscriptions. Unique index trên (user_id) WHERE
+    plan='free_trial' đảm bảo mỗi user chỉ 1 dòng => 2 request cùng lúc chỉ 1 cái insert được.
+    Trả về: True = thành công | False = đã nhận rồi (409 thật từ DB) | None = lỗi hệ thống khác
+    (bảng/kết nối lỗi...) — KHÔNG được hiểu nhầm là "đã nhận rồi".
     """
-    url, h = _sb_trial()
+    url, h = _sb_subs()
     async with httpx.AsyncClient(timeout=10) as c:
         r = await c.post(url, headers={**h, "Prefer": "return=minimal"},
-                          json={"user_id": user_id, "credits": credits_amount})
+                          json={"user_id": user_id, "plan": "free_trial",
+                                "credits": credits_amount, "status": "active"})
     if r.status_code == 409:
         return False
     if r.status_code >= 400:
-        log.error(f"trial_claims insert lỗi {r.status_code}: {r.text[:200]}")
-        return False
+        log.error(f"subscriptions insert (free_trial) lỗi {r.status_code}: {r.text[:200]}")
+        return None
     return True
 
 
 async def _delete_trial_row(user_id: str) -> None:
-    """Gỡ claim nếu add_credit thất bại sau đó, để user thử lại được thay vì mất suất."""
-    url, h = _sb_trial()
+    """Gỡ dòng free_trial nếu add_credit thất bại sau đó, để user thử lại được thay vì mất suất."""
+    url, h = _sb_subs()
     async with httpx.AsyncClient(timeout=10) as c:
-        await c.delete(url, headers=h, params={"user_id": f"eq.{user_id}"})
+        await c.delete(url, headers=h, params={"user_id": f"eq.{user_id}", "plan": "eq.free_trial"})
 
 
-def _client_ip(request: Request) -> str:
+async def record_premium_subscription(user_id: str, expires_at: str | None = None) -> bool:
+    """
+    Ghi 1 dòng plan='premium' vào subscriptions. Dùng khi admin nâng role user lên premium
+    (gọi hàm này từ main.py ở route /api/credit/set-role), hoặc khi có luồng thanh toán premium sau này.
+    Không giới hạn số dòng premium/user (cho phép lưu lịch sử gia hạn).
+    """
+    url, h = _sb_subs()
+    async with httpx.AsyncClient(timeout=10) as c:
+        r = await c.post(url, headers={**h, "Prefer": "return=minimal"},
+                          json={"user_id": user_id, "plan": "premium",
+                                "status": "active", "expires_at": expires_at})
+    if r.status_code >= 400:
+        log.error(f"subscriptions insert (premium) lỗi {r.status_code}: {r.text[:200]}")
+        return False
+    return True
     ip = ""
     for h in ("cf-connecting-ip", "x-real-ip"):
         if request.headers.get(h):
@@ -177,16 +193,13 @@ async def claim_trial(user: dict = Depends(auth.require_auth)):
     if role in UNLIMITED_ROLES:
         return JSONResponse(status_code=400, content={"error": "Tài khoản của bạn đã dùng không giới hạn, không cần gói dùng thử"})
 
-    if not await _claim_trial_row(user["id"], TRIAL_CREDITS):
+    claim = await _claim_trial_row(user["id"], TRIAL_CREDITS)
+    if claim is False:
         return JSONResponse(status_code=409, content={"error": "Bạn đã nhận gói dùng thử rồi, mỗi tài khoản chỉ nhận 1 lần"})
+    if claim is None:
+        return JSONResponse(status_code=503, content={"error": "Lỗi hệ thống, vui lòng thử lại sau"})
 
-    try:
-        new_balance = await credits.add_credit(user["id"], TRIAL_CREDITS)
-    except Exception as e:
-        log.error(f"add_credit crash khi claim trial cho user {user['id']}: {e}")
-        await _delete_trial_row(user["id"])  # gỡ claim để user bấm lại được
-        return JSONResponse(status_code=503, content={"error": "Có lỗi khi cộng token, thử lại sau"})
-
+    new_balance = await credits.add_credit(user["id"], TRIAL_CREDITS)
     if new_balance is None:
         await _delete_trial_row(user["id"])  # gỡ claim để user bấm lại được
         return JSONResponse(status_code=503, content={"error": "Có lỗi khi cộng token, thử lại sau"})
