@@ -152,6 +152,9 @@ async def _delete_trial_row(user_id: str) -> None:
     url, h = _sb_trial()
     async with httpx.AsyncClient(timeout=10) as c:
         await c.delete(url, headers=h, params={"user_id": f"eq.{user_id}"})
+
+
+def _client_ip(request: Request) -> str:
     ip = ""
     for h in ("cf-connecting-ip", "x-real-ip"):
         if request.headers.get(h):
@@ -177,7 +180,13 @@ async def claim_trial(user: dict = Depends(auth.require_auth)):
     if not await _claim_trial_row(user["id"], TRIAL_CREDITS):
         return JSONResponse(status_code=409, content={"error": "Bạn đã nhận gói dùng thử rồi, mỗi tài khoản chỉ nhận 1 lần"})
 
-    new_balance = await credits.add_credit(user["id"], TRIAL_CREDITS)
+    try:
+        new_balance = await credits.add_credit(user["id"], TRIAL_CREDITS)
+    except Exception as e:
+        log.error(f"add_credit crash khi claim trial cho user {user['id']}: {e}")
+        await _delete_trial_row(user["id"])  # gỡ claim để user bấm lại được
+        return JSONResponse(status_code=503, content={"error": "Có lỗi khi cộng token, thử lại sau"})
+
     if new_balance is None:
         await _delete_trial_row(user["id"])  # gỡ claim để user bấm lại được
         return JSONResponse(status_code=503, content={"error": "Có lỗi khi cộng token, thử lại sau"})
