@@ -63,9 +63,16 @@ async def get_profile(user_id: str) -> dict | None:
             headers=_headers(),
             params={"id": f"eq.{user_id}", "select": "*,roles(name)"},
         )
-        r.raise_for_status()
-        rows = r.json()
-        return rows[0] if rows else None
+    if r.status_code == 404:
+        # 404 từ PostgREST nghĩa là bảng/route không thấy trong schema cache
+        # (khác với "có bảng nhưng 0 dòng khớp" — cái đó trả 200 kèm []).
+        # Không raise ở đây để tránh làm sập các luồng gọi add_credit/deduct_credit
+        # (từng gây crash dở dang, mất token của user) — coi như "chưa có profile".
+        log.error(f"get_profile: PostgREST trả 404 cho bảng profiles — kiểm tra lại schema cache trên Supabase")
+        return None
+    r.raise_for_status()
+    rows = r.json()
+    return rows[0] if rows else None
 
 
 async def deduct_credit(user_id: str, amount: int = 1, max_retries: int = 3) -> tuple[bool, int, str]:
