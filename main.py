@@ -653,7 +653,7 @@ app = FastAPI(title="Market Research Hub", lifespan=lifespan)
 setup_cors(app)
 app.add_middleware(SecurityHeadersMiddleware)
 app.mount("/static", StaticFiles(directory="static"), name="static")
-app.include_router(payments.router)
+app.include_router(Payments.router)
 
 register_limiter = RateLimiter(max_requests=5, window_seconds=3600)  # 5 lần đăng ký/IP/giờ
 
