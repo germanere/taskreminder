@@ -1349,76 +1349,83 @@ async def get_calendar():
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
 
-_news_cache: dict = {}
-NEWS_TTL = 3600  # 1 giờ
+_cal_cache: dict = {}
+CAL_TTL = 3600  # 1 giờ (đổi tên để không đè NEWS_TTL của cụm RSS)
+
+
+def _extract_json_array(text: str):
+    """Lấy mảng JSON đầu tiên trong text, chịu được markdown/chữ thừa."""
+    text = (text or "").strip()
+    start, end = text.find("["), text.rfind("]")
+    if start == -1 or end <= start:
+        raise ValueError("Không tìm thấy JSON array trong phản hồi")
+    return json.loads(text[start:end + 1])
+
 
 @app.get("/api/news-calendar")
 async def get_news_calendar():
-    """
-    Dùng Gemini (Google Search grounding) lấy tin tức + lịch sự kiện
-    liên quan FED, lãi suất, chứng khoán VN/Mỹ, crypto trong tuần.
-    Trả về list các event để render vào bảng "Lịch sự kiện".
-    Cache 1 giờ.
-    """
     now = time.time()
-    cached = _news_cache.get("calendar")
-    if cached and (now - cached["ts"]) < NEWS_TTL:
+    cached = _cal_cache.get("calendar")
+    if cached and (now - cached["ts"]) < CAL_TTL:
         return cached["data"]
 
     if not GEMINI_API_KEY:
         return JSONResponse(status_code=503, content={"error": "GEMINI_API_KEY chưa được cấu hình"})
 
     today_str = datetime.now(ICT).strftime("%d/%m/%Y")
-
     prompt = (
-        f"Hôm nay là {today_str}. Tìm kiếm và liệt kê các tin tức/sự kiện kinh tế "
-        f"QUAN TRỌNG trong 7 ngày tới liên quan đến: FED, lãi suất Mỹ, CPI, NFP, "
-        f"thị trường chứng khoán Mỹ (S&P500, Nasdaq), chứng khoán Việt Nam (VN-Index, HOSE), "
-        f"và thị trường crypto (Bitcoin, Ethereum, ETF, regulation).\n\n"
-        f"Trả về DUY NHẤT một JSON array, không markdown, không giải thích, theo format:\n"
+        f"Hôm nay là {today_str}. Tìm kiếm và liệt kê các sự kiện/tin tức QUAN TRỌNG "
+        f"trong 14 ngày tới, gồm:\n"
+        f"1. Vĩ mô: FED, lãi suất Mỹ, CPI, NFP, S&P500, Nasdaq.\n"
+        f"2. Chứng khoán Việt Nam (VN-Index, HOSE): họp ĐHCĐ, ngày giao dịch không hưởng quyền "
+        f"(cổ tức, phát hành thêm), công bố kết quả kinh doanh, chính sách mới của UBCKNN/HOSE.\n"
+        f"3. Crypto: Bitcoin, Ethereum, ETF, quy định pháp lý.\n\n"
+        f"Chỉ trả về MỘT JSON array, không markdown, không giải thích, theo format:\n"
         f'[{{"date": "DD/MM/YYYY", "time": "HH:MM", "event": "Tên sự kiện ngắn gọn tiếng Việt", '
         f'"impact": "high|medium|low", "category": "fed|stock|crypto|macro", '
-        f'"summary": "Tóm tắt 1 câu ngắn về sự kiện/dự báo"}}]\n\n'
-        f"Tối đa 10 sự kiện, sắp xếp theo ngày gần nhất trước. Chỉ trả JSON, không có markdown code block."
+        f'"summary": "Tóm tắt 1 câu"}}]\n'
+        f"Tối đa 15 sự kiện, sắp xếp theo ngày gần nhất trước. Nếu không rõ giờ thì để \"--\"."
     )
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=45) as client:
             r = await client.post(
                 GEMINI_URL,
                 json={
                     "contents": [{"role": "user", "parts": [{"text": prompt}]}],
                     "tools": [{"google_search": {}}],
-                    "generationConfig": {"temperature": 0.3, "maxOutputTokens": 2048},
+                    "generationConfig": {
+                        "temperature": 0.2,
+                        "maxOutputTokens": 8192,                 # tăng từ 2048
+                        "thinkingConfig": {"thinkingBudget": 0},  # tắt thinking để không ăn token
+                    },
                 },
             )
         data = r.json()
-        text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
 
-        # Strip markdown fences nếu có
-        text = text.strip()
-        if text.startswith("```"):
-            text = re.sub(r"^```[a-zA-Z]*\n?", "", text)
-            text = re.sub(r"```$", "", text).strip()
+        if "error" in data:
+            raise ValueError(f"Gemini API: {data['error'].get('message', data['error'])}")
 
-        events = json.loads(text)
-        if not isinstance(events, list):
-            raise ValueError("Gemini response is not a list")
+        cand = (data.get("candidates") or [{}])[0]
+        parts = cand.get("content", {}).get("parts", [])
+        text = "".join(p.get("text", "") for p in parts)   # ghép mọi part, không chỉ part đầu
 
-        _news_cache["calendar"] = {"ts": now, "data": events}
+        if not text:
+            raise ValueError(f"Gemini trả rỗng (finishReason={cand.get('finishReason')})")
+
+        events = _extract_json_array(text)
+        if not isinstance(events, list) or not events:
+            raise ValueError("Gemini trả danh sách rỗng")
+
+        _cal_cache["calendar"] = {"ts": now, "data": events}
         log.info(f"News calendar: Gemini OK — {len(events)} events")
         return events
 
     except Exception as e:
         log.error(f"News calendar error: {e}")
-        # Fallback về calendar tĩnh nếu Gemini lỗi
-        if cached:
+        if cached:                       # có bản cũ thì dùng, không thì báo lỗi thật
             return cached["data"]
-        now_dt = datetime.now(ICT)
-        return [
-            {"date": (now_dt + timedelta(days=1)).strftime("%d/%m/%Y"), "time": "19:30", "event": "US CPI MoM", "impact": "high", "category": "macro", "summary": "Chỉ số giá tiêu dùng Mỹ"},
-            {"date": (now_dt + timedelta(days=2)).strftime("%d/%m/%Y"), "time": "02:00", "event": "FED Rate Decision", "impact": "high", "category": "fed", "summary": "Quyết định lãi suất FED"},
-        ]
+        return JSONResponse(status_code=502, content={"error": f"Không lấy được lịch sự kiện: {e}"})
 
 # ─────────────────────────────────────────────
 # CHATBOT — Gemini proxy (tránh CORS từ frontend)
