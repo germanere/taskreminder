@@ -867,31 +867,61 @@ async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
 
 _coingecko_cache: dict = {}
 COINGECKO_TTL = 60
+COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY", "")
 
 async def _coingecko_get(url: str, ttl: int = COINGECKO_TTL):
     cached = _coingecko_cache.get(url)
     if cached and (time.time() - cached[0]) < ttl:
         return cached[1]
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(url)
-        if r.status_code == 429:
-            return cached[1] if cached else []
+
+    headers = {"accept": "application/json"}
+    if COINGECKO_API_KEY:
+        headers["x-cg-demo-api-key"] = COINGECKO_API_KEY
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(url, headers=headers)
+
+        if r.status_code != 200:
+            log.warning(f"CoinGecko HTTP {r.status_code}: {r.text[:200]}")
+            if cached:
+                return cached[1]
+            raise ValueError(f"CoinGecko trả về HTTP {r.status_code}")
+
         data = r.json()
-    _coingecko_cache[url] = (time.time(), data)
-    return data
+        if data:
+            _coingecko_cache[url] = (time.time(), data)
+        return data
+
+    except Exception as e:
+        log.error(f"CoinGecko error: {e}")
+        if cached:
+            return cached[1]
+        raise
+
 
 @app.get("/api/crypto/prices")
 async def get_crypto_prices(ids: str = "bitcoin,ethereum,solana,binancecoin,ripple"):
     url = (f"https://api.coingecko.com/api/v3/simple/price"
            f"?ids={ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true")
-    return await _coingecko_get(url)
+    try:
+        return await _coingecko_get(url)
+    except Exception as e:
+        return JSONResponse(status_code=502, content={"error": str(e)})
+
 
 @app.get("/api/crypto/top200")
 async def get_top200(page: int = 1):
     url = (f"https://api.coingecko.com/api/v3/coins/markets"
            f"?vs_currency=usd&order=market_cap_desc&per_page=100&page={page}"
            f"&sparkline=false&price_change_percentage=24h,7d")
-    return await _coingecko_get(url, ttl=300)
+    try:
+        data = await _coingecko_get(url, ttl=300)
+        if not isinstance(data, list) or not data:
+            return JSONResponse(status_code=502, content={"error": "CoinGecko trả về dữ liệu không hợp lệ"})
+        return data
+    except Exception as e:
+        return JSONResponse(status_code=502, content={"error": str(e)})
 
 # ─────────────────────────────────────────────
 # REST — FEAR & GREED
