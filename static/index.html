@@ -1143,22 +1143,40 @@ function loadOverview() {
   loadGlobalMarkets();
 }
 
-let cryptoData  = [];
-let cryptoPage  = 0;
+const CRYPTO_LIMIT = 100;
 const cryptoPer = 20;
 
+let cryptoData = [];
+let cryptoPage = 0;
+let cryptoLoading = false;
+
+function setCryptoMessage(msg, isError = false) {
+  const tr = document.createElement("tr");
+  const td = document.createElement("td");
+  td.colSpan = 6;
+  td.className = isError ? "loading error" : "loading";
+  td.textContent = msg;
+  tr.appendChild(td);
+  document.getElementById("crypto-tbody").replaceChildren(tr);
+}
+
 async function loadCryptoTop200() {
+  if (cryptoLoading) return; // chặn gọi trùng
+  cryptoLoading = true;
+  setCryptoMessage("⏳ Đang tải dữ liệu...");
+
   try {
-    const [p1, p2] = await Promise.all([
-      apiFetch("/api/crypto/top200?page=1"),
-      apiFetch("/api/crypto/top200?page=2"),
-    ]);
-    cryptoData = [...(Array.isArray(p1) ? p1 : []), ...(Array.isArray(p2) ? p2 : [])];
+    const res = await apiFetch("/api/crypto/top200?page=1");
+    if (!Array.isArray(res) || res.length === 0) {
+      throw new Error("Không có dữ liệu trả về");
+    }
+    cryptoData = res.slice(0, CRYPTO_LIMIT);
     cryptoPage = 0;
     renderCryptoTable();
   } catch (e) {
-    document.getElementById("crypto-tbody").innerHTML =
-      `<tr><td colspan="6" class="loading">Lỗi tải dữ liệu: ${e.message}</td></tr>`;
+    setCryptoMessage(`Lỗi tải dữ liệu: ${e.message}`, true);
+  } finally {
+    cryptoLoading = false;
   }
 }
 
