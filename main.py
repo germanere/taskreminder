@@ -865,61 +865,93 @@ async def get_klines(symbol: str = "BTCUSDT", interval: str = "1h", limit: int =
 # REST — CRYPTO PRICES (CoinGecko)
 # ─────────────────────────────────────────────
 
-_coingecko_cache: dict = {}
-COINGECKO_TTL = 60
-COINGECKO_API_KEY = os.getenv("COINGECKO_API_KEY", "")
+_coingecko_cache: dict = {}   # giữ lại: get_global_markets đang dùng
 
-async def _coingecko_get(url: str, ttl: int = COINGECKO_TTL):
-    cached = _coingecko_cache.get(url)
-    if cached and (time.time() - cached[0]) < ttl:
-        return cached[1]
+_paprika_cache: dict = {"ts": 0, "data": []}
+PAPRIKA_TTL = 300  # 5 phút
 
-    headers = {"accept": "application/json"}
-    if COINGECKO_API_KEY:
-        headers["x-cg-demo-api-key"] = COINGECKO_API_KEY
+# Map id CoinGecko (tab Tổng quan) -> id CoinPaprika
+PAPRIKA_ID_MAP = {
+    "bitcoin":     "btc-bitcoin",
+    "ethereum":    "eth-ethereum",
+    "solana":      "sol-solana",
+    "binancecoin": "bnb-binance-coin",
+    "ripple":      "xrp-xrp",
+}
+
+async def _get_paprika_top() -> list:
+    """Lấy top 200 coin từ CoinPaprika, trả về cùng tên trường với CoinGecko."""
+    now = time.time()
+    if _paprika_cache["data"] and (now - _paprika_cache["ts"]) < PAPRIKA_TTL:
+        return _paprika_cache["data"]
 
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(url, headers=headers)
-
+        async with httpx.AsyncClient(timeout=20) as client:
+            r = await client.get(
+                "https://api.coinpaprika.com/v1/tickers",
+                params={"quotes": "USD"},
+                headers={"accept": "application/json"},
+            )
         if r.status_code != 200:
-            log.warning(f"CoinGecko HTTP {r.status_code}: {r.text[:200]}")
-            if cached:
-                return cached[1]
-            raise ValueError(f"CoinGecko trả về HTTP {r.status_code}")
+            raise ValueError(f"CoinPaprika trả về HTTP {r.status_code}")
 
-        data = r.json()
-        if data:
-            _coingecko_cache[url] = (time.time(), data)
+        raw = r.json()
+        if not isinstance(raw, list) or not raw:
+            raise ValueError("CoinPaprika trả về dữ liệu rỗng")
+
+        raw = [c for c in raw if c.get("rank")]      # bỏ coin chưa xếp hạng (rank 0)
+        raw.sort(key=lambda c: c["rank"])
+
+        data = []
+        for c in raw[:200]:
+            q = (c.get("quotes") or {}).get("USD") or {}
+            data.append({
+                "id": c.get("id"),
+                "symbol": (c.get("symbol") or "").lower(),
+                "name": c.get("name"),
+                "market_cap_rank": c.get("rank"),
+                "current_price": q.get("price"),
+                "market_cap": q.get("market_cap"),
+                "price_change_percentage_24h": q.get("percent_change_24h"),
+                "price_change_percentage_7d_in_currency": q.get("percent_change_7d"),
+            })
+
+        _paprika_cache["ts"] = now
+        _paprika_cache["data"] = data
         return data
 
     except Exception as e:
-        log.error(f"CoinGecko error: {e}")
-        if cached:
-            return cached[1]
+        log.error(f"CoinPaprika error: {e}")
+        if _paprika_cache["data"]:          # lỗi thì dùng cache cũ
+            return _paprika_cache["data"]
         raise
 
 
 @app.get("/api/crypto/prices")
 async def get_crypto_prices(ids: str = "bitcoin,ethereum,solana,binancecoin,ripple"):
-    url = (f"https://api.coingecko.com/api/v3/simple/price"
-           f"?ids={ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true")
     try:
-        return await _coingecko_get(url)
+        data = await _get_paprika_top()
+        by_id = {c["id"]: c for c in data}
+        out = {}
+        for gid in [i.strip() for i in ids.split(",") if i.strip()]:
+            c = by_id.get(PAPRIKA_ID_MAP.get(gid, ""))
+            if c:
+                out[gid] = {
+                    "usd": c["current_price"],
+                    "usd_24h_change": c["price_change_percentage_24h"],
+                    "usd_market_cap": c["market_cap"],
+                }
+        return out
     except Exception as e:
         return JSONResponse(status_code=502, content={"error": str(e)})
 
 
 @app.get("/api/crypto/top200")
 async def get_top200(page: int = 1):
-    url = (f"https://api.coingecko.com/api/v3/coins/markets"
-           f"?vs_currency=usd&order=market_cap_desc&per_page=100&page={page}"
-           f"&sparkline=false&price_change_percentage=24h,7d")
     try:
-        data = await _coingecko_get(url, ttl=300)
-        if not isinstance(data, list) or not data:
-            return JSONResponse(status_code=502, content={"error": "CoinGecko trả về dữ liệu không hợp lệ"})
-        return data
+        data = await _get_paprika_top()
+        start = (max(1, page) - 1) * 100
+        return data[start:start + 100]
     except Exception as e:
         return JSONResponse(status_code=502, content={"error": str(e)})
 
