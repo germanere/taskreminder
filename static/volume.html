@@ -363,10 +363,10 @@ async function loadData() {
   const sub = document.getElementById("hdr-sub");
   btn.disabled = true;
   btn.textContent = "Đang quét...";
-  sub.textContent = "Đang quét khối lượng 250 mã HOSE (có thể mất khoảng nửa phút lần đầu)...";
+  sub.textContent = "Đang quét khối lượng mã HOSE (có thể mất khoảng nửa phút lần đầu)...";
 
   document.getElementById("table-wrap").innerHTML =
-    `<div class="loading-state"><div class="spinner"></div><div>Đang quét khối lượng 250 mã HOSE...</div></div>`;
+    `<div class="loading-state"><div class="spinner"></div><div>Đang quét khối lượng mã HOSE...</div></div>`;
 
   try {
     const res = await fetch(`${API}/api/vn/top-volume-week?limit=30`);
